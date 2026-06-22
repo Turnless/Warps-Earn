@@ -54,6 +54,7 @@ router.get('/', async (req, res) => {
             const firstName = parsedUser?.first_name || "User Node";
             const photoUrl = parsedUser?.photo_url || null;
             const upline = req.query.startapp || null; // Capture invitation referral code if present
+            const todayStr = new Date().toISOString().split('T')[0];
 
             // Create a hardware verification hash placeholder for local dev environments
             const hardwareHash = crypto.createHash('md5').update(telegramId + Date.now()).digest('hex');
@@ -70,6 +71,21 @@ router.get('/', async (req, res) => {
                 referred_by: upline,
                 upline: upline,
                 referrer_id: upline,
+                cooldown_until: 0,
+                current_session_loop: 0,
+                daily_tracker: {
+                    date: todayStr,
+                    count: 0
+                },
+                quests: {
+                    channel: false,
+                    group: false,
+                    payout_channel: false,
+                    x_account: false,
+                    sybil_verified: false
+                },
+                earnings_history: [],
+                referrals: [],
                 registered_timestamp: Date.now()
             });
 
