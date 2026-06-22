@@ -1,17 +1,27 @@
 const Queue = require('bull');
 const fetch = require('node-fetch');
+const Redis = require('ioredis');
 require('dotenv').config();
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "8631881085:AAHTPWtPuA6x64z7rj4rMwiX5NCZe5uW1VY";
+const { REDIS_OPTS } = require('./redis');
 
 console.log(`📡 [Queue] Initializing Telegram notification queue on Redis...`);
 
-const telegramQueue = new Queue('telegramNotifications', REDIS_URL);
+// Bull creates 3 internal Redis connections. Use createClient so they all
+// inherit the Upstash-compatible options (maxRetriesPerRequest: null, etc.)
+const telegramQueue = new Queue('telegramNotifications', {
+    createClient(type) {
+        return new Redis(REDIS_URL, REDIS_OPTS);
+    }
+});
 
 // Register error listener to prevent unhandled Redis connection reset crashes
 telegramQueue.on('error', (err) => {
-    console.error('⚠️ [Queue] Bull queue connection error:', err.message);
+    if (!err.message.includes('ECONNRESET')) {
+        console.error('⚠️ [Queue] Bull queue connection error:', err.message);
+    }
 });
 
 
