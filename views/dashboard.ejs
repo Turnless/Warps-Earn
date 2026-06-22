@@ -42,6 +42,9 @@
             padding-bottom: 95px !important;
         }
     </style>
+
+    <!-- OnClickA Ad Manager SDK -->
+    <script src="https://js.onclckvd.com/in-stream-ad-admanager/tma.js"></script>
 </head>
 
 <body class="min-h-screen flex flex-col items-center justify-start p-4 selection:bg-neutral-800 selection:text-[#e6ddd0]">
@@ -1099,9 +1102,10 @@
         // --- 🛠️ PHASE 2: DECENTRALIZED MULTI-NETWORK AD ROTATION ENGINE ---
         const AdConfiguration = {
             // Video / Rewarded Video Only
-            adsgram: { enabled: true, blockId: "35942" },
+            adsgram: { enabled: true, blockId: "35947" },
+            // OnClickA Rewarded Video Spots
+            onclicka: { enabled: true, spotIds: ["445824", "445825", "445825"] },
             // Direct Smartlinks (Banner/Video pages only, no interstitial scripts)
-            onclicka: { enabled: true, adUrl: "https://js.onclckmn.com/static/onclicka.js" },
             monetag: { enabled: true, adUrl: "https://refpaqum.com/smartlink/direct" },
             andsor: { enabled: true, adUrl: "https://andsor.placeholder/smartlink" },
             telegaio: { enabled: true, adUrl: "https://telega.placeholder/smartlink" }
@@ -1110,6 +1114,9 @@
         // ✅ FIXED: Only using standard Rewarded Video controller. 
         // AdsgramTaskController is safely omitted since we use <adsgram-task> HTML directly.
         let AdsgramController = null;
+        let OnClickAShowAd1 = null;
+        let OnClickAShowAd2 = null;
+        let OnClickAShowAd3 = null;
 
         function initAdsgram() {
             if (window.Adsgram) {
@@ -1117,6 +1124,20 @@
                     blockId: AdConfiguration.adsgram.blockId,
                     debug: true
                 });
+            }
+        }
+
+        function initOnClickA() {
+            if (window.initCdTma) {
+                if (AdConfiguration.onclicka.spotIds[0] !== "SPOT_ID_1_HERE") {
+                    window.initCdTma({ id: AdConfiguration.onclicka.spotIds[0] }).then(show => OnClickAShowAd1 = show).catch(e => console.warn("OnClickA 1 Error:", e));
+                }
+                if (AdConfiguration.onclicka.spotIds[1] !== "SPOT_ID_2_HERE") {
+                    window.initCdTma({ id: AdConfiguration.onclicka.spotIds[1] }).then(show => OnClickAShowAd2 = show).catch(e => console.warn("OnClickA 2 Error:", e));
+                }
+                if (AdConfiguration.onclicka.spotIds[2] !== "SPOT_ID_3_HERE") {
+                    window.initCdTma({ id: AdConfiguration.onclicka.spotIds[2] }).then(show => OnClickAShowAd3 = show).catch(e => console.warn("OnClickA 3 Error:", e));
+                }
             }
         }
 
@@ -1180,11 +1201,21 @@
                             }
                         }
                         else if (network === 'onclicka' && AdConfiguration.onclicka.enabled) {
-                            const completed = await triggerFallbackOverlay(AdConfiguration.onclicka.adUrl);
-                            if (completed) {
-                                adsCompletedCount++;
-                                adLoadedSuccessfully = true;
-                                showToast(`Ad ${i}/${totalChainSteps} (OnClickA) completed!`, "✓", 1500);
+                            // Try each configured OnClickA spot in sequence until one works
+                            const showFns = [OnClickAShowAd1, OnClickAShowAd2, OnClickAShowAd3].filter(fn => fn !== null);
+                            for (let showFn of showFns) {
+                                try {
+                                    await showFn();
+                                    adsCompletedCount++;
+                                    adLoadedSuccessfully = true;
+                                    showToast(`Ad ${i}/${totalChainSteps} (OnClickA) completed!`, "✓", 1500);
+                                    break; // Stop trying spots if one succeeded
+                                } catch (err) {
+                                    console.warn("OnClickA specific spot failed, trying next spot if available...", err);
+                                }
+                            }
+                            if (!adLoadedSuccessfully) {
+                                throw new Error("All OnClickA spots failed or were not configured.");
                             }
                         }
                         else if (network === 'monetag' && AdConfiguration.monetag.enabled) {
@@ -1459,6 +1490,7 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             initAdsgram(); 
+            initOnClickA();
 
             // ✅ FIXED: Safely binds listener exclusively to the auto-loading Adsgram HTML web component
             const taskAdElement = document.getElementById('adsgram-task-element');

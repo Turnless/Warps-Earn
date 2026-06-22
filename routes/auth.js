@@ -66,7 +66,7 @@ router.get('/', async (req, res) => {
                 photo_url: photoUrl,
                 points_balance: 0,
                 total_ads_watched: 0,
-                onboarding_passed: true, // Auto-pass for immediate local dashboard validation testing
+                onboarding_passed: false, // 🔒 SECURED: Forced Sybil Validation
                 device_hardware_hash: hardwareHash,
                 referred_by: upline,
                 upline: upline,
@@ -90,6 +90,11 @@ router.get('/', async (req, res) => {
             });
 
             await user.save();
+        }
+
+        // 🔒 SECURITY CHECKPOINT: Enforce Sybil Validation
+        if (!user.onboarding_passed) {
+            return res.redirect(`/onboarding?id=${telegramId}&upline=${user.upline || 'none'}`);
         }
 
         return res.redirect(`/dashboard?id=${telegramId}`);
