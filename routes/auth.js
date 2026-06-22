@@ -28,9 +28,9 @@ router.get('/', async (req, res) => {
         console.warn("Global tracking identity evaluation skipped:", e.message);
     }
 
-    // Fallback block if everything is completely empty
+    // Fallback block if everything is completely empty (e.g. opened via t.me/bot/app direct link)
     if (!telegramId) {
-        return res.status(400).send("Identity validation failed. Please open the bot directly from Telegram.");
+        return res.render("loader");
     }
 
     try {
