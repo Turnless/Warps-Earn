@@ -14,22 +14,30 @@ const server = app.listen(PORT, async () => {
     console.log(`📡 Server running on port ${PORT}`);
     
     if (bot) {
-        try {
-            console.log("🤖 Launching Telegram long-polling worker...");
-            // Force delete any active production webhooks so long-polling works
-            await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-            
-            // CRITICAL: bot.launch() returns a Promise. Must .catch() it or a 409
-            // Conflict (another instance polling) will crash the entire process.
-            bot.launch().catch((botErr) => {
-                console.error("⚠️ Bot long-polling stopped:", botErr.message);
+        console.log("🤖 Launching Telegram long-polling worker...");
+        
+        const startBotPolling = async () => {
+            try {
+                // Force delete any active production webhooks so long-polling works
+                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+                
+                bot.launch().catch((botErr) => {
+                    console.error("⚠️ Bot long-polling stopped:", botErr.message);
+                    if (botErr.message && botErr.message.includes('409: Conflict')) {
+                        console.log("🔄 Retrying bot connection in 5 seconds... (Waiting for old instance to shut down)");
+                        setTimeout(startBotPolling, 5000);
+                    } else {
+                        console.log("📡 HTTP server remains online. Web app is still functional.");
+                    }
+                });
+                console.log("✅ Bot listener is active. The event loop is locked online.");
+            } catch (botError) {
+                console.error("⚠️ Failed to boot bot long-polling daemon:", botError.message);
                 console.log("📡 HTTP server remains online. Web app is still functional.");
-            });
-            console.log("✅ Bot listener is active. The event loop is locked online.");
-        } catch (botError) {
-            console.error("⚠️ Failed to boot bot long-polling daemon:", botError.message);
-            console.log("📡 HTTP server remains online. Web app is still functional.");
-        }
+            }
+        };
+
+        startBotPolling();
     }
 });
 

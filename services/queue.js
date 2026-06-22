@@ -3,9 +3,8 @@ const fetch = require('node-fetch');
 const Redis = require('ioredis');
 require('dotenv').config();
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "8631881085:AAHTPWtPuA6x64z7rj4rMwiX5NCZe5uW1VY";
-const { REDIS_OPTS } = require('./redis');
+const { REDIS_OPTS, REDIS_URL } = require('./redis');
 
 console.log(`📡 [Queue] Initializing Telegram notification queue on Redis...`);
 
