@@ -5,8 +5,29 @@ const fs = require("fs");
 const mongoose = require("mongoose");
 
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ad-earn-bot";
-console.log("📡 [Database] Connecting to MongoDB at " + MONGODB_URI);
-mongoose.connect(MONGODB_URI)
+
+// Ensure the connection string includes a database name.
+// Atlas URIs often end with "...mongodb.net:27017/?ssl=..." (no db name) which
+// causes Mongoose to default to the "test" database silently.
+function ensureDbName(uri) {
+    // Match the pattern: ...port/  immediately followed by ? (no db name)
+    // e.g. :27017/?ssl=true  →  :27017/ad-earn-bot?ssl=true
+    if (/:\d+\/\?/.test(uri)) {
+        return uri.replace(/:\d+\/\?/, (match) => match.replace('/?', '/ad-earn-bot?'));
+    }
+    // If no query string at all: ...port/  →  ...port/ad-earn-bot
+    if (/:\d+\/?$/.test(uri)) {
+        return uri.replace(/\/?$/, '/ad-earn-bot');
+    }
+    return uri;
+}
+
+const finalUri = ensureDbName(MONGODB_URI);
+console.log("📡 [Database] Connecting to MongoDB...");
+mongoose.connect(finalUri, {
+    serverSelectionTimeoutMS: 10000,   // Fail fast if Atlas is unreachable
+    socketTimeoutMS: 45000,            // Kill idle sockets after 45s
+})
   .then(() => console.log("📡 [Database] MongoDB connection established successfully."))
   .catch(err => console.error("❌ [Database] MongoDB connection error:", err.message));
 
