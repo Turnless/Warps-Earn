@@ -1,0 +1,171 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Watch Ads & Earn</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Space Grotesk', sans-serif; background-color: #e6ddd0; color: #1a1a16; }
+        .mono-text { font-family: 'Geist Mono', monospace; }
+        .carousel-track { display: flex; transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1); width: 100%; }
+        .slide { width: 100%; flex-shrink: 0; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-4 user-select-none">
+
+<!-- 🔝 APP HEADER ROW (Updated to show current loop tier context) -->
+    <header class="w-full max-w-md flex items-center justify-between mt-2 mb-4 px-1 relative">
+        <div class="flex flex-col text-left">
+            <span class="text-xs uppercase tracking-widest text-neutral-600 font-semibold mono-text">Loop <%= loopDisplay %>/3</span>
+            <span class="text-[11px] font-bold text-neutral-500 mt-0.5 mono-text">Today's Total: <%= adsRemaining %>/100 Left</span>
+        </div>
+        
+        <button onclick="confirmExitCampaign()" class="bg-white/50 hover:bg-white border border-neutral-300 text-neutral-800 text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition-all active:scale-95">
+            ✕ Exit
+        </button>
+    </header>
+
+    <main class="w-full max-w-md flex-1 flex flex-col justify-center my-auto gap-3">
+        
+        <div id="cheatWarning" class="hidden w-full bg-red-950 text-red-200 border border-red-800 rounded-2xl p-3.5 text-center text-xs font-medium tracking-wide">
+            ⚠️ <b>Timer Paused!</b> You left the app screen. You must keep this page open to earn rewards.
+        </div>
+
+        <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm overflow-hidden relative">
+            <div class="w-full overflow-hidden relative">
+                <div class="carousel-track" id="carousel-track">
+                    
+                    <div class="slide px-1 text-center">
+                        <img class="w-full h-44 object-cover rounded-2xl mb-4 border border-neutral-200" src="https://images.unsplash.com/photo-1614741118887-7a4ee193a5fa?q=80&w=400">
+                        <h3 class="text-lg font-bold text-neutral-900">Play Premium Crypto Games</h3>
+                        <p class="text-xs text-neutral-600 mt-1 mb-5 px-4">Join active gaming events and claim real tokens instantly inside your wallet dashboard.</p>
+                        <div class="w-12 h-12 rounded-full border-2 border-neutral-950 bg-neutral-950 text-[#e6ddd0] flex items-center justify-center font-bold mx-auto text-sm mono-text" id="timer-1">15</div>
+                    </div>
+
+                    <div class="slide px-1 text-center">
+                        <img class="w-full h-44 object-cover rounded-2xl mb-4 border border-neutral-200" src="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400">
+                        <h3 class="text-lg font-bold text-neutral-900">Secure Crypto Staking</h3>
+                        <p class="text-xs text-neutral-600 mt-1 mb-5 px-4">Grow your portfolio daily by locking your digital coins into highly trusted pool infrastructure.</p>
+                        <div class="w-12 h-12 rounded-full border-2 border-neutral-300 bg-neutral-100 text-neutral-400 flex items-center justify-center font-bold mx-auto text-xs uppercase" id="timer-2">Locked</div>
+                    </div>
+
+                    <div class="slide px-1 text-center">
+                        <img class="w-full h-44 object-cover rounded-2xl mb-4 border border-neutral-200" src="https://images.unsplash.com/photo-1621761191319-c6fb62004040?q=80&w=400">
+                        <h3 class="text-lg font-bold text-neutral-900">Automated Yield Earnings</h3>
+                        <p class="text-xs text-neutral-600 mt-1 mb-5 px-4">Maximize your daily earnings effortlessly using advanced cross-chain trading routers.</p>
+                        <div class="w-12 h-12 rounded-full border-2 border-neutral-300 bg-neutral-100 text-neutral-400 flex items-center justify-center font-bold mx-auto text-xs uppercase" id="timer-3">Locked</div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="flex justify-center gap-2 mt-5">
+                <div class="h-1.5 w-6 rounded-full bg-neutral-900 transition-all duration-300" id="dot-1"></div>
+                <div class="h-1.5 w-2 rounded-full bg-neutral-300 transition-all duration-300" id="dot-2"></div>
+                <div class="h-1.5 w-2 rounded-full bg-neutral-300 transition-all duration-300" id="dot-3"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="w-full max-w-md mb-2">
+        <button onclick="submitClaim()" id="claim-button" class="hidden w-full bg-neutral-950 hover:bg-neutral-900 active:scale-[0.99] transition-all text-[#e6ddd0] font-bold text-sm py-4 rounded-2xl shadow-md text-center tracking-wide">
+            🎁 Complete Ads & Claim +10 PTS
+        </button>
+    </footer>
+
+    <script>
+        let currentSlide = 0;
+        let timeLeft = 15;
+        let timerInterval;
+        let isAppActive = true;
+
+        const track = document.getElementById('carousel-track');
+        const claimBtn = document.getElementById('claim-button');
+        const warningBanner = document.getElementById('cheatWarning');
+
+        function runTimer(slideNum) {
+            const currentTimer = document.getElementById(`timer-${slideNum + 1}`);
+            currentTimer.className = "w-12 h-12 rounded-full border-2 border-neutral-950 bg-neutral-950 text-[#e6ddd0] flex items-center justify-center font-bold mx-auto text-sm mono-text shadow-sm";
+            
+            timerInterval = setInterval(() => {
+                if (!isAppActive) return;
+
+                timeLeft--;
+                currentTimer.innerText = timeLeft;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    currentTimer.innerText = "✓";
+                    currentTimer.className = "w-12 h-12 rounded-full border-2 border-emerald-600 bg-emerald-600 text-white flex items-center justify-center font-bold mx-auto text-lg shadow-sm";
+
+                    if (slideNum < 2) {
+                        setTimeout(() => {
+                            document.getElementById(`dot-${currentSlide + 1}`).className = "h-1.5 w-2 rounded-full bg-neutral-300 transition-all duration-300";
+                            currentSlide++;
+                            track.style.transform = `translateX(-${currentSlide * 100}%)`;
+                            document.getElementById(`dot-${currentSlide + 1}`).className = "h-1.5 w-6 rounded-full bg-neutral-900 transition-all duration-300";
+                            timeLeft = 15;
+                            runTimer(currentSlide);
+                        }, 800);
+                    } else {
+                        claimBtn.classList.remove('hidden');
+                    }
+                }
+            }, 1000);
+        }
+
+        // 🚨 EXIT CONFIRMATION CONTROLLER
+        function confirmExitCampaign() {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
+            }
+            
+            const wantToExit = confirm("⚠️ Warning: If you leave now, you will lose all current progress and won't earn your +10 PTS reward.");
+            if (wantToExit) {
+                window.location.href = `/dashboard?id=<%= userId %>`;
+            }
+        }
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                isAppActive = false;
+                warningBanner.classList.remove('hidden');
+            } else {
+                isAppActive = true;
+                warningBanner.classList.add('hidden');
+            }
+        });
+
+        async function submitClaim() {
+            claimBtn.disabled = true;
+            claimBtn.innerText = "Processing Allocation...";
+            
+            try {
+                const response = await fetch('/claim-ad-reward', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: "<%= userId %>" })
+                });
+
+                if (response.ok) {
+                    window.location.href = `/dashboard?id=<%= userId %>`;
+                } else {
+                    alert("Claim validation rejected by server.");
+                    claimBtn.disabled = false;
+                    claimBtn.innerText = "🎁 Complete Ads & Claim +10 PTS";
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Network communication error.");
+                claimBtn.disabled = false;
+            }
+        }
+
+        window.onload = () => { runTimer(0); };
+    </script>
+</body>
+</html>

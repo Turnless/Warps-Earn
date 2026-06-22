@@ -1,0 +1,25 @@
+{
+  "name": "ad-earn-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "api/index.js",
+  "scripts": {
+    "dev": "node dev.js",
+    "start": "node api/index.js"
+  },
+  "dependencies": {
+    "@bull-board/api": "^8.0.1",
+    "@bull-board/express": "^8.0.1",
+    "bull": "^4.16.5",
+    "dotenv": "^16.6.1",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
+    "ioredis": "^5.11.1",
+    "mongoose": "^9.7.1",
+    "rate-limit-redis": "^5.0.0",
+    "telegraf": "^4.16.3"
+  },
+  "author": "",
+  "license": "ISC"
+}

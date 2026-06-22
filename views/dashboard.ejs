@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Warps Earn Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;600&family=Space+Grotesk:wght@400;500;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #e6ddd0;
+            color: #1a1a16;
+        }
+
+        .mono-text {
+            font-family: 'Geist Mono', monospace;
+        }
+
+        .active-tab {
+            background-color: #1a1a16;
+            color: #e6ddd0;
+        }
+
+        nav {
+            position: fixed !important;
+            bottom: 16px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            width: calc(100% - 32px) !important;
+            max-width: 418px !important;
+            z-index: 50 !important;
+        }
+
+        main {
+            padding-bottom: 95px !important;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-start p-4 selection:bg-neutral-800 selection:text-[#e6ddd0]">
+
+    <div class="w-full max-w-md flex flex-col justify-between min-h-[calc(100vh-32px)]">
+
+        <% var incompleteCount=0; if (!user.quests || !user.quests.channel) incompleteCount++; if (!user.quests ||
+            !user.quests.group) incompleteCount++; if (!user.quests || !user.quests.payout_channel) incompleteCount++;
+            if (!user.quests || !user.quests.x_account) incompleteCount++; var
+            firstWithdrawalDone=(user.withdrawals_count && user.withdrawals_count> 0);
+
+            var totalRefs = (user.referrals || []).length;
+            var qualifiedRefs = (user.referrals || []).filter(r => r.qualified).length;
+
+            var nextMilestoneTarget = 10;
+            var prevMilestoneTarget = 0;
+            var rewardValue = "$5.00";
+
+            if (qualifiedRefs >= 50) {
+            nextMilestoneTarget = 100;
+            prevMilestoneTarget = 50;
+            rewardValue = "$25.00";
+            } else if (qualifiedRefs >= 20) {
+            nextMilestoneTarget = 50;
+            prevMilestoneTarget = 20;
+            rewardValue = "$15.00";
+            } else if (qualifiedRefs >= 10) {
+            nextMilestoneTarget = 20;
+            prevMilestoneTarget = 10;
+            rewardValue = "$5.00";
+            }
+
+            var rangeFactor = nextMilestoneTarget - prevMilestoneTarget;
+            var relativeProgress = qualifiedRefs - prevMilestoneTarget;
+            var contestProgressPct = Math.min(Math.max((relativeProgress / rangeFactor) * 100, 0), 100);
+            %>
+
+            <!-- 🍞 PREMIUM TOAST NOTIFICATION -->
+            <div id="custom-toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] transform -translate-y-24 opacity-0 transition-all duration-300 bg-neutral-950 text-[#e6ddd0] px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-neutral-800 text-xs font-bold uppercase tracking-wider mono-text w-[calc(100%-32px)] max-w-[418px]">
+                <span id="toast-icon">⚡</span>
+                <span id="toast-message">Verification Complete</span>
+            </div>
+
+            <!-- 🛡️ CUSTOM TRANSACTION CONFIRMATION MODAL -->
+            <div id="custom-confirm-modal" class="hidden fixed inset-0 z-[160] bg-neutral-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                <div class="w-full max-w-sm bg-white rounded-3xl p-6 border border-neutral-200 shadow-2xl flex flex-col gap-4 text-neutral-900">
+                    <div class="flex items-center gap-2 pb-2 border-b border-neutral-100">
+                        <span class="text-lg">🛡️</span>
+                        <h3 class="font-bold text-xs uppercase tracking-wider text-neutral-400 mono-text">Confirm Settlement Profile</h3>
+                    </div>
+
+                    <div class="flex flex-col gap-3 text-xs leading-normal">
+                        <div class="flex justify-between items-center bg-neutral-50 p-2.5 rounded-xl border border-neutral-100">
+                            <span class="text-neutral-500 font-medium">Channel / Network:</span>
+                            <span id="confirm-display-asset" class="font-bold text-neutral-900 mono-text">USDT (BEP20)</span>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-neutral-50 p-2.5 rounded-xl border border-neutral-100">
+                            <span class="text-neutral-500 font-medium">Amount Requested:</span>
+                            <span id="confirm-display-pts" class="font-bold text-neutral-900 mono-text">1,500 PTS</span>
+                        </div>
+
+                        <div class="flex flex-col gap-1 bg-neutral-50 p-3 rounded-xl border border-neutral-100">
+                            <span class="text-neutral-500 font-medium">Recipient Settlement Parameters:</span>
+                            <p id="confirm-display-destination" class="font-bold text-neutral-900 text-[11px] break-all mono-text bg-white p-2 rounded-lg border border-neutral-200/60 mt-1 select-all"></p>
+                        </div>
+
+                        <div id="confirm-display-conversion-box" class="flex justify-between items-center bg-emerald-50 text-emerald-800 p-2.5 rounded-xl border border-emerald-100 font-bold mono-text">
+                            <span>Est. Yield:</span>
+                            <span id="confirm-display-conversion">$1.20 USD</span>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex gap-2 text-[10px] text-amber-800 leading-normal font-medium">
+                        <span class="text-xs">⚠️</span>
+                        <span>Verify your credentials. Points are locked on submission. Transactions cannot be reversed.</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <button type="button" onclick="closeConfirmModal()" class="py-3 border border-neutral-200 hover:bg-neutral-50 rounded-xl font-bold text-xs uppercase text-neutral-500 tracking-wider transition-all shadow-sm">Cancel</button>
+                        <button type="button" id="btn-modal-action-confirm" class="py-3 bg-neutral-950 hover:bg-neutral-900 text-[#e6ddd0] rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-md">Confirm</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="fallback-player-modal" class="hidden fixed inset-0 z-[150] bg-neutral-950/90 backdrop-blur-md flex flex-col justify-between p-6 max-w-md mx-auto">
+                <div class="w-full flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                        <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider mono-text">Secure Stream Verification</span>
+                    </div>
+                    <button id="fallback-close-btn" disabled class="bg-neutral-800 text-neutral-500 font-bold text-[11px] px-3 py-1.5 rounded-xl uppercase tracking-wider transition-all cursor-not-allowed">Wait 15s</button>
+                </div>
+
+                <div class="w-full h-3/4 my-4 bg-black rounded-3xl border border-neutral-800/80 overflow-hidden relative shadow-inner">
+                    <div id="fallback-loading-spinner" class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-[#e6ddd0]">
+                        <div class="w-10 h-10 border-4 border-[#e6ddd0]/30 border-t-[#e6ddd0] rounded-full animate-spin"></div>
+                        <p class="text-[10px] uppercase tracking-widest font-bold text-neutral-400 mono-text">Connecting Server...</p>
+                    </div>
+                    <iframe id="fallback-ad-iframe" class="w-full h-full border-0 hidden" sandbox="allow-scripts allow-popups allow-same-origin"></iframe>
+                </div>
+
+                <div class="w-full text-center flex flex-col gap-2">
+                    <p id="fallback-countdown-text" class="text-sm font-medium text-neutral-300">Interact with the ad page to secure your reward points.</p>
+                    <div class="w-full bg-neutral-900 rounded-full h-1 border border-neutral-800 overflow-hidden">
+                        <div id="fallback-progress-bar" class="bg-emerald-500 h-1 rounded-full transition-all duration-1000" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HEADER PROFILE BLOCK -->
+            <header class="w-full flex items-center gap-3 mb-5">
+                <div class="w-12 h-12 rounded-full bg-neutral-900 border-2 border-neutral-950/20 overflow-hidden flex items-center justify-center text-[#e6ddd0] font-bold text-lg relative shadow-inner">
+                    <% if (user.photo_url) { %>
+                        <img src="<%= user.photo_url %>" alt="pfp" class="w-full h-full object-cover">
+                    <% } else { %>
+                        <%= (user.username || 'A' ).substring(0, 2).toUpperCase() %>
+                    <% } %>
+                </div>
+
+                <div class="flex flex-col">
+                    <h1 class="text-base font-bold tracking-tight text-neutral-900 leading-tight">
+                        <%= user.first_name || 'Operator Profile' %>
+                    </h1>
+                    <span class="text-xs text-neutral-600 font-medium">@<%= user.username || 'Anonymous' %></span>
+                </div>
+            </header>
+
+            <main class="w-full flex-1 flex flex-col gap-4 justify-start">
+
+                <!-- 🏠 HOME VIEW -->
+                <div id="view-home" class="flex flex-col gap-4 w-full">
+                    <div class="w-full bg-neutral-950 text-[#e6ddd0] rounded-3xl p-6 border border-neutral-900 relative overflow-hidden shadow-lg">
+                        <div class="absolute inset-0 opacity-5 pointer-events-none bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_24px]"></div>
+
+                        <div class="relative z-10">
+                            <span class="text-xs uppercase tracking-wider text-neutral-400 font-medium mono-text">Available Balance</span>
+                        </div>
+
+                        <div class="mt-4 mb-2 relative z-10 flex items-baseline gap-2">
+                            <span id="user-balance" class="text-5xl font-bold tracking-tight text-neutral-100">
+                                <%= (user.points_balance || 0).toLocaleString() %>
+                            </span>
+                            <span class="text-sm font-medium tracking-widest text-neutral-400 mono-text">PTS</span>
+                        </div>
+
+                        <div class="pt-3 border-t border-neutral-800 text-xs text-neutral-400 flex justify-between items-center relative z-10 mono-text">
+                            <span>Value Equivalence:</span>
+                            <span id="user-value" class="text-neutral-200 font-medium text-sm">$<%= ((user.points_balance || 0) * 0.0008).toFixed(2) %> USD</span>
+                        </div>
+                    </div>
+
+                    <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-5 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+                        <div class="flex justify-between items-center pb-2 border-b border-neutral-200/60 text-xs text-neutral-600">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span class="font-medium">Status: <span class="mono-text text-neutral-900 font-bold">READY</span></span>
+                            </div>
+                            <span class="mono-text text-[10px]">REWARD: +3 PTS / LOOP</span>
+                        </div>
+
+                        <button id="adsgram-play-btn" onclick="triggerAdNetworkSequence()" class="w-full bg-neutral-900 hover:bg-neutral-800 active:scale-[0.98] transition-all text-[#e6ddd0] rounded-2xl p-4 flex items-center justify-between shadow-md group">
+                            <div class="flex items-center gap-3.5">
+                                <div id="ad-btn-icon" class="w-10 h-10 rounded-xl bg-neutral-800 flex items-center justify-center text-xl border border-neutral-700 transition-all">⚡</div>
+                                <div class="text-left">
+                                    <h3 id="ad-btn-title" class="font-bold text-sm tracking-wide text-white">Watch Stream Ad</h3>
+                                    <p id="ad-btn-subtitle" class="text-xs text-neutral-400 mono-text mt-0.5">Complete a loop of 3 ads for reward</p>
+                                </div>
+                            </div>
+                            <div id="ad-btn-arrow" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold group-hover:translate-x-0.5 transition-transform">→</div>
+                        </button>
+
+                        <div class="w-full bg-neutral-100/80 rounded-xl p-3 flex justify-between items-center border border-neutral-200/40 text-xs">
+                            <span class="text-neutral-600 font-medium">Total ads watched:</span>
+                            <span id="total-ads-watched" class="font-bold text-neutral-900 bg-white px-2.5 py-0.5 rounded-md border border-neutral-200 shadow-sm mono-text">
+                                <%= user.video_views || 0 %>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 💰 WALLET HUB -->
+                <div id="view-wallet" class="hidden flex flex-col gap-4 w-full">
+                    <% var personalThreshold=firstWithdrawalDone ? 1250 : 1500; var isUplinePromoter=(qualifiedRefs>=10);
+                        var globalClearedStatus = (user.points_balance >= personalThreshold || isUplinePromoter);
+                    %>
+
+                        <div class="w-full bg-neutral-950 text-[#e6ddd0] rounded-3xl p-5 shadow-md flex flex-col gap-4 relative overflow-hidden">
+                            <div class="absolute right-[-10px] top-[-10px] text-6xl opacity-10 select-none">💳</div>
+
+                            <div class="flex flex-col gap-1">
+                                <span class="text-[10px] tracking-widest uppercase font-bold text-neutral-400 mono-text">Available Balance</span>
+                                <div class="flex items-baseline gap-1.5">
+                                    <span id="wallet-balance" class="text-3xl font-extrabold tracking-tight text-white">
+                                        <%= (user.points_balance || 0).toLocaleString() %>
+                                    </span>
+                                    <span class="text-xs font-bold text-neutral-400 mono-text">PTS</span>
+                                </div>
+                            </div>
+
+                            <div class="p-3 bg-neutral-900 border border-neutral-800/80 rounded-xl flex items-start gap-2 text-[11px] text-neutral-400 leading-normal">
+                                <span class="text-xs mt-0.5">ℹ️</span>
+                                <span>
+                                    <b class="text-neutral-200">Payout Rules:</b> First-time cashout requires <b class="text-white mono-text">1,500 PTS ($1.20)</b>.
+                                    Subsequent cashouts drop permanently to <b class="text-emerald-400 mono-text">1,250 PTS ($1.00)</b>. Max 2 withdrawals per day. Promoters with 10+ referrals bypass all limits.
+                                </span>
+                            </div>
+
+                            <button onclick="openWithdrawalFlow()" class="w-full bg-white text-neutral-950 font-bold text-xs py-3 rounded-xl uppercase tracking-wider active:scale-[0.98] transition-all shadow-sm">Withdraw Funds</button>
+
+                            <div class="text-[11px] text-neutral-400 flex items-center gap-1.5 mt-1 border-t border-neutral-800 pt-2">
+                                <span>Valuation:</span>
+                                <span id="wallet-valuation" class="text-emerald-400 font-bold mono-text">$<%= ((user.points_balance || 0) * 0.0008).toFixed(2) %> USD</span>
+                                <span>•</span>
+                                <span>Target Floor:</span>
+                                <span class="font-bold underline text-neutral-300"><%= personalThreshold %> PTS</span>
+                            </div>
+                        </div>
+
+                        <div id="withdrawal-flow" class="hidden w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-4">
+                            <div class="flex justify-between items-center border-b border-neutral-200/60 pb-2">
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Secure Settlement Router</span>
+                                <button onclick="closeWithdrawalFlow()" class="text-xs font-bold text-neutral-400 hover:text-neutral-600 transition-all">✕ Close</button>
+                            </div>
+
+                            <div id="step-country" class="flex flex-col gap-2">
+                                <label class="text-xs font-bold text-neutral-700">1. Select your distribution zone:</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button type="button" onclick="setCountry('NG')" class="border border-neutral-300 bg-white hover:bg-neutral-50 px-4 py-3 rounded-xl font-bold text-xs text-neutral-800 transition-all text-center shadow-sm">🇳🇬 Nigeria</button>
+                                    <button type="button" onclick="setCountry('INTL')" class="border border-neutral-300 bg-white hover:bg-neutral-50 px-4 py-3 rounded-xl font-bold text-xs text-neutral-800 transition-all text-center shadow-sm">🌐 Other Countries</button>
+                                </div>
+                            </div>
+
+                            <div id="wrapper-currency" class="hidden flex flex-col gap-2">
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs font-bold text-neutral-700">2. Select payment profile asset:</label>
+                                    <button type="button" onclick="resetFlowToCountry()" class="text-[10px] font-bold text-neutral-400 uppercase tracking-tight">← Change Region</button>
+                                </div>
+                                <div id="container-currency" class="grid grid-cols-2 gap-2"></div>
+                            </div>
+
+                            <div id="wrapper-details" class="hidden flex flex-col gap-3 pt-2 border-t border-neutral-200/60">
+                                <div id="bank-select-dropdown" class="hidden flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-neutral-700">Select Financial Provider</label>
+                                    <select id="select-bank-provider" class="w-full px-3 py-2.5 rounded-xl border border-neutral-300 bg-white text-xs font-bold text-neutral-800 focus:outline-none">
+                                        <option value="OPAY">OPay Digital Bank</option>
+                                        <option value="PALMPAY">PalmPay Limited</option>
+                                    </select>
+                                </div>
+
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-neutral-700">Withdrawal Amount (PTS)</label>
+                                    <input type="number" id="input-amount-pts" placeholder="Min. <%= personalThreshold %> PTS" oninput="calculateDynamicYield()" class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-800 shadow-inner">
+                                </div>
+
+                                <div class="flex flex-col gap-1">
+                                    <label id="label-input-address" class="text-xs font-bold text-neutral-700">Destination Details</label>
+                                    <input type="text" id="input-destination" placeholder="Enter target parameters..." class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-800 shadow-inner">
+                                </div>
+
+                                <div id="wrapper-fiat-calc" class="hidden p-3 bg-neutral-100 rounded-xl border border-neutral-200 text-[11px] text-neutral-600 flex flex-col gap-1 mono-text">
+                                    <div class="flex justify-between items-center w-full">
+                                        <span>Estimated Yield:</span>
+                                        <span id="display-yield-value" class="font-bold text-neutral-900">$0.00 USD</span>
+                                    </div>
+                                </div>
+
+                                <button id="btn-submit-payout" onclick="openConfirmModal()" <% if(!globalClearedStatus){ %> disabled <% } %> class="w-full mt-1 font-bold text-xs py-3 rounded-xl tracking-wide uppercase transition-all shadow-sm <%= globalClearedStatus ? 'bg-neutral-950 text-[#e6ddd0] hover:bg-neutral-900 active:scale-[0.98]' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed' %>">
+                                    <%= globalClearedStatus ? 'Submit Payout Request' : `Locked: Requires ${personalThreshold} PTS` %>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Ledger History Switch -->
+                        <div class="flex bg-neutral-100 p-1 rounded-xl w-full" id="history-tabs">
+                            <button onclick="switchHistory('activity')" id="tab-activity" class="flex-1 py-2 text-[10px] font-bold rounded-lg transition-all bg-white shadow-sm text-neutral-900 uppercase tracking-widest">Earnings</button>
+                            <button onclick="switchHistory('withdrawals')" id="tab-withdrawals" class="flex-1 py-2 text-[10px] font-bold rounded-lg transition-all text-neutral-500 uppercase tracking-widest">Withdrawals</button>
+                        </div>
+
+                        <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-3">
+                            <div id="list-activity" class="flex flex-col gap-2.5 max-h-48 overflow-y-auto pr-1">
+                                <% if (user.earnings_history && user.earnings_history.length> 0) { %>
+                                    <% user.earnings_history.forEach(log=> { %>
+                                        <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                            <div class="flex flex-col">
+                                                <span class="text-xs font-bold text-neutral-800"><%= log.type %></span>
+                                                <span class="text-[9px] text-neutral-400 mono-text"><%= log.timestamp %></span>
+                                            </div>
+                                            <span class="text-xs font-bold <%= log.amount >= 0 ? 'text-emerald-700' : 'text-rose-700' %> mono-text">
+                                                <%= log.amount>= 0 ? '+' : '' %><%= log.amount %>
+                                            </span>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <div id="empty-history" class="text-center py-6 text-xs text-neutral-400">No earnings recorded in database.</div>
+                                <% } %>
+                            </div>
+
+                            <div id="list-withdrawals" class="hidden flex flex-col gap-2.5 max-h-48 overflow-y-auto pr-1">
+                                <% if (user.transactions && user.transactions.length> 0) { %>
+                                    <% user.transactions.forEach(tx=> { %>
+                                        <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                            <div class="flex flex-col">
+                                                <span class="text-xs font-bold text-neutral-800"><%= tx.type || 'Withdrawal' %></span>
+                                                <span class="text-[9px] text-neutral-400 mono-text"><%= tx.date %></span>
+                                            </div>
+                                            <div class="flex flex-col items-end">
+                                                <span class="text-xs font-bold text-blue-700 mono-text">-$<%= (tx.amount * 0.0008).toFixed(2) %> USD</span>
+                                                <span class="text-[9px] uppercase tracking-wider font-extrabold <%= tx.status === 'Successful' ? 'text-emerald-600' : (tx.status === 'Rejected' ? 'text-rose-600' : 'text-amber-500 animate-pulse') %> mono-text">
+                                                    <%= tx.status || 'Pending' %>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <div class="text-center py-6 text-xs text-neutral-400">No withdrawals yet. Secure some points first!</div>
+                                <% } %>
+                            </div>
+                        </div>
+                </div>
+
+                <!-- 📋 TASKS VIEW -->
+                <div id="view-tasks" class="hidden flex flex-col gap-4 w-full">
+                    <div class="px-1">
+                        <h2 class="text-lg font-bold text-neutral-900 tracking-tight">Ecosystem Quests</h2>
+                        <p class="text-xs text-neutral-500 mt-0.5">Complete mandatory protocols to qualify for allocations.</p>
+                    </div>
+
+                    <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-4">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Social Protocols</span>
+
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">🛡️</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">Sybil Verification Protocol</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div>
+                                <% if (user.onboarding_passed) { %>
+                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Unlocked</span>
+                                <% } else { %>
+                                    <span class="bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">🔒 Locked</span>
+                                <% } %>
+                            </div>
+                        </div>
+
+                        <!-- SOCIAL PROTOCOL TASKS -->
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">📢</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">Warps Channel</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div>
+                                <% if (user.quests && user.quests.channel) { %>
+                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
+                                <% } else { %>
+                                    <button onclick="verifyTask('channel', 'https://t.me/Warpsgit')" id="btn-quest-channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                                <% } %>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">💬</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">Warps Group</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div>
+                                <% if (user.quests && user.quests.group) { %>
+                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
+                                <% } else { %>
+                                    <button onclick="verifyTask('group', 'https://t.me/warpscommunity')" id="btn-quest-group" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                                <% } %>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">💳</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">WarpsEarn Payouts</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div>
+                                <% if (user.quests && user.quests.payout_channel) { %>
+                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
+                                <% } else { %>
+                                    <button onclick="verifyTask('payout_channel', 'https://t.me/WarpsEarn')" id="btn-quest-payout_channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                                <% } %>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">🐦</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">Follow turnless_HQ</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div>
+                                <% if (user.quests && user.quests.x_account) { %>
+                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
+                                <% } else { %>
+                                    <button onclick="verifyTask('x_account', 'https://x.com/turnless_HQ')" id="btn-quest-x_account" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 💎 SPONSORED INITIATIVES & PROMOTIONS -->
+                    <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-4 mt-4">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Ecosystem Growth Campaigns</span>
+                        
+                        <!-- 1. DYNAMIC ADSGRAM TASK CARD (AUTO-HIDES IF UNFILLED) -->
+<div class="hidden flex-col gap-2 pb-4 border-b border-neutral-200/60" id="adsgram-task-wrapper">
+    <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">💎</div>
+        <div class="flex flex-col flex-1">
+            <span class="text-xs font-bold text-neutral-800">Adsgram Partner Challenge</span>
+            <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+50 PTS</span>
+        </div>
+    </div>
+    <!-- Cleaned wrapper: Removed bulky background/borders so the Adsgram component sits flush -->
+    <div class="w-full px-1 mt-1">
+        <adsgram-task 
+            id="adsgram-task-element"
+            data-block-id="task-35851" 
+            data-debug="true" 
+            data-debug-console="false" 
+            class="w-full block">
+        </adsgram-task>
+    </div>
+</div>
+
+                        <!-- 2. PROMOTIONAL TASK TEMPLATE (BLURRED AND LOCKED BY DEFAULT) -->
+                        <div class="relative overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4 transition-all duration-300" id="custom-promo-task-1">
+                            <!-- Frosted Glass Lock Overlay -->
+                            <div class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-neutral-200/40 backdrop-blur-[3px] transition-all duration-300" id="promo-blur-overlay-1">
+                                <span class="text-lg">🔒</span>
+                                <span class="text-[9px] font-bold text-neutral-500 uppercase tracking-widest mt-1">Locked Campaign</span>
+                            </div>
+
+                            <!-- Content Core (Appears beautifully blurred behind the overlay) -->
+                            <div class="flex justify-between items-center select-none opacity-40" id="promo-content-container-1">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm" id="promo-icon-1">🚀</div>
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-neutral-800" id="promo-title-1">Follow Turnless on X</span>
+                                        <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5" id="promo-reward-1">+150 PTS</span>
+                                    </div>
+                                </div>
+                                <button onclick="triggerPromoTask('promo1', 'https://x.com/turnless_HQ')" id="promo-btn-1" disabled class="bg-neutral-300 text-neutral-500 text-xs font-bold px-4 py-2 rounded-xl cursor-not-allowed">Locked</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🤝 INVITATION HUB -->
+                <div id="view-invite" class="hidden flex flex-col gap-4 w-full">
+                    <div class="px-1">
+                        <h2 class="text-lg font-bold text-neutral-900 tracking-tight">Strategic Hub</h2>
+                        <p class="text-xs text-neutral-500 mt-0.5">Build your pipeline network to optimize passive allocation flows.</p>
+                    </div>
+
+                    <div class="w-full bg-gradient-to-br from-neutral-900 to-neutral-950 text-[#e6ddd0] border border-neutral-800 rounded-3xl p-5 shadow-lg flex flex-col gap-4 relative overflow-hidden">
+                        <div class="absolute inset-0 opacity-5 pointer-events-none bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px)] bg-[size:20px_20px]"></div>
+
+                        <div class="flex justify-between items-center relative z-10">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-emerald-700 text-white font-bold text-[9px] tracking-wider uppercase px-2 py-0.5 rounded mono-text">LIVE CONTEST</span>
+                                <h3 class="font-bold text-xs tracking-wide uppercase text-neutral-300">Milestone Race</h3>
+                            </div>
+                            <span class="text-emerald-400 font-bold text-[11px] mono-text">Total Pool: $50.00</span>
+                        </div>
+
+                        <div class="flex items-baseline gap-2 relative z-10">
+                            <span class="text-4xl font-extrabold text-white tracking-tight">
+                                <%= qualifiedRefs %>
+                            </span>
+                            <span class="text-xs text-neutral-400 font-bold uppercase tracking-wider mono-text">Qualified Downlines</span>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5 relative z-10">
+                            <div class="flex justify-between items-center text-[10px] text-neutral-400 font-medium">
+                                <span>Progress to Tier: <span class="text-white font-bold"><%= nextMilestoneTarget %></span></span>
+                                <span class="text-emerald-400 font-bold mono-text"><%= Math.round(contestProgressPct) %>%</span>
+                            </div>
+                            <div class="w-full h-3 bg-neutral-800 rounded-full border border-neutral-700/60 p-0.5 overflow-hidden">
+                                <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500 shadow-inner" style="width: <%= contestProgressPct %>%"></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-1.5 pt-3 border-t border-neutral-800 relative z-10 text-center text-[9px] font-bold mono-text">
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="<%= qualifiedRefs >= 10 ? 'text-emerald-400' : 'text-neutral-500' %>">10 Refs</span>
+                                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] <%= qualifiedRefs >= 10 ? 'bg-emerald-950 text-emerald-400 border border-emerald-500' : 'bg-neutral-800 text-neutral-500 border border-neutral-700' %>">
+                                    <%= qualifiedRefs>= 10 ? '✓' : '1' %>
+                                </span>
+                                <span class="text-[8px] mt-0.5 text-neutral-400">$5.00</span>
+                            </div>
+
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="<%= qualifiedRefs >= 20 ? 'text-emerald-400' : 'text-neutral-500' %>">20 Refs</span>
+                                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] <%= qualifiedRefs >= 20 ? 'bg-emerald-950 text-emerald-400 border border-emerald-500' : 'bg-neutral-800 text-neutral-500 border border-neutral-700' %>">
+                                    <%= qualifiedRefs>= 20 ? '✓' : '2' %>
+                                </span>
+                                <span class="text-[8px] mt-0.5 text-neutral-400">$5.00</span>
+                            </div>
+
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="<%= qualifiedRefs >= 50 ? 'text-emerald-400' : 'text-neutral-500' %>">50 Refs</span>
+                                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] <%= qualifiedRefs >= 50 ? 'bg-emerald-950 text-emerald-400 border border-emerald-500' : 'bg-neutral-800 text-neutral-500 border border-neutral-700' %>">
+                                    <%= qualifiedRefs>= 50 ? '✓' : '3' %>
+                                </span>
+                                <span class="text-[8px] mt-0.5 text-neutral-400">$15.00</span>
+                            </div>
+
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="<%= qualifiedRefs >= 100 ? 'text-emerald-400' : 'text-neutral-500' %>">100 Refs</span>
+                                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] <%= qualifiedRefs >= 100 ? 'bg-emerald-950 text-emerald-400 border border-emerald-500' : 'bg-neutral-800 text-neutral-500 border border-neutral-700' %>">
+                                    <%= qualifiedRefs>= 100 ? '✓' : '4' %>
+                                </span>
+                                <span class="text-[8px] mt-0.5 text-neutral-400">$25.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-3">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Contest Engine Mechanics</span>
+
+                        <div class="flex flex-col gap-2.5 text-xs text-neutral-700">
+                            <div class="flex gap-2.5 items-start">
+                                <span class="bg-neutral-950 text-[#e6ddd0] text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-md shrink-0 mt-0.5">1</span>
+                                <p><strong class="text-neutral-900">Share Link:</strong> Copy and deploy your pipeline connection identifier.</p>
+                            </div>
+                            <div class="flex gap-2.5 items-start">
+                                <span class="bg-neutral-950 text-[#e6ddd0] text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-md shrink-0 mt-0.5">2</span>
+                                <p><strong class="text-neutral-900">Activation Gate:</strong> Downlines must complete their first <strong class="text-neutral-900">1,500 PTS withdrawal</strong> to count as a qualified referral.</p>
+                            </div>
+                            <div class="flex gap-2.5 items-start">
+                                <span class="bg-neutral-950 text-[#e6ddd0] text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-md shrink-0 mt-0.5">3</span>
+                                <p><strong class="text-neutral-900">Instant Release:</strong> Score automatic PTS values the second your metrics hit a milestone tier!</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-2 p-3 bg-neutral-100 border border-neutral-200/80 rounded-xl flex items-center justify-between gap-2">
+                            <span class="text-[11px] text-neutral-500 truncate select-all mono-text tracking-tight w-3/4">https://t.me/warpsearn_bot?start=ref_<%= user.telegram_id %></span>
+                            <button onclick="copyRefLink('https://t.me/warpsearn_bot?start=ref_<%= user.telegram_id %>')" id="btn-copy-link" class="bg-neutral-950 text-[#e6ddd0] font-bold text-[10px] uppercase tracking-wider px-3 py-2 rounded-lg shrink-0 active:scale-95 transition-all">Copy</button>
+                        </div>
+                    </div>
+
+                    <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Pipeline Monitor</span>
+                            <span class="bg-neutral-200 text-neutral-800 text-[10px] font-bold px-2 py-0.5 rounded mono-text">Total: <%= (user.referrals || []).length %></span>
+                        </div>
+
+                        <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                            <% if (user.referrals && user.referrals.length> 0) { %>
+                                <% user.referrals.forEach(ref=> { %>
+                                    <div class="flex flex-col pb-3 border-b border-neutral-200/60 last:border-0 last:pb-0 gap-1.5">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-bold text-neutral-800 truncate max-w-[180px]">
+                                                <%= ref.username || ('id_' + ref.telegram_id.toString().slice(-4)) %>
+                                            </span>
+                                            <span class="text-[10px] font-medium text-neutral-500 mono-text">Status: <%= ref.qualified ? 'QUALIFIED' : `${ref.ads_viewed}/1000 ads` %></span>
+                                        </div>
+
+                                        <div class="w-full bg-neutral-200 rounded-full h-1.5 overflow-hidden">
+                                            <% let pct=ref.qualified ? 100 : Math.min((ref.ads_viewed / 1000) * 100, 100); %>
+                                                <div class="bg-neutral-950 h-1.5 rounded-full transition-all duration-300" style="width: <%= pct %>%"></div>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <div class="text-center py-6 text-xs text-neutral-400">No connections inside pipeline network yet.</div>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- 📱 NAVIGATION BAR WITH NOTIFICATION BADGE -->
+            <nav class="bg-white/80 backdrop-blur-md border border-neutral-300/80 rounded-2xl p-1.5 grid grid-cols-4 gap-1 shadow-md">
+                <button onclick="switchTab('home')" id="tab-home" class="active-tab py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all">
+                    <span class="text-base">🏠</span>
+                    <span class="text-[10px] font-bold tracking-tight">Home</span>
+                </button>
+
+                <button onclick="switchTab('tasks')" id="tab-tasks" class="text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all relative">
+                    <span class="text-base">📋</span>
+                    <span class="text-[10px] font-bold tracking-tight">Tasks</span>
+                    <% if (incompleteCount> 0) { %>
+                        <span id="task-nav-badge" class="absolute top-1 right-3 bg-rose-500 text-white text-[8px] font-extrabold h-4 w-4 rounded-full flex items-center justify-center border border-white animate-pulse shadow-sm mono-text">
+                            <%= incompleteCount %>
+                        </span>
+                    <% } %>
+                </button>
+
+                <button onclick="switchTab('invite')" id="tab-invite" class="text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all">
+                    <span class="text-base">🤝</span>
+                    <span class="text-[10px] font-bold tracking-tight">Invite</span>
+                </button>
+
+                <button onclick="switchTab('wallet')" id="tab-wallet" class="text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all">
+                    <span class="text-base">💰</span>
+                    <span class="text-[10px] font-bold tracking-tight">Wallet</span>
+                </button>
+            </nav>
+
+    </div>
+
+    <script>
+        function showToast(message, icon = "⚡", duration = 3000) {
+            const toast = document.getElementById('custom-toast');
+            const toastIcon = document.getElementById('toast-icon');
+            const toastMessage = document.getElementById('toast-message');
+
+            toastIcon.innerText = icon;
+            toastMessage.innerText = message;
+
+            toast.classList.remove('-translate-y-24', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-24', 'opacity-0');
+            }, duration);
+        }
+
+        function switchHistory(type) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+
+            document.getElementById('list-activity').classList.toggle('hidden', type !== 'activity');
+            document.getElementById('list-withdrawals').classList.toggle('hidden', type !== 'withdrawals');
+
+            document.getElementById('tab-activity').className = type === 'activity'
+                ? 'flex-1 py-2 text-[10px] font-bold rounded-lg transition-all bg-white shadow-sm text-neutral-900 uppercase tracking-widest'
+                : 'flex-1 py-2 text-[10px] font-bold rounded-lg transition-all text-neutral-500 uppercase tracking-widest';
+
+            document.getElementById('tab-withdrawals').className = type === 'withdrawals'
+                ? 'flex-1 py-2 text-[10px] font-bold rounded-lg transition-all bg-white shadow-sm text-neutral-900 uppercase tracking-widest'
+                : 'flex-1 py-2 text-[10px] font-bold rounded-lg transition-all text-neutral-500 uppercase tracking-widest';
+        }
+
+        function switchTab(tabId) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+
+            const tabs = ['home', 'tasks', 'invite', 'wallet'];
+            tabs.forEach(t => {
+                const buttonElement = document.getElementById(`tab-${t}`);
+                const viewElement = document.getElementById(`view-${t}`);
+
+                if (t === tabId) {
+                    buttonElement.className = "active-tab py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all shadow-sm relative";
+                    if (viewElement) viewElement.classList.remove('hidden');
+                } else {
+                    buttonElement.className = "text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all relative";
+                    if (viewElement) viewElement.classList.add('hidden');
+                }
+            });
+        }
+
+        async function verifyTask(questKey, targetUrl) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+            window.open(targetUrl, '_blank');
+
+            const btn = document.getElementById(`btn-quest-${questKey}`);
+            if (!btn) return;
+
+            btn.disabled = true;
+            btn.innerText = "Checking...";
+            btn.className = "bg-neutral-400 text-neutral-100 text-xs font-medium px-3 py-2 rounded-xl cursor-not-allowed shadow-none";
+
+            setTimeout(async () => {
+                try {
+                    const telegramInitData = window.Telegram?.WebApp?.initData || "";
+
+                    const response = await fetch('/portal/verify-quest', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `WebApp ${telegramInitData}`
+                        },
+                        body: JSON.stringify({
+                            id: "<%= user.telegram_id %>",
+                            quest: questKey
+                        })
+                    });
+
+                    if (response.ok) {
+                        showToast("Quest Completed successfully! +100 PTS added.", "🎉");
+
+                        const parent = btn.parentElement;
+                        if (parent) {
+                            parent.innerHTML = `<span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>`;
+                        }
+
+                        const userBalanceEl = document.getElementById('user-balance');
+                        const walletBalanceEl = document.getElementById('wallet-balance');
+
+                        const currentBalance = parseInt(userBalanceEl.innerText.replace(/,/g, '')) || 0;
+                        const newBalance = currentBalance + 100;
+
+                        userBalanceEl.innerText = newBalance.toLocaleString();
+                        if (walletBalanceEl) {
+                            walletBalanceEl.innerText = newBalance.toLocaleString();
+                        }
+
+                        const newUsdVal = newBalance * 0.0008;
+                        const userValEl = document.getElementById('user-value');
+                        const walletValEl = document.getElementById('wallet-valuation');
+
+                        if (userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                        if (walletValEl) walletValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+
+                        const taskBadge = document.getElementById('task-nav-badge');
+                        if (taskBadge) {
+                            let currentBadgeCount = parseInt(taskBadge.innerText) || 0;
+                            currentBadgeCount--;
+                            if (currentBadgeCount > 0) {
+                                taskBadge.innerText = currentBadgeCount;
+                            } else {
+                                taskBadge.remove();
+                            }
+                        }
+
+                        const activityList = document.getElementById('list-activity');
+                        const emptyPlaceholder = document.getElementById('empty-history');
+                        if (emptyPlaceholder) {
+                            emptyPlaceholder.remove();
+                        }
+
+                        let questLabel = "X Follow";
+                        if (questKey === 'channel') questLabel = "Warps Channel";
+                        if (questKey === 'group') questLabel = "Warps Group";
+                        if (questKey === 'payout_channel') questLabel = "WarpsEarn Payouts";
+
+                        const optionsDate = { month: 'short', day: 'numeric', year: 'numeric' };
+                        const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: true };
+                        const dateStr = new Date().toLocaleDateString('en-US', optionsDate);
+                        const timeStr = new Date().toLocaleTimeString('en-US', optionsTime);
+                        const currentFormattedTimestamp = `${dateStr} • ${timeStr}`;
+
+                        const newRow = document.createElement('div');
+                        newRow.className = "flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0";
+                        newRow.innerHTML = `
+                        <div class="flex flex-col">
+                            <span class="text-xs font-bold text-neutral-800">${questLabel} Quest</span>
+                            <span class="text-[9px] text-neutral-400 mono-text">${currentFormattedTimestamp}</span>
+                        </div>
+                        <span class="text-xs font-bold text-emerald-700 mono-text">+100</span>
+                        `;
+
+                        activityList.insertBefore(newRow, activityList.firstChild);
+
+                        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+                            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                        }
+                    } else {
+                        showToast("Ecosystem validation failed. Please join first.", "⚠️");
+                        btn.disabled = false;
+                        btn.innerText = "Start";
+                        btn.className = "bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm";
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast("Task verification timeout. Please retry.", "⚠️");
+                    btn.disabled = false;
+                    btn.innerText = "Start";
+                    btn.className = "bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm";
+                }
+            }, 10000);
+        }
+
+        function copyRefLink(linkText) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+            }
+
+            navigator.clipboard.writeText(linkText).then(() => {
+                const btn = document.getElementById('btn-copy-link');
+                btn.innerText = "COPIED";
+                btn.className = "bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider px-3 py-2 rounded-lg shrink-0";
+                setTimeout(() => {
+                    btn.innerText = "COPY";
+                    btn.className = "bg-neutral-950 text-[#e6ddd0] font-bold text-[10px] uppercase tracking-wider px-3 py-2 rounded-lg shrink-0";
+                }, 2000);
+            }).catch(err => {
+                showToast("Failed to auto-copy. Copy link manually from layout box.", "⚠️");
+            });
+        }
+
+        let activeAsset = '';
+        let activeCountryContext = '';
+
+        function getBankProviderValue() {
+            const selectEl = document.getElementById('select-bank-provider');
+            return selectEl ? selectEl.value : null;
+        }
+
+        function openWithdrawalFlow() {
+            document.getElementById('withdrawal-flow').classList.remove('hidden');
+            resetFlowToCountry();
+            document.getElementById('withdrawal-flow').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function closeWithdrawalFlow() {
+            document.getElementById('withdrawal-flow').classList.add('hidden');
+        }
+
+        function resetFlowToCountry() {
+            activeAsset = '';
+            activeCountryContext = '';
+
+            document.getElementById('step-country').classList.remove('hidden');
+            document.getElementById('wrapper-currency').classList.add('hidden');
+            document.getElementById('wrapper-details').classList.add('hidden');
+            document.getElementById('bank-select-dropdown').classList.add('hidden');
+            document.getElementById('wrapper-fiat-calc').classList.add('hidden');
+            document.getElementById('input-destination').value = '';
+            if (document.getElementById('input-amount-pts')) {
+                document.getElementById('input-amount-pts').value = '';
+            }
+        }
+
+        function setCountry(countryCode) {
+            activeCountryContext = countryCode;
+            document.getElementById('step-country').classList.add('hidden');
+
+            const currencyWrapper = document.getElementById('wrapper-currency');
+            const currencyContainer = document.getElementById('container-currency');
+            currencyWrapper.classList.remove('hidden');
+
+            if (countryCode === 'NG') {
+                currencyContainer.innerHTML = `
+                <button type="button" onclick="setAsset('NAIRA')" class="border border-neutral-300 bg-white px-3 py-3 rounded-xl font-bold text-xs text-neutral-800 shadow-sm active:scale-95 transition-all">🇳🇬 Local Naira</button>
+                <button type="button" onclick="renderCryptoOptions()" class="border border-neutral-300 bg-white px-3 py-3 rounded-xl font-bold text-xs text-neutral-800 shadow-sm active:scale-95 transition-all">⚡ Crypto Options</button>
+            `;
+            } else {
+                renderCryptoOptions();
+            }
+        }
+
+        function renderCryptoOptions() {
+            const currencyContainer = document.getElementById('container-currency');
+            currencyContainer.innerHTML = `
+            <button type="button" onclick="setAsset('USDT_BEP20')" class="border border-neutral-300 bg-white px-2 py-2.5 rounded-xl font-bold text-[11px] text-neutral-700 truncate shadow-sm active:scale-95 transition-all">USDT (BEP20)</button>
+            <button type="button" onclick="setAsset('TON')" class="border border-neutral-300 bg-white px-2 py-2.5 rounded-xl font-bold text-[11px] text-neutral-700 truncate shadow-sm active:scale-95 transition-all">TON Native</button>
+            <button type="button" onclick="setAsset('STARS')" class="border border-neutral-300 bg-white px-2 py-2.5 rounded-xl font-bold text-[11px] text-neutral-700 truncate shadow-sm active:scale-95 transition-all">TG Stars</button>
+            <button type="button" onclick="setAsset('SOL')" class="border border-neutral-300 bg-white px-2 py-2.5 rounded-xl font-bold text-[11px] text-neutral-700 truncate shadow-sm active:scale-95 transition-all">Solana Network</button>
+        `;
+        }
+
+        function setAsset(assetType) {
+            activeAsset = assetType;
+
+            const detailsWrapper = document.getElementById('wrapper-details');
+            const bankDropdown = document.getElementById('bank-select-dropdown');
+            const addressLabel = document.getElementById('label-input-address');
+            const addressInput = document.getElementById('input-destination');
+            const fiatCalc = document.getElementById('wrapper-fiat-calc');
+
+            detailsWrapper.classList.remove('hidden');
+            fiatCalc.classList.remove('hidden');
+
+            if (assetType === 'NAIRA') {
+                bankDropdown.classList.remove('hidden');
+                addressLabel.innerText = "3. Provide Recipient Account Number";
+                addressInput.placeholder = "Enter your 10-digit account number...";
+            } else {
+                bankDropdown.classList.add('hidden');
+
+                if (assetType === 'STARS') {
+                    addressLabel.innerText = "3. Confirm Telegram Account Username Identity";
+                    addressInput.placeholder = "@your_telegram_username";
+                } else {
+                    addressLabel.innerText = `3. Input Destination Wallet Address (${assetType.split('_')[0]})`;
+                    addressInput.placeholder = `Paste valid ${assetType.split('_')[0]} network address...`;
+                }
+            }
+            calculateDynamicYield();
+        }
+
+        function calculateDynamicYield() {
+            const ptsInput = document.getElementById('input-amount-pts');
+            const ptsVal = parseFloat(ptsInput.value) || 0;
+            const yieldDisplay = document.getElementById('display-yield-value');
+
+            const usdVal = ptsVal * 0.0008;
+
+            if (activeCountryContext === 'NG') {
+                const nairaVal = usdVal * 1600;
+                yieldDisplay.innerHTML = `
+                <span class="text-neutral-900 font-bold">$${usdVal.toFixed(2)} USD</span>
+                <span class="text-neutral-400 font-medium px-1">•</span>
+                <span class="text-emerald-700 font-bold">₦${nairaVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN</span>
+            `;
+            } else {
+                yieldDisplay.innerHTML = `<span class="text-neutral-900 font-bold">$${usdVal.toFixed(2)} USD</span>`;
+            }
+        }
+
+        function openConfirmModal() {
+            const inputVal = document.getElementById('input-destination').value.trim();
+            const inputAmountVal = parseInt(document.getElementById('input-amount-pts').value) || 0;
+
+            if (!activeAsset) return showToast("Please select your withdrawal channel target.", "⚠️");
+            if (inputAmountVal <= 0) return showToast("Please specify a valid positive PTS amount.", "⚠️");
+
+            if (activeAsset === 'NAIRA' && !/^\d{10}$/.test(inputVal)) {
+                return showToast("Naira payout details must be exactly 10 numeric digits.", "⚠️");
+            }
+
+            if (!inputVal) return showToast("Please input destination settlement parameters.", "⚠️");
+
+            document.getElementById('confirm-display-asset').innerText = activeAsset.replace('_', ' ');
+            document.getElementById('confirm-display-pts').innerText = `${inputAmountVal.toLocaleString()} PTS`;
+            document.getElementById('confirm-display-destination').innerText = inputVal;
+
+            const usdVal = inputAmountVal * 0.0008;
+            if (activeCountryContext === 'NG') {
+                const nairaVal = usdVal * 1600;
+                document.getElementById('confirm-display-conversion').innerHTML = `$${usdVal.toFixed(2)} USD • ₦${nairaVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+            } else {
+                document.getElementById('confirm-display-conversion').innerText = `$${usdVal.toFixed(2)} USD`;
+            }
+
+            const confirmBtn = document.getElementById('btn-modal-action-confirm');
+            confirmBtn.onclick = () => {
+                closeConfirmModal();
+                fireWithdrawalPayload();
+            };
+
+            document.getElementById('custom-confirm-modal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('custom-confirm-modal').classList.add('hidden');
+        }
+
+        async function fireWithdrawalPayload() {
+            const inputVal = document.getElementById('input-destination').value.trim();
+            const inputAmountVal = parseInt(document.getElementById('input-amount-pts').value) || 0;
+            const bankVal = getBankProviderValue();
+
+            const requestPayload = {
+                telegram_id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "<%= user.telegram_id %>",
+                points_to_withdraw: inputAmountVal,
+                country_context: activeCountryContext,
+                payment_provider: activeAsset === 'NAIRA' ? (bankVal || 'OPAY') : activeAsset,
+                destination_account: inputVal,
+                id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "<%= user.telegram_id %>",
+                amount: inputAmountVal,
+                destination: inputVal,
+                asset: activeAsset,
+                bank: activeAsset === 'NAIRA' ? (bankVal || 'OPAY') : null
+            };
+
+            showToast("Submitting payment request...", "⚡");
+
+            try {
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+
+                let response = await fetch('/portal/request-payout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify(requestPayload)
+                });
+
+                if (response.status === 404) {
+                    console.log("⚠️ Portal router returned 404. Falling back to root /request-payout route...");
+                    response = await fetch('/request-payout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `WebApp ${telegramInitData}`
+                        },
+                        body: JSON.stringify(requestPayload)
+                    });
+                }
+
+                if (response.ok) {
+                    showToast("Payout request submitted successfully!", "✅");
+
+                    closeWithdrawalFlow();
+
+                    const userBalanceEl = document.getElementById('user-balance');
+                    const walletBalanceEl = document.getElementById('wallet-balance');
+
+                    const oldBalance = parseInt(userBalanceEl.innerText.replace(/,/g, '')) || 0;
+                    const newBalance = Math.max(0, oldBalance - inputAmountVal);
+
+                    userBalanceEl.innerText = newBalance.toLocaleString();
+                    if (walletBalanceEl) {
+                        walletBalanceEl.innerText = newBalance.toLocaleString();
+                    }
+
+                    const newUsdVal = newBalance * 0.0008;
+                    const userValEl = document.getElementById('user-value');
+                    const walletValEl = document.getElementById('wallet-valuation');
+
+                    if (userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                    if (walletValEl) walletValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+
+                    const listWithdrawals = document.getElementById('list-withdrawals');
+                    const emptyPlaceholder = listWithdrawals.querySelector('.text-center');
+                    if (emptyPlaceholder) {
+                        emptyPlaceholder.remove();
+                    }
+
+                    const optionsDate = { month: 'short', day: 'numeric', year: 'numeric' };
+                    const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: true };
+                    const dateStr = new Date().toLocaleDateString('en-US', optionsDate);
+                    const timeStr = new Date().toLocaleTimeString('en-US', optionsTime);
+                    const currentFormattedTimestamp = `${dateStr} • ${timeStr}`;
+
+                    const newTxRow = document.createElement('div');
+                    newTxRow.className = "flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0";
+                    newTxRow.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="text-xs font-bold text-neutral-800">Withdrawal (${activeAsset.replace('_', ' ')})</span>
+                        <span class="text-[9px] text-neutral-400 mono-text">${currentFormattedTimestamp}</span>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-xs font-bold text-blue-700 mono-text">-$${(inputAmountVal * 0.0008).toFixed(2)} USD</span>
+                        <span class="text-[9px] uppercase tracking-wider font-extrabold text-amber-500 animate-pulse mono-text">Pending</span>
+                    </div>
+                `;
+
+                    listWithdrawals.insertBefore(newTxRow, listWithdrawals.firstChild);
+
+                    document.getElementById('input-destination').value = '';
+                    if (document.getElementById('input-amount-pts')) {
+                        document.getElementById('input-amount-pts').value = '';
+                    }
+
+                    switchHistory('withdrawals');
+
+                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+                        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                    }
+                } else {
+                    const errMsg = await response.text();
+                    showToast(`Payout failed: ${errMsg}`, "❌");
+                }
+            } catch (err) {
+                showToast("Connection network routing error.", "❌");
+            }
+        }
+
+        // --- 🛠️ PHASE 2: DECENTRALIZED MULTI-NETWORK AD ROTATION ENGINE ---
+        const AdConfiguration = {
+            adsgram: {
+                enabled: true,
+                blockId: "35674"
+            },
+            onclicka: { enabled: true, adUrl: "https://js.onclckmn.com/static/onclicka.js" },
+            monetag: { enabled: true, adUrl: "https://refpaqum.com/smartlink/direct" }
+        };
+
+        // ✅ FIXED: Only using standard Rewarded Video controller. 
+        // AdsgramTaskController is safely omitted since we use <adsgram-task> HTML directly.
+        let AdsgramController = null;
+
+        function initAdsgram() {
+            if (window.Adsgram) {
+                AdsgramController = window.Adsgram.init({
+                    blockId: AdConfiguration.adsgram.blockId,
+                    debug: true
+                });
+            }
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        async function triggerAdNetworkSequence() {
+            const playBtn = document.getElementById('adsgram-play-btn');
+            const btnIcon = document.getElementById('ad-btn-icon');
+            const btnTitle = document.getElementById('ad-btn-title');
+            const btnSubtitle = document.getElementById('ad-btn-subtitle');
+            const btnArrow = document.getElementById('ad-btn-arrow');
+
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+            }
+
+            playBtn.disabled = true;
+            playBtn.classList.add('opacity-70', 'cursor-not-allowed');
+
+            const totalChainSteps = 3;
+            let adsCompletedCount = 0;
+
+            for (let i = 1; i <= totalChainSteps; i++) {
+                if (i > 1) {
+                    let secondsLeft = 3;
+                    while (secondsLeft > 0) {
+                        btnIcon.innerText = "⏳";
+                        btnTitle.innerText = `Waiting ${secondsLeft}s...`;
+                        btnSubtitle.innerText = "Re-establishing secure ad stream connection...";
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        secondsLeft--;
+                    }
+                }
+
+                btnIcon.innerText = "⏳";
+                btnTitle.innerText = `Loading Ad ${i} of ${totalChainSteps}...`;
+                btnSubtitle.innerText = "Routing decentralized network connection...";
+                btnArrow.innerText = "•";
+
+                const activePool = shuffleArray(['adsgram', 'onclicka', 'monetag']);
+                let adLoadedSuccessfully = false;
+
+                for (let network of activePool) {
+                    if (adLoadedSuccessfully) break;
+
+                    console.log(`📡 AdEngine attempting delivery on node: ${network.toUpperCase()}`);
+
+                    try {
+                        if (network === 'adsgram' && AdsgramController) {
+                            const result = await AdsgramController.show();
+                            if (result && (result.done || result.state === 'completed')) {
+                                adsCompletedCount++;
+                                adLoadedSuccessfully = true;
+                                showToast(`Ad ${i}/${totalChainSteps} (Adsgram) completed!`, "✓", 1500);
+                            }
+                        }
+                        else if (network === 'onclicka' && AdConfiguration.onclicka.enabled) {
+                            const completed = await triggerFallbackOverlay(AdConfiguration.onclicka.adUrl);
+                            if (completed) {
+                                adsCompletedCount++;
+                                adLoadedSuccessfully = true;
+                                showToast(`Ad ${i}/${totalChainSteps} (OnClickA) completed!`, "✓", 1500);
+                            }
+                        }
+                        else if (network === 'monetag' && AdConfiguration.monetag.enabled) {
+                            const completed = await triggerFallbackOverlay(AdConfiguration.monetag.adUrl);
+                            if (completed) {
+                                adsCompletedCount++;
+                                adLoadedSuccessfully = true;
+                                showToast(`Ad ${i}/${totalChainSteps} (Monetag) completed!`, "✓", 1500);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`⚠️ Delivery node failed: ${network.toUpperCase()}. Executing next pool fallback...`);
+                    }
+                }
+
+                if (!adLoadedSuccessfully) {
+                    showToast("Global fill limit reached. Please wait a moment.", "⚠️");
+                    resetAdButton();
+                    return;
+                }
+            }
+
+            if (adsCompletedCount === totalChainSteps) {
+                btnIcon.innerText = "🔄";
+                btnTitle.innerText = "Verifying Loop...";
+                btnSubtitle.innerText = "Syncing point allocation payload...";
+
+                try {
+                    const telegramInitData = window.Telegram?.WebApp?.initData || "";
+
+                    const response = await fetch('/portal/claim-ad-reward', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `WebApp ${telegramInitData}`
+                        },
+                        body: JSON.stringify({ id: "<%= user.telegram_id %>" })
+                    });
+
+                    if (response.ok) {
+                        const updatedData = await response.json();
+
+                        if (window.Telegram && window.Telegram.WebApp) {
+                            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                        }
+
+                        showToast("Loop Complete! +3 PTS Verified.", "⚡");
+
+                        const currentBalance = parseInt(document.getElementById('user-balance').innerText.replace(/,/g, ''));
+                        const newBalance = currentBalance + 3;
+
+                        document.getElementById('user-balance').innerText = newBalance.toLocaleString();
+                        document.getElementById('user-value').innerText = `$${(newBalance * 0.0008).toFixed(2)} USD`;
+
+                        const walletBal = document.getElementById('wallet-balance');
+                        if (walletBal) walletBal.innerText = newBalance.toLocaleString();
+                        const walletVal = document.getElementById('wallet-valuation');
+                        if (walletVal) walletVal.innerText = `$${(newBalance * 0.0008).toFixed(2)} USD`;
+
+                        const adsCountElement = document.getElementById('total-ads-watched');
+                        if (adsCountElement) {
+                            const currentAdsCount = parseInt(adsCountElement.innerText);
+                            adsCountElement.innerText = (currentAdsCount + 3).toString();
+                        }
+
+                        resetAdButton();
+                    } else {
+                        const errorMsg = await response.text();
+                        showToast(`Sync delay: ${errorMsg}`, "❌");
+                        resetAdButton();
+                    }
+                } catch (networkErr) {
+                    showToast("Database synchronization delayed. Balance will update on restart.", "⚠️");
+                    resetAdButton();
+                }
+            }
+
+            function resetAdButton() {
+                playBtn.disabled = false;
+                playBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                btnIcon.innerText = "⚡";
+                btnTitle.innerText = "Watch Stream Ad";
+                btnSubtitle.innerText = "Complete a loop of 3 ads for reward";
+                btnArrow.innerText = "→";
+            }
+        }
+
+        function triggerFallbackOverlay(destinationUrl) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('fallback-player-modal');
+                const closeBtn = document.getElementById('fallback-close-btn');
+                const iframe = document.getElementById('fallback-ad-iframe');
+                const spinner = document.getElementById('fallback-loading-spinner');
+                const countdownText = document.getElementById('fallback-countdown-text');
+                const progressBar = document.getElementById('fallback-progress-bar');
+
+                modal.classList.remove('hidden');
+                spinner.classList.remove('hidden');
+                iframe.classList.add('hidden');
+
+                closeBtn.disabled = true;
+                closeBtn.innerText = "Wait 15s";
+                closeBtn.className = "bg-neutral-800 text-neutral-500 font-bold text-[11px] px-3 py-1.5 rounded-xl uppercase tracking-wider transition-all cursor-not-allowed shadow-none";
+
+                progressBar.style.width = "100%";
+
+                iframe.src = destinationUrl;
+
+                iframe.onload = () => {
+                    spinner.classList.add('hidden');
+                    iframe.classList.remove('hidden');
+
+                    let secondsLeft = 15;
+                    progressBar.style.transition = "width 15s linear";
+                    void progressBar.offsetWidth;
+                    progressBar.style.width = "0%";
+
+                    const timer = setInterval(() => {
+                        secondsLeft--;
+                        closeBtn.innerText = `Wait ${secondsLeft}s`;
+
+                        if (secondsLeft <= 0) {
+                            clearInterval(timer);
+                            closeBtn.disabled = false;
+                            closeBtn.innerText = "Claim Reward ✓";
+                            closeBtn.className = "bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-[#e6ddd0] font-bold text-[11px] px-4 py-1.5 rounded-xl uppercase tracking-wider transition-all shadow-md";
+                            countdownText.innerText = "Verification successfully completed. You may now claim your points!";
+                        }
+                    }, 1000);
+
+                    closeBtn.onclick = () => {
+                        clearInterval(timer);
+                        modal.classList.add('hidden');
+                        iframe.src = ""; 
+                        resolve(true); 
+                    };
+                };
+
+                setTimeout(() => {
+                    if (!spinner.classList.contains('hidden')) {
+                        console.warn("⚠️ Fallback iframe loading timeout. Resolving true to bypass.");
+                        spinner.classList.add('hidden');
+                        modal.classList.add('hidden');
+                        iframe.src = "";
+                        resolve(true);
+                    }
+                }, 8000);
+            });
+        }
+
+        async function claimCustomRewardOnClient(amount, type) {
+            try {
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                const response = await fetch('/portal/claim-custom-reward', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify({
+                        id: "<%= user.telegram_id %>",
+                        amount: amount,
+                        type: type
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+
+                    const userBalanceEl = document.getElementById('user-balance');
+                    const walletBalanceEl = document.getElementById('wallet-balance');
+
+                    userBalanceEl.innerText = data.newBalance.toLocaleString();
+                    if (walletBalanceEl) walletBalanceEl.innerText = data.newBalance.toLocaleString();
+
+                    const newUsdVal = data.newBalance * 0.0008;
+                    const userValEl = document.getElementById('user-value');
+                    const walletValEl = document.getElementById('wallet-valuation');
+                    if (userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                    if (walletValEl) walletValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                }
+            } catch (err) {
+                console.error("Client side verification reward check failed:", err);
+            }
+        }
+
+        // ✅ FIXED: Added promo task validation block mapping perfectly to the backend router!
+        async function triggerPromoTask(promoKey, targetUrl) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+            window.open(targetUrl, '_blank');
+
+            const btn = document.getElementById('promo-btn-1'); 
+            if (!btn) return;
+
+            btn.disabled = true;
+            btn.innerText = "Verifying...";
+            btn.className = "bg-neutral-300 text-neutral-500 text-xs font-medium px-4 py-2 rounded-xl cursor-not-allowed";
+
+            setTimeout(async () => {
+                try {
+                    const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                    const response = await fetch('/portal/verify-custom-promo', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `WebApp ${telegramInitData}`
+                        },
+                        body: JSON.stringify({
+                            id: "<%= user.telegram_id %>",
+                            promoKey: promoKey
+                        })
+                    });
+
+                    if (response.ok) {
+                        showToast("Campaign quest verified! Points added.", "🎉");
+                        btn.innerText = "✓ Done";
+                        btn.className = "bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold px-4 py-2 rounded-xl";
+                        
+                        const userBalanceEl = document.getElementById('user-balance');
+                        const walletBalanceEl = document.getElementById('wallet-balance');
+                        const currentVal = parseInt(userBalanceEl.innerText.replace(/,/g, '')) || 0;
+                        
+                        userBalanceEl.innerText = (currentVal + 150).toLocaleString();
+                        if (walletBalanceEl) walletBalanceEl.innerText = (currentVal + 150).toLocaleString();
+                    } else {
+                        showToast("Verification failed. Please complete the target action first.", "⚠️");
+                        btn.disabled = false;
+                        btn.innerText = "Verify";
+                        btn.className = "bg-neutral-950 text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl active:scale-95 transition-transform";
+                    }
+                } catch (err) {
+                    showToast("Validation timeout. Try again.", "⚠️");
+                    btn.disabled = false;
+                    btn.innerText = "Verify";
+                }
+            }, 8000);
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initAdsgram(); 
+
+            // ✅ FIXED: Safely binds listener exclusively to the auto-loading Adsgram HTML web component
+            const taskAdElement = document.getElementById('adsgram-task-element');
+            const taskAdWrapper = document.getElementById('adsgram-task-wrapper');
+
+            if (taskAdElement && taskAdWrapper) {
+                taskAdWrapper.classList.remove('hidden');
+                taskAdWrapper.classList.add('flex');
+
+                taskAdElement.addEventListener('onBannerNotFound', () => {
+                    console.log("📡 Adsgram Task Ad: No active campaign matched. Hiding wrapper card.");
+                    taskAdWrapper.classList.remove('flex');
+                    taskAdWrapper.classList.add('hidden');
+                });
+
+                taskAdElement.addEventListener('onError', () => {
+                    console.warn("⚠️ Adsgram Task Ad: Execution failed or empty. Hiding wrapper card.");
+                    taskAdWrapper.classList.remove('flex');
+                    taskAdWrapper.classList.add('hidden');
+                });
+
+                taskAdElement.addEventListener('reward', async () => {
+                    showToast("Sponsored task completed! +50 PTS Added.", "🎉");
+                    await claimCustomRewardOnClient(50, "Adsgram Sponsored Task");
+                    taskAdWrapper.classList.add('hidden'); 
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>

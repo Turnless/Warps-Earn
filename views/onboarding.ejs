@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Security Node Verification</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* 🍁 CORE ORGANIC BRAND PALETTE ARCHITECTURE (Preserved from verify_gate) */
+        :root {
+            --color-bg-primary: #e6ddd0;      
+            --color-surface: #f0eae1;         
+            --color-text-main: #1c1917;       
+            --color-text-muted: #686256;      
+            --color-border: #d4c9b9;          
+            --color-accent: #2e4a3e;          
+        }
+
+        body {
+            background-color: var(--color-bg-primary);
+            color: var(--color-text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 40px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 85vh;
+        }
+
+        .gate-card {
+            width: 100%;
+            max-width: 360px;
+            background-color: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 16px;
+            padding: 32px 24px;
+            box-shadow: 0 4px 20px rgba(28, 25, 22, 0.02);
+            text-align: center;
+        }
+
+        h3 {
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            letter-spacing: -0.02em;
+        }
+
+        p {
+            font-size: 14px;
+            color: var(--color-text-muted);
+            line-height: 1.5;
+            margin: 0 0 24px 0;
+        }
+
+        .captcha-display {
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: 0.2em;
+            color: var(--color-accent);
+            background-color: var(--color-bg-primary);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            border: 1px dashed var(--color-border);
+            user-select: none;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 16px;
+            font-size: 16px;
+            border: 1px solid var(--color-border);
+            border-radius: 10px;
+            background-color: var(--color-bg-primary);
+            color: var(--color-text-main);
+            text-align: center;
+            font-weight: 600;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: var(--color-accent);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 16px;
+            font-size: 15px;
+            font-weight: 700;
+            background-color: var(--color-accent);
+            color: #e6ddd0;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .btn-submit:active {
+            transform: scale(0.98);
+            opacity: 0.95;
+        }
+
+        .btn-submit:disabled {
+            background-color: var(--color-border);
+            color: var(--color-text-muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #feedback {
+            margin-top: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--color-text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="gate-card">
+        <h3>Node Verification</h3>
+        <p>Please match the security challenge string to initialize your portal environment.</p>
+        
+        <!-- Live CAPTCHA code injected by server side rendering -->
+        <div class="captcha-display"><%= captchaCode %></div>
+        
+        <input type="text" id="captchaInput" class="input-field" placeholder="Enter challenge token" autocomplete="off" uppercase>
+        
+        <button type="button" id="submitBtn" class="btn-submit" onclick="runVerification()">
+            Verify Identity
+        </button>
+        
+        <div id="feedback">System idle.</div>
+    </div>
+
+   <script>
+        // Ensure Telegram environment is fully expanded & prepared
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+        }
+
+        // Auto-focus on input field for a premium native feel
+        document.getElementById('captchaInput').focus();
+
+        async function runVerification() {
+            const btn = document.getElementById('submitBtn');
+            const status = document.getElementById('feedback');
+            const solutionValue = document.getElementById('captchaInput').value.trim();
+            
+            // Gather parameters directly from active URL query strings
+            const urlParams = new URLSearchParams(window.location.search);
+            const explicitId = urlParams.get('id') || (window.Telegram?.WebApp?.initDataUnsafe?.user?.id || '');
+
+            if (!solutionValue) {
+                status.style.color = "red";
+                status.innerText = "Please input the token first.";
+                return;
+            }
+
+            btn.disabled = true;
+            status.style.color = "var(--color-text-main)";
+            status.innerText = "Processing signatures...";
+
+            try {
+                // Post matching payloads back to client security validator router
+                const response = await fetch('/portal/verify-sybil', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: explicitId,
+                        fingerprint: "menu-button-hardware-token", // Browser fingerprint payload indicator
+                        solution: solutionValue,
+                        expectedCaptcha: "<%= captchaCode %>",
+                        upline: "<%= upline %>"
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // Trigger Telegram haptic confirmation if available
+                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+                        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                    }
+
+                    status.style.color = "var(--color-accent)";
+                    status.innerText = "✓ Cleared! Redirecting to hub...";
+                    
+                    setTimeout(() => {
+                        window.location.href = `/dashboard?id=${explicitId}`;
+                    }, 1000);
+                } else {
+                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+                        window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+                    }
+                    status.style.color = "red";
+                    status.innerText = result.error || result.message || "Verification failed.";
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                status.style.color = "red";
+                status.innerText = "Backend communication exception structural fault.";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

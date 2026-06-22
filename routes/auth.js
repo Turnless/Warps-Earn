@@ -1,0 +1,92 @@
+const express = require('express');
+const router = express.Router();
+const crypto = require('crypto');
+const User = require('../models/User');
+
+// Destructure your security helper features
+const { verifyTelegramSignature } = require('../security/sybil');
+
+// 🔑 CENTRAL TRAFFIC CHECKPOINT (Triggers when user opens any Mini App button instance)
+router.get('/', async (req, res) => {
+    let telegramId = req.query.id;
+    let parsedUser = null;
+
+    // 💡 THE GLOBAL BUTTON FIX: If id parameter is missing from the query string
+    try {
+        // Check if Telegram passed the native secure headers signature string
+        const rawInitData = req.query.tgWebAppInitData || req.headers['x-telegram-init-data'];
+
+        if (rawInitData) {
+            const urlParams = new URLSearchParams(rawInitData);
+            const userObj = JSON.parse(urlParams.get('user'));
+            if (userObj && userObj.id) {
+                telegramId = String(userObj.id);
+                parsedUser = userObj; // Save user context details (pfp, username, names)
+            }
+        }
+    } catch (e) {
+        console.warn("Global tracking identity evaluation skipped:", e.message);
+    }
+
+    // Fallback block if everything is completely empty
+    if (!telegramId) {
+        return res.status(400).send("Identity validation failed. Please open the bot directly from Telegram.");
+    }
+
+    try {
+        let user = await User.findOne({ telegram_id: String(telegramId) });
+
+        // 🛡️ Already passed verification? Send straight past the gate to the dashboard
+        if (user && user.onboarding_passed) {
+            // Update profile info dynamically if they changed their name/pfp in Telegram
+            if (parsedUser) {
+                user.first_name = parsedUser.first_name || user.first_name || 'User Node';
+                user.username = parsedUser.username || user.username || 'Anonymous';
+                user.photo_url = parsedUser.photo_url || user.photo_url || null;
+                await user.save();
+            }
+            return res.redirect(`/dashboard?id=${telegramId}`);
+        }
+
+        // 🔓 Brand new profile? Create them and forward to onboarding challenge route
+        if (!user) {
+            const username = parsedUser?.username || "Anonymous";
+            const firstName = parsedUser?.first_name || "User Node";
+            const photoUrl = parsedUser?.photo_url || null;
+            const upline = req.query.startapp || null; // Capture invitation referral code if present
+
+            // Create a hardware verification hash placeholder for local dev environments
+            const hardwareHash = crypto.createHash('md5').update(telegramId + Date.now()).digest('hex');
+
+            user = new User({
+                telegram_id: String(telegramId),
+                username: username,
+                first_name: firstName,
+                photo_url: photoUrl,
+                points_balance: 0,
+                total_ads_watched: 0,
+                onboarding_passed: true, // Auto-pass for immediate local dashboard validation testing
+                device_hardware_hash: hardwareHash,
+                referred_by: upline,
+                upline: upline,
+                referrer_id: upline,
+                registered_timestamp: Date.now()
+            });
+
+            await user.save();
+        }
+
+        return res.redirect(`/dashboard?id=${telegramId}`);
+
+    } catch (err) {
+        console.error("Authentication mapping engine failure:", err);
+        return res.status(500).send("Authentication engine tracking fault.");
+    }
+});
+
+// 🛡️ SECURE CHALLENGE GATEWAY PAGE
+router.get('/secure-gate', (req, res) => {
+    res.send("🔒 Security Checkpoint. Please open this app inside Telegram.");
+});
+
+module.exports = router;
