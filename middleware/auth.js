@@ -26,7 +26,7 @@ function verifyTelegramWebAppData(req, res, next) {
     const dataCheckString = keys.map(key => `${key}=${params.get(key)}`).join('\n');
 
     // 2. Derive secret key by hashing the Bot Token using "WebAppData" constant salt
-    const botToken = process.env.TELEGRAM_BOT_TOKEN || "8631881085:AAHTPWtPuA6x64z7rj4rMwiX5NCZe5uW1VY";
+    const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "8631881085:AAHTPWtPuA6x64z7rj4rMwiX5NCZe5uW1VY";
     const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
 
     // 3. Compute expected hash signature
