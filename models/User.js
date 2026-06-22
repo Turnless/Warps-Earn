@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema({
     earnings_history: [earningsHistorySchema],
     
     daily_tracker: {
-        date: { type: String, required: true },
+        date: { type: String, default: null },
         count: { type: Number, default: 0 }
     },
     
