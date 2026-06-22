@@ -5,7 +5,7 @@
   "main": "api/index.js",
   "scripts": {
     "dev": "node dev.js",
-    "start": "node api/index.js"
+    "start": "node dev.js"
   },
   "dependencies": {
     "@bull-board/api": "^8.0.1",
