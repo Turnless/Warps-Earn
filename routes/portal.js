@@ -219,7 +219,8 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
         res.status(200).json({
             success: true,
             newBalance: result.currentBalance,
-            totalAds: result.totalAds
+            totalAds: result.totalAds,
+            loopIndex: result.loopIndex
         });
 
         // If loop completes (reaches 3 loops, resulting in reset to index 0), enqueue cooldown restock message

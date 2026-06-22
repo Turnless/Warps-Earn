@@ -75,7 +75,7 @@ async function watchAdRound(userId) {
         user.current_session_loop = 0;
     }
 
-    user.points_balance = (user.points_balance || 0) + 10;
+    user.points_balance = (user.points_balance || 0) + 3;
     user.total_ads_watched = (user.total_ads_watched || 0) + 3; 
     user.daily_tracker.count += 3;
     user.current_session_loop = (user.current_session_loop || 0) + 1;
@@ -92,7 +92,7 @@ async function watchAdRound(userId) {
     if (!user.earnings_history) user.earnings_history = [];
     user.earnings_history.unshift({
         type: `Loop ${user.current_session_loop === 0 ? 3 : user.current_session_loop} Stream Reward`,
-        amount: 10,
+        amount: 3,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
 

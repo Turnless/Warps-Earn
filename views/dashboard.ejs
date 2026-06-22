@@ -460,49 +460,34 @@
                         </div>
                     </div>
 
-                    <!-- 💎 SPONSORED INITIATIVES & PROMOTIONS -->
-                    <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-4 mt-4">
-                        <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Ecosystem Growth Campaigns</span>
+                    <!-- 💎 ECOSYSTEM GROWTH CAMPAIGNS (DYNAMICALLY REVEALED) -->
+                    <div id="ecosystem-container" class="hidden relative w-full overflow-hidden bg-gradient-to-br from-indigo-50/90 to-white/90 backdrop-blur-xl border border-indigo-200/60 rounded-[28px] p-5 shadow-[0_4px_20px_-4px_rgba(79,70,229,0.1)] flex-col gap-4 mt-4">
+                        <!-- Decorative Background Glow -->
+                        <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-400/20 blur-3xl rounded-full pointer-events-none"></div>
+                        <div class="absolute -bottom-8 -left-8 w-24 h-24 bg-emerald-400/10 blur-2xl rounded-full pointer-events-none"></div>
+
+                        <span class="text-[10px] font-extrabold uppercase tracking-widest text-indigo-500/80 mono-text z-10 flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                            Ecosystem Growth
+                        </span>
                         
-                        <!-- 1. DYNAMIC ADSGRAM TASK CARD (AUTO-HIDES IF UNFILLED) -->
-<div class="hidden flex-col gap-2 pb-4 border-b border-neutral-200/60" id="adsgram-task-wrapper">
-    <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">💎</div>
-        <div class="flex flex-col flex-1">
-            <span class="text-xs font-bold text-neutral-800">Adsgram Partner Challenge</span>
-            <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+50 PTS</span>
-        </div>
-    </div>
-    <!-- Cleaned wrapper: Removed bulky background/borders so the Adsgram component sits flush -->
-    <div class="w-full px-1 mt-1">
-        <adsgram-task 
-            id="adsgram-task-element"
-            data-block-id="task-35851" 
-            data-debug="true" 
-            data-debug-console="false" 
-            class="w-full block">
-        </adsgram-task>
-    </div>
-</div>
-
-                        <!-- 2. PROMOTIONAL TASK TEMPLATE (BLURRED AND LOCKED BY DEFAULT) -->
-                        <div class="relative overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4 transition-all duration-300" id="custom-promo-task-1">
-                            <!-- Frosted Glass Lock Overlay -->
-                            <div class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-neutral-200/40 backdrop-blur-[3px] transition-all duration-300" id="promo-blur-overlay-1">
-                                <span class="text-lg">🔒</span>
-                                <span class="text-[9px] font-bold text-neutral-500 uppercase tracking-widest mt-1">Locked Campaign</span>
-                            </div>
-
-                            <!-- Content Core (Appears beautifully blurred behind the overlay) -->
-                            <div class="flex justify-between items-center select-none opacity-40" id="promo-content-container-1">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm" id="promo-icon-1">🚀</div>
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-neutral-800" id="promo-title-1">Follow Turnless on X</span>
-                                        <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5" id="promo-reward-1">+150 PTS</span>
-                                    </div>
+                        <!-- 1. DYNAMIC ADSGRAM TASK CARD -->
+                        <div class="hidden flex-col gap-3 z-10" id="adsgram-task-wrapper">
+                            <div class="flex items-center gap-3 bg-white/60 p-3 rounded-2xl border border-white/80 shadow-sm backdrop-blur-md">
+                                <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-50 flex items-center justify-center text-xl shadow-inner border border-indigo-200/50">💎</div>
+                                <div class="flex flex-col flex-1">
+                                    <span class="text-xs font-extrabold text-neutral-800">Adsgram Partner Challenge</span>
+                                    <span class="text-[10px] text-emerald-600 font-bold mono-text mt-0.5 tracking-wide">+50 PTS Guaranteed</span>
                                 </div>
-                                <button onclick="triggerPromoTask('promo1', 'https://x.com/turnless_HQ')" id="promo-btn-1" disabled class="bg-neutral-300 text-neutral-500 text-xs font-bold px-4 py-2 rounded-xl cursor-not-allowed">Locked</button>
+                            </div>
+                            <div class="w-full relative rounded-xl overflow-hidden shadow-sm border border-black/5 bg-white">
+                                <adsgram-task 
+                                    id="adsgram-task-element"
+                                    data-block-id="task-35851" 
+                                    data-debug="true" 
+                                    data-debug-console="false" 
+                                    class="w-full block">
+                                </adsgram-task>
                             </div>
                         </div>
                     </div>
@@ -1113,12 +1098,13 @@
 
         // --- 🛠️ PHASE 2: DECENTRALIZED MULTI-NETWORK AD ROTATION ENGINE ---
         const AdConfiguration = {
-            adsgram: {
-                enabled: true,
-                blockId: "35674"
-            },
+            // Video / Rewarded Video Only
+            adsgram: { enabled: true, blockId: "35674" },
+            // Direct Smartlinks (Banner/Video pages only, no interstitial scripts)
             onclicka: { enabled: true, adUrl: "https://js.onclckmn.com/static/onclicka.js" },
-            monetag: { enabled: true, adUrl: "https://refpaqum.com/smartlink/direct" }
+            monetag: { enabled: true, adUrl: "https://refpaqum.com/smartlink/direct" },
+            andsor: { enabled: true, adUrl: "https://andsor.placeholder/smartlink" },
+            telegaio: { enabled: true, adUrl: "https://telega.placeholder/smartlink" }
         };
 
         // ✅ FIXED: Only using standard Rewarded Video controller. 
@@ -1176,7 +1162,7 @@
                 btnSubtitle.innerText = "Routing decentralized network connection...";
                 btnArrow.innerText = "•";
 
-                const activePool = shuffleArray(['adsgram', 'onclicka', 'monetag']);
+                const activePool = shuffleArray(['adsgram', 'onclicka', 'monetag', 'andsor', 'telegaio']);
                 let adLoadedSuccessfully = false;
 
                 for (let network of activePool) {
@@ -1207,6 +1193,22 @@
                                 adsCompletedCount++;
                                 adLoadedSuccessfully = true;
                                 showToast(`Ad ${i}/${totalChainSteps} (Monetag) completed!`, "✓", 1500);
+                            }
+                        }
+                        else if (network === 'andsor' && AdConfiguration.andsor.enabled) {
+                            const completed = await triggerFallbackOverlay(AdConfiguration.andsor.adUrl);
+                            if (completed) {
+                                adsCompletedCount++;
+                                adLoadedSuccessfully = true;
+                                showToast(`Ad ${i}/${totalChainSteps} (Andsor) completed!`, "✓", 1500);
+                            }
+                        }
+                        else if (network === 'telegaio' && AdConfiguration.telegaio.enabled) {
+                            const completed = await triggerFallbackOverlay(AdConfiguration.telegaio.adUrl);
+                            if (completed) {
+                                adsCompletedCount++;
+                                adLoadedSuccessfully = true;
+                                showToast(`Ad ${i}/${totalChainSteps} (Telega.io) completed!`, "✓", 1500);
                             }
                         }
                     } catch (e) {
@@ -1262,6 +1264,22 @@
                         if (adsCountElement) {
                             const currentAdsCount = parseInt(adsCountElement.innerText);
                             adsCountElement.innerText = (currentAdsCount + 3).toString();
+                        }
+
+                        // Auto-sync Activity History
+                        const listActivity = document.getElementById('list-activity');
+                        if (listActivity) {
+                            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const loopDisplay = updatedData.loopIndex === 0 ? 3 : updatedData.loopIndex;
+                            const historyHtml = `
+                                <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-neutral-800">Loop ${loopDisplay} Stream Reward</span>
+                                        <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
+                                    </div>
+                                    <span class="text-xs font-bold text-emerald-700 mono-text">+3</span>
+                                </div>`;
+                            listActivity.insertAdjacentHTML('afterbegin', historyHtml);
                         }
 
                         resetAdButton();
@@ -1445,19 +1463,26 @@
             // ✅ FIXED: Safely binds listener exclusively to the auto-loading Adsgram HTML web component
             const taskAdElement = document.getElementById('adsgram-task-element');
             const taskAdWrapper = document.getElementById('adsgram-task-wrapper');
+            const ecoContainer = document.getElementById('ecosystem-container');
 
             if (taskAdElement && taskAdWrapper) {
+                if (ecoContainer) {
+                    ecoContainer.classList.remove('hidden');
+                    ecoContainer.classList.add('flex');
+                }
                 taskAdWrapper.classList.remove('hidden');
                 taskAdWrapper.classList.add('flex');
 
                 taskAdElement.addEventListener('onBannerNotFound', () => {
                     console.log("📡 Adsgram Task Ad: No active campaign matched. Hiding wrapper card.");
+                    if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
                     taskAdWrapper.classList.remove('flex');
                     taskAdWrapper.classList.add('hidden');
                 });
 
                 taskAdElement.addEventListener('onError', () => {
                     console.warn("⚠️ Adsgram Task Ad: Execution failed or empty. Hiding wrapper card.");
+                    if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
                     taskAdWrapper.classList.remove('flex');
                     taskAdWrapper.classList.add('hidden');
                 });
@@ -1465,6 +1490,7 @@
                 taskAdElement.addEventListener('reward', async () => {
                     showToast("Sponsored task completed! +50 PTS Added.", "🎉");
                     await claimCustomRewardOnClient(50, "Adsgram Sponsored Task");
+                    if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
                     taskAdWrapper.classList.add('hidden'); 
                 });
             }
