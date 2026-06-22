@@ -44,6 +44,9 @@ app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
 app.set("bot", bot);
 
+// Serve static assets (images, css, etc.) from the public folder
+app.use("/public", express.static(path.join(process.cwd(), "public")));
+
 // ==========================================
 // 🛡️ LOOP-PROOF ROUTE EXEMPTION MIDDLEWARE
 // ==========================================
