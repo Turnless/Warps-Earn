@@ -9,6 +9,12 @@ console.log(`📡 [Queue] Initializing Telegram notification queue on Redis...`)
 
 const telegramQueue = new Queue('telegramNotifications', REDIS_URL);
 
+// Register error listener to prevent unhandled Redis connection reset crashes
+telegramQueue.on('error', (err) => {
+    console.error('⚠️ [Queue] Bull queue connection error:', err.message);
+});
+
+
 // Worker processor to handle outbound notifications
 telegramQueue.process(async (job) => {
     const { type, payload } = job.data;
