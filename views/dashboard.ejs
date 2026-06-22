@@ -486,7 +486,7 @@
                             <div class="w-full relative rounded-xl overflow-hidden shadow-sm border border-black/5 bg-white">
                                 <adsgram-task 
                                     id="adsgram-task-element"
-                                    data-block-id="task-35943" 
+                                    data-block-id="task-35948" 
                                     data-debug="true" 
                                     data-debug-console="false" 
                                     class="w-full block">
@@ -1201,20 +1201,35 @@
                             }
                         }
                         else if (network === 'onclicka' && AdConfiguration.onclicka.enabled) {
-                            // Try each configured OnClickA spot in sequence until one works
-                            const showFns = [OnClickAShowAd1, OnClickAShowAd2, OnClickAShowAd3].filter(fn => fn !== null);
-                            for (let showFn of showFns) {
+                            if (!window.initCdTma) throw new Error("OnClickA SDK not fully loaded yet.");
+                            let success = false;
+                            
+                            // Map existing preloaded functions or dynamically initialize them if missing due to network race conditions
+                            const spots = AdConfiguration.onclicka.spotIds;
+                            const preloadedShows = [OnClickAShowAd1, OnClickAShowAd2, OnClickAShowAd3];
+
+                            for (let idx = 0; idx < spots.length; idx++) {
                                 try {
-                                    await showFn();
-                                    adsCompletedCount++;
-                                    adLoadedSuccessfully = true;
-                                    showToast(`Ad ${i}/${totalChainSteps} (OnClickA) completed!`, "✓", 1500);
-                                    break; // Stop trying spots if one succeeded
+                                    let showFn = preloadedShows[idx];
+                                    
+                                    // Fallback: If preload failed because of script loading times, dynamically init it right now
+                                    if (!showFn && window.initCdTma) {
+                                        showFn = await window.initCdTma({ id: spots[idx] });
+                                    }
+                                    
+                                    if (showFn) {
+                                        await showFn();
+                                        adsCompletedCount++;
+                                        adLoadedSuccessfully = true;
+                                        showToast(`Ad ${i}/${totalChainSteps} (OnClickA) completed!`, "✓", 1500);
+                                        success = true;
+                                        break; // Stop trying spots if one succeeded
+                                    }
                                 } catch (err) {
-                                    console.warn("OnClickA specific spot failed, trying next spot if available...", err);
+                                    console.warn(`OnClickA specific spot ${spots[idx]} failed...`, err);
                                 }
                             }
-                            if (!adLoadedSuccessfully) {
+                            if (!success) {
                                 throw new Error("All OnClickA spots failed or were not configured.");
                             }
                         }
