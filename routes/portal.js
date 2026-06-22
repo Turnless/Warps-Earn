@@ -40,10 +40,21 @@ function getFormattedDateTime() {
 async function invalidateUserCache(userId) {
     try {
         console.log(`📡 [Redis Cache] Purging cache key for user: ${userId}`);
-        await redis.del(`user:${userId}:profile`);
+        await redisWithTimeout(redis.del(`user:${userId}:profile`));
     } catch (err) {
         console.error("⚠️ Redis cache purge failed:", err.message);
     }
+}
+
+// Timeout wrapper for Redis operations to prevent infinite hangs
+// when Redis is in a broken/reconnecting state (EPIPE, ECONNRESET).
+function redisWithTimeout(promise, timeoutMs = 3000) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Redis operation timed out')), timeoutMs)
+        )
+    ]);
 }
 
 // --- 📊 CORE DASHBOARD CONTROLLER ---
@@ -59,7 +70,7 @@ router.get('/dashboard', async (req, res) => {
         let user = null;
 
         try {
-            const cachedUser = await redis.get(redisKey);
+            const cachedUser = await redisWithTimeout(redis.get(redisKey));
             if (cachedUser) {
                 console.log(`📡 [Redis Cache] Cache HIT for user dashboard: ${userId}`);
                 user = JSON.parse(cachedUser);
@@ -74,7 +85,7 @@ router.get('/dashboard', async (req, res) => {
 
             if (user) {
                 try {
-                    await redis.setex(redisKey, 300, JSON.stringify(user)); // cache for 5 minutes
+                    await redisWithTimeout(redis.setex(redisKey, 300, JSON.stringify(user)));
                 } catch (redisError) {
                     console.error("⚠️ Redis cache write failure:", redisError.message);
                 }
@@ -183,7 +194,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 
         // 🛡️ Redis Mutex Lock to block concurrent reward farming race conditions
         const lockKey = `lock:claim:${userId}`;
-        const isLocked = await redis.set(lockKey, "1", "NX", "EX", 5);
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 5));
         if (!isLocked) {
             console.log(`⚠️ [Rate Limit] Rejected concurrent ad claim attempt for user: ${userId}`);
             return res.status(429).send("Too many concurrent requests. Please wait.");
@@ -191,19 +202,19 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) {
-            await redis.del(lockKey);
+            await redisWithTimeout(redis.del(lockKey));
             return res.status(404).send("User profile not found.");
         }
 
         const todayStr = new Date().toISOString().split('T')[0];
         if (user.daily_tracker && user.daily_tracker.date === todayStr && user.daily_tracker.count >= 100) {
-            await redis.del(lockKey);
+            await redisWithTimeout(redis.del(lockKey));
             return res.status(400).send("Daily limit exceeded.");
         }
 
         const result = await db.watchAdRound(userId);
         await invalidateUserCache(userId);
-        await redis.del(lockKey);
+        await redisWithTimeout(redis.del(lockKey));
 
         res.status(200).json({
             success: true,
@@ -405,7 +416,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
         // 🛡️ Redis Mutex Lock to block payout double spending / parallel clicks
         const lockKey = `lock:payout:${userId}`;
-        const isLocked = await redis.set(lockKey, "1", "NX", "EX", 10);
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 10));
         if (!isLocked) {
             console.log(`⚠️ [Rate Limit] Rejected concurrent payout request for user: ${userId}`);
             return res.status(429).send("A transaction is already in progress. Please wait.");
@@ -413,17 +424,17 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) {
-            await redis.del(lockKey);
+            await redisWithTimeout(redis.del(lockKey));
             return res.status(404).send("User profile signature missing.");
         }
 
         if (requestedAmount > (user.points_balance || 0)) {
-            await redis.del(lockKey);
+            await redisWithTimeout(redis.del(lockKey));
             return res.status(400).send("Insufficient points balance.");
         }
 
         if (chosenAsset === 'NAIRA' && !/^\d{10}$/.test(destination)) {
-            await redis.del(lockKey);
+            await redisWithTimeout(redis.del(lockKey));
             return res.status(400).send("Naira bank transfers require a precise 10-digit account details profile.");
         }
 
@@ -433,7 +444,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         }
 
         if (user.daily_withdrawals.count >= 2) {
-            await redis.del(lockKey);
+            await redisWithTimeout(redis.del(lockKey));
             return res.status(403).send("Daily Limit Reached: You can only withdraw up to 2 times per day.");
         }
 
@@ -444,7 +455,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         const thresholdLimit = (withdrawalsMade === 0) ? 1500 : 1250;
 
         if (!isUplinePromoter && requestedAmount < thresholdLimit) {
-            await redis.del(lockKey);
+            await redisWithTimeout(redis.del(lockKey));
             return res.status(403).send(`Minimum withdrawal is ${thresholdLimit} PTS.`);
         }
 
@@ -533,7 +544,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         await ticket.save();
 
         await invalidateUserCache(userId);
-        await redis.del(lockKey); // releaseMutex
+        await redisWithTimeout(redis.del(lockKey)); // releaseMutex
 
         const adminChatId = "6314427516";
         const hostUrl = `${req.protocol}://${req.get('host')}`;
