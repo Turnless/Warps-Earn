@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Sybil Hunter Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #e6ddd0;
+            color: #1a1a16;
+        }
+        .mono-text {
+            font-family: 'Geist Mono', monospace;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 selection:bg-neutral-800 selection:text-[#e6ddd0]">
+    <div class="w-full max-w-4xl flex flex-col gap-6">
+
+        <header class="w-full flex items-center gap-4">
+            <a href="/admin" class="w-12 h-12 rounded-full bg-white/60 backdrop-blur-md border border-neutral-300/80 flex items-center justify-center text-xl shadow-sm text-neutral-800 hover:bg-white transition-all">←</a>
+            <div class="flex flex-col">
+                <h1 class="text-2xl font-bold tracking-tight text-neutral-900 leading-tight">Sybil Hunter Engine</h1>
+                <span class="text-sm text-neutral-600 font-medium">Fraud & IP Tracking Array</span>
+            </div>
+            <button onclick="window.location.reload()" class="ml-auto bg-neutral-950 text-[#e6ddd0] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest shadow-md hidden md:block">Run Scan</button>
+        </header>
+
+        <div class="w-full bg-rose-50 border border-rose-200 rounded-3xl p-6 flex flex-col gap-2 shadow-sm">
+            <div class="flex items-center gap-2 text-rose-800 pb-2 border-b border-rose-200">
+                <span class="text-2xl">🕵️</span>
+                <h3 class="font-bold tracking-tight uppercase">Detected Clusters</h3>
+            </div>
+            <p class="text-xs text-rose-700 font-medium mt-1 mb-4">
+                The engine has identified the following devices operating multiple distinct Telegram accounts. Review and ban abusers immediately.
+            </p>
+
+            <% if (clusters && clusters.length > 0) { %>
+                <div class="flex flex-col gap-4">
+                    <% clusters.forEach((cluster, index) => { %>
+                        <div class="bg-white p-4 rounded-2xl border border-rose-200 shadow-sm flex flex-col gap-3">
+                            <div class="flex justify-between items-center bg-rose-100 p-2 rounded-lg">
+                                <span class="text-[10px] font-bold text-rose-900 uppercase tracking-widest mono-text">Cluster #<%= index + 1 %></span>
+                                <span class="text-[10px] font-bold text-rose-900 bg-white px-2 py-1 rounded-md mono-text">Fingerprint: <%= cluster._id.substring(0, 15) %>...</span>
+                            </div>
+                            
+                            <div class="flex flex-col gap-2">
+                                <div class="grid grid-cols-12 px-2 text-[10px] uppercase font-bold text-neutral-400 tracking-widest mono-text border-b border-neutral-100 pb-1">
+                                    <div class="col-span-4">User</div>
+                                    <div class="col-span-4 text-right">Balance</div>
+                                    <div class="col-span-4 text-right">Action</div>
+                                </div>
+                                <% cluster.users.forEach(u => { %>
+                                    <div class="grid grid-cols-12 px-2 items-center text-xs">
+                                        <div class="col-span-4 flex flex-col truncate">
+                                            <span class="font-bold text-neutral-900 truncate">@<%= u.username %></span>
+                                            <span class="text-[9px] text-neutral-500 mono-text"><%= u.telegram_id %></span>
+                                        </div>
+                                        <div class="col-span-4 text-right font-bold text-emerald-700 mono-text">
+                                            <%= u.balance || 0 %> PTS
+                                        </div>
+                                        <div class="col-span-4 flex justify-end gap-2">
+                                            <% if (u.is_banned) { %>
+                                                <span class="text-[9px] font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded uppercase border border-rose-100">Banned</span>
+                                            <% } else { %>
+                                                <a href="/admin/user-lookup?q=<%= u.telegram_id %>" class="text-[9px] font-bold text-neutral-900 bg-neutral-200 hover:bg-neutral-300 px-3 py-1.5 rounded uppercase transition-all">Inspect</a>
+                                            <% } %>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            </div>
+                        </div>
+                    <% }) %>
+                </div>
+            <% } else { %>
+                <div class="text-center py-12 flex flex-col items-center gap-3 opacity-50 bg-white rounded-2xl border border-rose-100">
+                    <span class="text-4xl">🛡️</span>
+                    <span class="text-sm font-bold text-emerald-700 uppercase tracking-widest">Network Secure</span>
+                    <span class="text-[10px] text-neutral-500 mono-text">0 active sybil clusters detected.</span>
+                </div>
+            <% } %>
+        </div>
+
+    </div>
+</body>
+</html>

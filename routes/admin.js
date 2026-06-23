@@ -221,6 +221,47 @@ router.post('/user-ban', checkAdminAuth, express.urlencoded({ extended: true }),
     }
 });
 
+// --- 🛠️ DYNAMIC USER MANAGEMENT CONTROLLERS ---
+router.post('/user-manage-balance', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    const { telegram_id, amount, reason } = req.body;
+    try {
+        const amt = parseInt(amount);
+        if (isNaN(amt)) return res.redirect(`/admin/user-lookup?q=${telegram_id}`);
+
+        const user = await User.findOne({ telegram_id });
+        if (user) {
+            user.points_balance = Math.max(0, (user.points_balance || 0) + amt);
+            if (!user.earnings_history) user.earnings_history = [];
+            user.earnings_history.unshift({
+                type: `Admin Adjustment: ${reason || 'Manual'}`,
+                amount: amt,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            await user.save();
+            await redis.del(`user:${telegram_id}:profile`);
+        }
+        res.redirect(`/admin/user-lookup?q=${telegram_id}`);
+    } catch (e) {
+        res.status(500).send("Action failed");
+    }
+});
+
+router.post('/user-reset-cooldown', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    const { telegram_id } = req.body;
+    try {
+        const user = await User.findOne({ telegram_id });
+        if (user) {
+            user.cooldown_until = 0;
+            user.current_session_loop = 0;
+            await user.save();
+            await redis.del(`user:${telegram_id}:profile`);
+        }
+        res.redirect(`/admin/user-lookup?q=${telegram_id}`);
+    } catch (e) {
+        res.status(500).send("Action failed");
+    }
+});
+
 // --- 📢 BROADCAST MESSAGE CONTROLLER ---
 router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     const { message_text } = req.body;
@@ -235,6 +276,74 @@ router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true })
         res.redirect('/admin');
     } catch (e) {
         res.status(500).send("Broadcast failed");
+    }
+});
+
+// --- 📄 CSV ACCOUNTING EXPORT ENDPOINTS ---
+router.get('/export-users', checkAdminAuth, async (req, res) => {
+    try {
+        const users = await User.find({}).lean();
+        
+        // Define CSV Headers
+        let csvContent = "Telegram ID,Username,First Name,Points Balance,Total Ads Watched,Withdrawals Count,Is Banned,Registered Date\n";
+        
+        users.forEach(u => {
+            const dateStr = u.createdAt ? new Date(u.createdAt).toISOString() : "N/A";
+            const row = `"${u.telegram_id}","${u.username}","${u.first_name || ''}",${u.points_balance},${u.total_ads_watched},${u.withdrawals_count || 0},${u.is_banned},"${dateStr}"`;
+            csvContent += row + "\n";
+        });
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename="warps_users_export.csv"');
+        res.status(200).send(csvContent);
+    } catch (err) {
+        res.status(500).send("CSV Export Failed");
+    }
+});
+
+router.get('/export-withdrawals', checkAdminAuth, async (req, res) => {
+    try {
+        const withdrawals = await Withdrawal.find({}).lean();
+        
+        let csvContent = "Transaction ID,Telegram ID,Username,Amount PTS,Asset,Bank Provider,Destination Details,Status,Created At\n";
+        
+        withdrawals.forEach(w => {
+            const dateStr = w.created_at ? new Date(w.created_at).toISOString() : "N/A";
+            const destClean = (w.destination_details || '').replace(/"/g, '""');
+            const row = `"${w.id}","${w.telegram_id}","${w.username}",${w.amount_points},"${w.asset}","${w.bank_provider || ''}","${destClean}","${w.status}","${dateStr}"`;
+            csvContent += row + "\n";
+        });
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename="warps_withdrawals_export.csv"');
+        res.status(200).send(csvContent);
+    } catch (err) {
+        res.status(500).send("CSV Export Failed");
+    }
+});
+
+// --- 🕵️ SYBIL HUNTER (FRAUD & IP TRACKING ENGINE) ---
+router.get('/sybil-hunter', checkAdminAuth, async (req, res) => {
+    try {
+        // Aggregate users by device_fingerprint to find duplicates
+        const sybilClusters = await User.aggregate([
+            { $match: { device_fingerprint: { $ne: null, $ne: "" } } },
+            { $group: {
+                _id: "$device_fingerprint",
+                users: { $push: { telegram_id: "$telegram_id", username: "$username", balance: "$points_balance", is_banned: "$is_banned" } },
+                count: { $sum: 1 }
+            }},
+            { $match: { count: { $gt: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 50 }
+        ]);
+
+        res.render('admin_sybil_hunter', {
+            secret: ADMIN_SECRET_SIGNATURE,
+            clusters: sybilClusters
+        });
+    } catch (err) {
+        res.status(500).send("Sybil Hunter Failed");
     }
 });
 

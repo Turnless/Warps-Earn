@@ -76,6 +76,9 @@
                 <button onclick="switchTab('tab-lookup')" id="nav-lookup" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
                     <span class="text-lg">🔍</span> User Lookup
                 </button>
+                <a href="/admin/sybil-hunter?secret=<%= secret %>" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
+                    <span class="text-lg">🕵️</span> Sybil Hunter
+                </a>
                 <button onclick="switchTab('tab-leaderboard')" id="nav-leaderboard" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
                     <span class="text-lg">🏆</span> Leaderboard
                 </button>
@@ -104,9 +107,15 @@
 
             <!-- 1. TELEMETRY / METRICS -->
             <section id="tab-telemetry" class="flex flex-col gap-6">
-                <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-neutral-900">Global Telemetry</h2>
-                    <p class="text-sm text-neutral-500 font-medium">Real-time macro economics and network statistics.</p>
+                <div class="flex justify-between items-start md:items-end flex-col md:flex-row gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight text-neutral-900">Global Telemetry</h2>
+                        <p class="text-sm text-neutral-500 font-medium">Real-time macro economics and network statistics.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <a href="/admin/export-users?secret=<%= secret %>" class="bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm transition-all">📄 Export Users</a>
+                        <a href="/admin/export-withdrawals?secret=<%= secret %>" class="bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm transition-all">📄 Export Payouts</a>
+                    </div>
                 </div>
 
                 <!-- Dark Hero Card -->
