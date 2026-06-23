@@ -482,6 +482,37 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
     }
 });
 
+// --- 📊 AD TELEMETRY REPORTING ---
+router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData, async (req, res) => {
+    try {
+        const { network, status, errorMsg } = req.body;
+        if (!network || !status) return res.status(400).send("Invalid payload");
+
+        const key = 'admin:ad_telemetry';
+        let telemetryStr = await redis.get(key);
+        let telemetry = telemetryStr ? JSON.parse(telemetryStr) : {};
+
+        if (!telemetry[network]) {
+            telemetry[network] = { success: 0, fail: 0, lastError: null, lastUpdate: null };
+        }
+
+        if (status === 'success') {
+            telemetry[network].success += 1;
+        } else if (status === 'fail') {
+            telemetry[network].fail += 1;
+            telemetry[network].lastError = errorMsg || "Unknown error";
+        }
+
+        telemetry[network].lastUpdate = new Date().toISOString();
+
+        await redis.set(key, JSON.stringify(telemetry));
+        res.status(200).send("OK");
+    } catch (e) {
+        console.error("Telemetry Error:", e);
+        res.status(500).send("Error");
+    }
+});
+
 // --- 💸 SECURE TRANSACTIONAL PAYOUT ROUTE (PROTECTED + MUTEX + QUEUED) ---
 router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");

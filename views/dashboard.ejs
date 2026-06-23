@@ -46,8 +46,7 @@
     <!-- OnClickA Ad Manager SDK -->
     <script src="https://js.onclckvd.com/in-stream-ad-admanager/tma.js"></script>
 
-    <!-- Monetag SDK -->
-    <script src="https://libtl.com/sdk.js" data-zone="11188709" data-sdk="show_11188709"></script>
+
 </head>
 
 <body class="min-h-screen flex flex-col items-center justify-start p-4 selection:bg-neutral-800 selection:text-[#e6ddd0]">
@@ -1232,11 +1231,12 @@
             adsgram: { enabled: true, blockId: "35947" },
             // OnClickA Rewarded Video Spots
             onclicka: { enabled: true, spotIds: ["445824", "445825", "445825"] },
-            // Monetag Rewarded Video
-            monetag: { enabled: true, zoneId: "11188709" },
+            // Monetag Smartlink (Direct Link) to prevent external browser popouts
+            monetag: { enabled: true, adUrl: "YOUR_MONETAG_DIRECT_LINK_HERE" },
             // Direct Smartlinks (Banner/Video pages only, no interstitial scripts)
             andsor: { enabled: true, adUrl: "https://andsor.placeholder/smartlink" },
-            telegaio: { enabled: true, adUrl: "https://telega.placeholder/smartlink" }
+            // Telega.io SDK Integration
+            telegaio: { enabled: true, blockId: "b891be85-b4fe-4e4c-8c40-50b885bc5852" }
         };
 
         // ✅ FIXED: Only using standard Rewarded Video controller. 
@@ -1316,6 +1316,18 @@
                 btnSubtitle.innerText = "Routing decentralized network connection...";
                 btnArrow.innerText = "•";
 
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                
+                async function reportAdTelemetry(network, status, errorMsg = null) {
+                    try {
+                        fetch('/portal/ad-telemetry', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `WebApp ${telegramInitData}` },
+                            body: JSON.stringify({ network, status, errorMsg: errorMsg ? errorMsg.toString() : null })
+                        });
+                    } catch(e) {}
+                }
+
                 const activePool = shuffleArray(['adsgram', 'onclicka', 'monetag', 'andsor', 'telegaio']);
                 let adLoadedSuccessfully = false;
 
@@ -1330,6 +1342,7 @@
                             if (result && (result.done || result.state === 'completed')) {
                                 adsCompletedCount++;
                                 adLoadedSuccessfully = true;
+                                reportAdTelemetry('adsgram', 'success');
                                 showToast(`Ad ${i}/${totalChainSteps} (Adsgram) completed!`, "✓", 1500);
                             }
                         }
@@ -1354,6 +1367,7 @@
                                         await showFn();
                                         adsCompletedCount++;
                                         adLoadedSuccessfully = true;
+                                        reportAdTelemetry('onclicka', 'success');
                                         showToast(`Ad ${i}/${totalChainSteps} (OnClickA) completed!`, "✓", 1500);
                                         success = true;
                                         break; // Stop trying spots if one succeeded
@@ -1367,14 +1381,16 @@
                             }
                         }
                         else if (network === 'monetag' && AdConfiguration.monetag.enabled) {
-                            const sdkFnName = 'show_' + AdConfiguration.monetag.zoneId;
-                            if (typeof window[sdkFnName] === 'function') {
-                                await window[sdkFnName]('pop');
+                            if (AdConfiguration.monetag.adUrl === "YOUR_MONETAG_DIRECT_LINK_HERE") {
+                                throw new Error("Monetag Direct Link URL is missing. Please add it to AdConfiguration.");
+                            }
+                            // Using the internal fallback player to prevent external browser pops
+                            const completed = await triggerFallbackOverlay(AdConfiguration.monetag.adUrl);
+                            if (completed) {
                                 adsCompletedCount++;
                                 adLoadedSuccessfully = true;
+                                reportAdTelemetry('monetag', 'success');
                                 showToast(`Ad ${i}/${totalChainSteps} (Monetag) completed!`, "✓", 1500);
-                            } else {
-                                throw new Error("Monetag SDK hasn't finished loading yet.");
                             }
                         }
                         else if (network === 'andsor' && AdConfiguration.andsor.enabled) {
@@ -1382,19 +1398,26 @@
                             if (completed) {
                                 adsCompletedCount++;
                                 adLoadedSuccessfully = true;
+                                reportAdTelemetry('andsor', 'success');
                                 showToast(`Ad ${i}/${totalChainSteps} (Andsor) completed!`, "✓", 1500);
                             }
                         }
                         else if (network === 'telegaio' && AdConfiguration.telegaio.enabled) {
-                            const completed = await triggerFallbackOverlay(AdConfiguration.telegaio.adUrl);
-                            if (completed) {
-                                adsCompletedCount++;
-                                adLoadedSuccessfully = true;
-                                showToast(`Ad ${i}/${totalChainSteps} (Telega.io) completed!`, "✓", 1500);
-                            }
+                            if (!window.TelegaAdsController) throw new Error("Telega SDK not initialized.");
+                            
+                            // Using the correct method from Telega documentation
+                            await window.TelegaAdsController.ad_show({
+                                adBlockUuid: AdConfiguration.telegaio.blockId
+                            });
+
+                            adsCompletedCount++;
+                            adLoadedSuccessfully = true;
+                            reportAdTelemetry('telegaio', 'success');
+                            showToast(`Ad ${i}/${totalChainSteps} (Telega.io) completed!`, "✓", 1500);
                         }
                     } catch (e) {
                         console.warn(`⚠️ Delivery node failed: ${network.toUpperCase()}. Executing next pool fallback...`);
+                        reportAdTelemetry(network, 'fail', e.message || e);
                     }
                 }
 
@@ -1722,5 +1745,17 @@
         });
     </script>
 
+    <!-- Telega.io In-App Ad SDK -->
+    <script src="https://inapp.telega.io/sdk/v1/sdk.js"></script>
+    <script>
+        window.TelegaAdsController = null;
+        try {
+            window.TelegaAdsController = window.TelegaIn.AdsController.create_miniapp({
+                token: 'f398aaf9-5f9b-4980-93bf-a92d8cce57aa'
+            });
+        } catch (e) {
+            console.warn("Telega.io SDK Init Error:", e);
+        }
+    </script>
 </body>
 </html>

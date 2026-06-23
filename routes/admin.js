@@ -141,6 +141,10 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const questsStr = await redis.get('admin:dynamic_quests');
         globalSettings.dynamicQuests = questsStr || '{}';
 
+        // Fetch Ad Telemetry Data
+        const telemetryStr = await redis.get('admin:ad_telemetry');
+        const telemetryData = telemetryStr ? JSON.parse(telemetryStr) : {};
+
         res.render('admin_dashboard', { 
             secret: ADMIN_SECRET_SIGNATURE,
             stats: {
@@ -157,7 +161,8 @@ router.get('/', checkAdminAuth, async (req, res) => {
             },
             pendingList: pendingList,
             topUsers: topUsers,
-            settings: globalSettings
+            settings: globalSettings,
+            telemetry: telemetryData
         });
     } catch (e) {
         console.error(e);

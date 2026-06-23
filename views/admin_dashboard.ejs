@@ -187,6 +187,50 @@
                         <span class="text-xs font-bold text-emerald-600 mono-text">≈ $<%= stats.paidOutUsd %> USD</span>
                     </div>
                 </div>
+
+                <!-- AD NETWORK TELEMETRY -->
+                <div class="mt-4 flex flex-col gap-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">📡</span>
+                        <h3 class="font-bold tracking-tight uppercase text-neutral-900">Network Health & Telemetry</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <% const networkNames = Object.keys(telemetry || {}); %>
+                        <% if (networkNames.length > 0) { %>
+                            <% networkNames.forEach(net => { %>
+                                <div class="bg-white/60 backdrop-blur-md rounded-2xl p-4 border border-neutral-300 shadow-sm flex flex-col gap-2 relative">
+                                    <% const stats = telemetry[net]; %>
+                                    <% const total = stats.success + stats.fail; %>
+                                    <% const winRate = total > 0 ? Math.round((stats.success / total) * 100) : 0; %>
+                                    
+                                    <div class="flex justify-between items-center border-b border-neutral-200 pb-2">
+                                        <span class="text-xs font-bold uppercase tracking-widest text-neutral-800"><%= net %></span>
+                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-md mono-text <%= winRate > 50 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800' %>">
+                                            <%= winRate %>% WIN
+                                        </span>
+                                    </div>
+                                    <div class="flex justify-between mt-1 text-xs mono-text">
+                                        <span class="text-emerald-600 font-bold">Success: <%= stats.success %></span>
+                                        <span class="text-rose-600 font-bold">Failed: <%= stats.fail %></span>
+                                    </div>
+                                    <% if (stats.lastError) { %>
+                                        <div class="mt-2 bg-rose-50 text-rose-800 text-[9px] p-2 rounded-lg mono-text truncate" title="<%= stats.lastError %>">
+                                            ⚠️ <%= stats.lastError %>
+                                        </div>
+                                    <% } else { %>
+                                        <div class="mt-2 bg-emerald-50 text-emerald-800 text-[9px] p-2 rounded-lg mono-text">
+                                            ✅ Operational
+                                        </div>
+                                    <% } %>
+                                </div>
+                            <% }) %>
+                        <% } else { %>
+                            <div class="col-span-full text-center text-xs text-neutral-500 py-6 border border-dashed border-neutral-300 rounded-2xl">
+                                No telemetry data captured yet. Network tracking initiates automatically on first ad rotation.
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
             </section>
 
             <!-- 2. PENDING PAYOUTS -->
