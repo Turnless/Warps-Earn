@@ -73,32 +73,90 @@ router.get('/logout', (req, res) => {
 // --- 🖥️ MAIN ADMIN DASHBOARD ---
 router.get('/', checkAdminAuth, async (req, res) => {
     try {
-        // Fetch real-time system metrics
+        // Basic counts
         const totalUsers = await User.countDocuments();
-        const totalWithdrawals = await Withdrawal.countDocuments();
         
-        // Fetch full list of pending withdrawals
+        // Full pending list
         const pendingList = await Withdrawal.find({ status: 'Pending' }).sort({ created_at: -1 }).limit(50).lean();
         const pendingCount = await Withdrawal.countDocuments({ status: 'Pending' });
+
+        // Aggregate Financial Data
+        const financeStats = await User.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    totalCirculatingPts: { $sum: "$points_balance" },
+                    totalAdsWatched: { $sum: "$total_ads_watched" }
+                }
+            }
+        ]);
+
+        const totalCirculating = financeStats.length > 0 ? financeStats[0].totalCirculatingPts : 0;
+        const totalAdsWatched = financeStats.length > 0 ? financeStats[0].totalAdsWatched : 0;
+
+        // Aggregate Earnings History precisely for exact breakdown
+        const earningsStats = await User.aggregate([
+            { $unwind: "$earnings_history" },
+            {
+                $group: {
+                    _id: "$earnings_history.type",
+                    totalAmount: { $sum: "$earnings_history.amount" }
+                }
+            }
+        ]);
+
+        let adEarnings = 0;
+        let taskEarnings = 0;
+        let referralEarnings = 0;
+
+        earningsStats.forEach(stat => {
+            if (stat._id.includes("Ad Reward") || stat._id.includes("Ad loop")) {
+                adEarnings += stat.totalAmount;
+            } else if (stat._id.includes("Quest") || stat._id.includes("Promo") || stat._id.includes("X Follow")) {
+                taskEarnings += stat.totalAmount;
+            } else if (stat._id.includes("Milestone") || stat._id.includes("Referral")) {
+                referralEarnings += stat.totalAmount;
+            }
+        });
+
+        // Sum up total payouts that were successful
+        const payoutStats = await Withdrawal.aggregate([
+            { $match: { status: 'Successful' } },
+            { $group: { _id: null, totalPaidOut: { $sum: "$amount_points" } } }
+        ]);
+        const totalPaidOut = payoutStats.length > 0 ? payoutStats[0].totalPaidOut : 0;
+
+        // Fetch top 10 whales (Leaderboard feature)
+        const topUsers = await User.find({}).sort({ points_balance: -1 }).limit(10).lean();
 
         // Fetch Global Settings from Redis
         let globalSettingsStr = await redis.get('global_settings');
         let globalSettings = globalSettingsStr ? JSON.parse(globalSettingsStr) : {
             maintenance: false,
-            withdrawals: true
+            withdrawals: true,
+            reward_per_ad: 3
         };
 
         res.render('admin_dashboard', { 
             secret: ADMIN_SECRET_SIGNATURE,
             stats: {
                 users: totalUsers,
-                withdrawals: totalWithdrawals,
-                pending: pendingCount
+                pending: pendingCount,
+                circulatingPts: totalCirculating,
+                circulatingUsd: (totalCirculating * 0.0008).toFixed(2),
+                adsWatched: totalAdsWatched,
+                adEarnings: adEarnings,
+                taskEarnings: taskEarnings,
+                referralEarnings: referralEarnings,
+                paidOutPts: totalPaidOut,
+                paidOutUsd: (totalPaidOut * 0.0008).toFixed(2)
             },
             pendingList: pendingList,
+            topUsers: topUsers,
             settings: globalSettings
         });
     } catch (e) {
+        console.error(e);
         res.status(500).send("Metrics Engine Failed");
     }
 });
@@ -106,10 +164,11 @@ router.get('/', checkAdminAuth, async (req, res) => {
 // --- ⚙️ GLOBAL SETTINGS CONTROLLER ---
 router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { maintenance, withdrawals } = req.body;
+        const { maintenance, withdrawals, reward_per_ad } = req.body;
         const newSettings = {
             maintenance: maintenance === 'on',
-            withdrawals: withdrawals === 'on'
+            withdrawals: withdrawals === 'on',
+            reward_per_ad: parseInt(reward_per_ad) || 3
         };
         await redis.set('global_settings', JSON.stringify(newSettings));
         res.redirect('/admin');
@@ -120,15 +179,17 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
 
 // --- 🔍 USER LOOKUP & BAN CONTROLLER ---
 router.get('/user-lookup', checkAdminAuth, async (req, res) => {
-    const query = (req.query.q || '').trim();
-    if (!query) return res.redirect('/admin');
+    const rawQuery = (req.query.q || '').trim();
+    if (!rawQuery) return res.redirect('/admin');
+
+    const cleanQuery = rawQuery.replace(/^@/, ''); // Strip the @ symbol if they typed it
 
     try {
         // Search by Telegram ID (exact) OR Username (regex case-insensitive)
         const targetUser = await User.findOne({
             $or: [
-                { telegram_id: query },
-                { username: new RegExp('^' + query + '$', 'i') }
+                { telegram_id: cleanQuery },
+                { username: new RegExp('^' + cleanQuery + '$', 'i') }
             ]
         }).lean();
 
@@ -156,6 +217,23 @@ router.post('/user-ban', checkAdminAuth, express.urlencoded({ extended: true }),
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {
         res.status(500).send("Action failed");
+    }
+});
+
+// --- 📢 BROADCAST MESSAGE CONTROLLER ---
+router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    const { message_text } = req.body;
+    try {
+        if (!message_text) return res.redirect('/admin');
+        const users = await User.find({}, { telegram_id: 1 }).lean();
+        // Queue messages slightly spaced out to avoid Telegram API limits
+        users.forEach((user, index) => {
+            sendTelegramMessageAsync(user.telegram_id, message_text, {}, index * 50);
+        });
+        // We will just redirect. Ideally, we show a success flash message.
+        res.redirect('/admin');
+    } catch (e) {
+        res.status(500).send("Broadcast failed");
     }
 });
 
