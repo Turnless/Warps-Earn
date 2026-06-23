@@ -51,7 +51,7 @@
 
 <body class="min-h-screen flex flex-col items-center justify-start p-4 selection:bg-neutral-800 selection:text-[#e6ddd0]">
 
-    <div class="w-full max-w-md flex flex-col justify-between min-h-[calc(100vh-32px)]">
+    <div class="w-full max-w-md flex flex-col min-h-[calc(100vh-32px)]">
 
         <% var incompleteCount=0; if (!user.quests || !user.quests.channel) incompleteCount++; if (!user.quests ||
             !user.quests.group) incompleteCount++; if (!user.quests || !user.quests.payout_channel) incompleteCount++;
@@ -95,34 +95,34 @@
                 <div class="w-full max-w-sm bg-white rounded-3xl p-6 border border-neutral-200 shadow-2xl flex flex-col gap-4 text-neutral-900">
                     <div class="flex items-center gap-2 pb-2 border-b border-neutral-100">
                         <span class="text-lg">🛡️</span>
-                        <h3 class="font-bold text-xs uppercase tracking-wider text-neutral-400 mono-text">Confirm Settlement Profile</h3>
+                        <h3 class="font-bold text-xs uppercase tracking-wider text-neutral-400 mono-text">Confirm Withdrawal</h3>
                     </div>
 
                     <div class="flex flex-col gap-3 text-xs leading-normal">
                         <div class="flex justify-between items-center bg-neutral-50 p-2.5 rounded-xl border border-neutral-100">
-                            <span class="text-neutral-500 font-medium">Channel / Network:</span>
+                            <span class="text-neutral-500 font-medium">Payment Method:</span>
                             <span id="confirm-display-asset" class="font-bold text-neutral-900 mono-text">USDT (BEP20)</span>
                         </div>
 
                         <div class="flex justify-between items-center bg-neutral-50 p-2.5 rounded-xl border border-neutral-100">
-                            <span class="text-neutral-500 font-medium">Amount Requested:</span>
+                            <span class="text-neutral-500 font-medium">Amount:</span>
                             <span id="confirm-display-pts" class="font-bold text-neutral-900 mono-text">1,500 PTS</span>
                         </div>
 
                         <div class="flex flex-col gap-1 bg-neutral-50 p-3 rounded-xl border border-neutral-100">
-                            <span class="text-neutral-500 font-medium">Recipient Settlement Parameters:</span>
+                            <span class="text-neutral-500 font-medium">Sending to:</span>
                             <p id="confirm-display-destination" class="font-bold text-neutral-900 text-[11px] break-all mono-text bg-white p-2 rounded-lg border border-neutral-200/60 mt-1 select-all"></p>
                         </div>
 
                         <div id="confirm-display-conversion-box" class="flex justify-between items-center bg-emerald-50 text-emerald-800 p-2.5 rounded-xl border border-emerald-100 font-bold mono-text">
-                            <span>Est. Yield:</span>
+                            <span>You'll receive:</span>
                             <span id="confirm-display-conversion">$1.20 USD</span>
                         </div>
                     </div>
 
                     <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex gap-2 text-[10px] text-amber-800 leading-normal font-medium">
                         <span class="text-xs">⚠️</span>
-                        <span>Verify your credentials. Points are locked on submission. Transactions cannot be reversed.</span>
+                        <span>Double-check your details. Points are deducted immediately and can't be reversed.</span>
                     </div>
 
                     <div class="grid grid-cols-2 gap-2 mt-2">
@@ -136,7 +136,7 @@
                 <div class="w-full flex justify-between items-center">
                     <div class="flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
-                        <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider mono-text">Secure Stream Verification</span>
+                        <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider mono-text">Watching Ad</span>
                     </div>
                     <button id="fallback-close-btn" disabled class="bg-neutral-800 text-neutral-500 font-bold text-[11px] px-3 py-1.5 rounded-xl uppercase tracking-wider transition-all cursor-not-allowed">Wait 15s</button>
                 </div>
@@ -144,13 +144,13 @@
                 <div class="w-full h-3/4 my-4 bg-black rounded-3xl border border-neutral-800/80 overflow-hidden relative shadow-inner">
                     <div id="fallback-loading-spinner" class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-[#e6ddd0]">
                         <div class="w-10 h-10 border-4 border-[#e6ddd0]/30 border-t-[#e6ddd0] rounded-full animate-spin"></div>
-                        <p class="text-[10px] uppercase tracking-widest font-bold text-neutral-400 mono-text">Connecting Server...</p>
+                        <p class="text-[10px] uppercase tracking-widest font-bold text-neutral-400 mono-text">Loading ad...</p>
                     </div>
                     <iframe id="fallback-ad-iframe" class="w-full h-full border-0 hidden" sandbox="allow-scripts allow-popups allow-same-origin"></iframe>
                 </div>
 
                 <div class="w-full text-center flex flex-col gap-2">
-                    <p id="fallback-countdown-text" class="text-sm font-medium text-neutral-300">Interact with the ad page to secure your reward points.</p>
+                    <p id="fallback-countdown-text" class="text-sm font-medium text-neutral-300">Watch the ad to earn your points.</p>
                     <div class="w-full bg-neutral-900 rounded-full h-1 border border-neutral-800 overflow-hidden">
                         <div id="fallback-progress-bar" class="bg-emerald-500 h-1 rounded-full transition-all duration-1000" style="width: 100%"></div>
                     </div>
@@ -158,7 +158,7 @@
             </div>
 
             <!-- HEADER PROFILE BLOCK -->
-            <header class="w-full flex items-center gap-3 mb-5">
+            <header class="w-full flex items-center gap-3 mb-3">
                 <div class="w-12 h-12 rounded-full bg-neutral-900 border-2 border-neutral-950/20 overflow-hidden flex items-center justify-center text-[#e6ddd0] font-bold text-lg relative shadow-inner">
                     <% if (user.photo_url) { %>
                         <img src="<%= user.photo_url %>" alt="pfp" class="w-full h-full object-cover">
@@ -169,7 +169,7 @@
 
                 <div class="flex flex-col">
                     <h1 class="text-base font-bold tracking-tight text-neutral-900 leading-tight">
-                        <%= user.first_name || 'Operator Profile' %>
+                        <%= user.first_name || 'User' %>
                     </h1>
                     <span class="text-xs text-neutral-600 font-medium">@<%= user.username || 'Anonymous' %></span>
                 </div>
