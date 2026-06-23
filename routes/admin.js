@@ -255,6 +255,38 @@ router.post('/user-ban', checkAdminAuth, express.urlencoded({ extended: true }),
     }
 });
 
+router.post('/user-clear-activities', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    const { telegram_id } = req.body;
+    try {
+        await User.updateOne({ telegram_id }, {
+            points_balance: 0,
+            total_ads_watched: 0,
+            withdrawals_count: 0,
+            earnings_history: [],
+            transactions: [],
+            quests: {},
+            custom_promos: {},
+            referrals: []
+        });
+        res.redirect(`/admin/user-lookup?q=${telegram_id}`);
+    } catch (e) {
+        res.status(500).send("Action failed");
+    }
+});
+
+router.post('/user-delete', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    const { telegram_id } = req.body;
+    try {
+        await User.deleteOne({ telegram_id });
+        await redis.del(`user:${telegram_id}:profile`);
+        await redis.del(`lock:claim:${telegram_id}`);
+        await redis.del(`lock:payout:${telegram_id}`);
+        res.redirect('/admin');
+    } catch (e) {
+        res.status(500).send("Action failed");
+    }
+});
+
 // --- 🛠️ DYNAMIC USER MANAGEMENT CONTROLLERS ---
 router.post('/user-manage-balance', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id, amount, reason } = req.body;
@@ -469,19 +501,19 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
             }
 
             // --- 📢 Post direct proof to Telegram Channel via Bull Queue ---
-            const proofReceiptText = `⚡ <b>WARPS EARN DISBURSEMENT COMPLETED</b> ⚡\n\n` +
-                `👤 <b>Recipient:</b> ${escapeTelegramHtml(targetUser.first_name || 'Operator')} (@${escapeTelegramHtml(targetUser.username || 'Anonymous')})\n` +
+            const proofReceiptText = `⚡ <b>WITHDRAWAL SUCCESSFUL</b> ⚡\n\n` +
+                `👤 <b>User:</b> ${escapeTelegramHtml(targetUser.first_name || 'Operator')} (@${escapeTelegramHtml(targetUser.username || 'Anonymous')})\n` +
                 `🧾 <b>Transaction ID:</b> <code>${escapeTelegramHtml(txId)}</code>\n` +
-                `💰 <b>Amount Disbursed:</b> <b>${totalDebitedPoints.toLocaleString()} PTS</b>\n` +
-                `💵 <b>Total Valuation:</b> <b>${valuationStr}</b>\n` +
-                `💼 <b>Network Asset:</b> ${escapeTelegramHtml(targetTx.type.replace('Withdrawal (', '').replace(')', ''))}\n` +
-                `📅 <b>Settlement Timestamp:</b> ${getFormattedDateTime()}\n\n` +
+                `💰 <b>Amount:</b> <b>${totalDebitedPoints.toLocaleString()} PTS</b>\n` +
+                `💵 <b>Value:</b> <b>${valuationStr}</b>\n` +
+                `💼 <b>Method:</b> ${escapeTelegramHtml(targetTx.type.replace('Withdrawal (', '').replace(')', ''))}\n` +
+                `📅 <b>Date:</b> ${getFormattedDateTime()}\n\n` +
                 `💚 <i>Keep watching, keep sharing, keep stacking!</i>`;
 
             await sendTelegramMessageAsync(PUBLIC_PAYOUT_CHANNEL_ID, proofReceiptText);
 
             // Message target user directly via Bull Queue
-            const userNotificationText = `💰 <b>Payout Successful!</b>\n\nYour withdrawal of <b>${totalDebitedPoints.toLocaleString()} PTS (${valuationStr})</b> has been processed successfully.\n\nReceipt proofs have been published to ${PUBLIC_PAYOUT_CHANNEL_ID}!`;
+            const userNotificationText = `💰 <b>Withdrawal Successful!</b>\n\nYour withdrawal of <b>${totalDebitedPoints.toLocaleString()} PTS (${valuationStr})</b> has been processed successfully.\n\nProof of payment has been posted to ${PUBLIC_PAYOUT_CHANNEL_ID}!`;
             await sendTelegramMessageAsync(targetUser.telegram_id, userNotificationText);
 
             return res.send(`
@@ -504,7 +536,7 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
             await Withdrawal.updateOne({ id: txId }, { status: 'Rejected' });
 
             // Notify user of rejection reason via Bull Queue
-            const userRejectionText = `❌ <b>Payout Request Rejected</b>\n\nYour withdrawal request for <b>${targetTx.amount.toLocaleString()} PTS</b> was declined by the administrator. Points have been fully restored to your balance.`;
+            const userRejectionText = `❌ <b>Withdrawal Rejected</b>\n\nYour withdrawal request for <b>${targetTx.amount.toLocaleString()} PTS</b> was declined. Your points have been refunded to your balance.`;
             await sendTelegramMessageAsync(targetUser.telegram_id, userRejectionText);
 
             return res.send(`

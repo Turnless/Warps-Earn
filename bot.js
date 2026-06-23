@@ -52,7 +52,7 @@ bot.command('start', async (ctx) => {
         if (user && user.onboarding_passed) {
             try {
                 return await ctx.reply(
-                    `🚀 Hey @${username}, your profile is verified and active!\n\nTap the button below or the permanent "🕹️ Open App" button in the bottom-left menu corner to launch your dashboard.`,
+                    `🚀 Hey @${username}, welcome back!\n\nTap the button below to open the app and start earning.`,
                     inlineKeyboard
                 );
             } catch (replyErr) {
@@ -63,7 +63,7 @@ bot.command('start', async (ctx) => {
 
         try {
             return await ctx.reply(
-                `🔒 Just one quick security stop...\n\nTap the button below to verify your device structure and access your dashboard.`,
+                `🔒 Let's get you set up...\n\nTap the button below to verify your account and access your dashboard.`,
                 inlineKeyboard
             );
         } catch (replyErr) {

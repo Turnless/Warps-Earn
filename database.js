@@ -131,7 +131,7 @@ async function watchAdRound(userId) {
 
     if (!user.earnings_history) user.earnings_history = [];
     user.earnings_history.unshift({
-        type: `Loop ${user.current_session_loop === 0 ? 3 : user.current_session_loop} Stream Reward`,
+        type: `Ad Loop ${user.current_session_loop === 0 ? 3 : user.current_session_loop} Reward`,
         amount: finalReward,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
@@ -185,7 +185,7 @@ async function verifyQuest(userId, questKey) {
     
     if (!user.earnings_history) user.earnings_history = [];
     user.earnings_history.unshift({
-        type: `${questKey.charAt(0).toUpperCase() + questKey.slice(1)} Protocol Cleared`,
+        type: `${questKey.charAt(0).toUpperCase() + questKey.slice(1)} Task Completed`,
         amount: 100,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
@@ -202,7 +202,7 @@ async function createWithdrawal(userId, destination, asset, bank = null) {
     
     const personalThreshold = (user.withdrawals_count && user.withdrawals_count > 0) ? 1000 : 5000;
     if ((user.points_balance || 0) < personalThreshold) {
-        throw new Error("Insufficient point balance threshold clearance.");
+        throw new Error("Insufficient points balance.");
     }
     
     const payoutAmount = user.points_balance;

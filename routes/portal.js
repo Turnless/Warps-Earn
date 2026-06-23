@@ -117,7 +117,7 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
         }
 
         if (user.is_banned) {
-            return res.send(`<body style="background:#1a1a16; color:#e6ddd0; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; text-align:center;"><div style="padding:40px;"><span style="font-size:48px;">🚫</span><h1 style="margin-top:20px;">Account Suspended</h1><p style="color:#999; margin-top:10px;">Your access to the platform has been permanently restricted due to terms of service violations.</p></div></body>`);
+            return res.send(`<body style="background:#1a1a16; color:#e6ddd0; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; text-align:center;"><div style="padding:40px;"><span style="font-size:48px;">🚫</span><h1 style="margin-top:20px;">Account Suspended</h1><p style="color:#999; margin-top:10px;">Your account has been banned for violating our terms.</p></div></body>`);
         }
 
         if (!user.onboarding_passed) {
@@ -162,8 +162,8 @@ router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
                 <body style="background-color: #e6ddd0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; padding: 20px; color: #1a1a16;">
                     <div style="background: white; padding: 30px; border-radius: 24px; max-width: 340px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
                         <span style="font-size: 40px;">🛑</span>
-                        <h2 style="margin-top: 10px; font-size: 18px;">Daily Cap Reached</h2>
-                        <p style="font-size: 13px; color: #666; line-height: 1.5;">You have completed your 100 allocations for today. See you tomorrow!</p>
+                        <h2 style="margin-top: 10px; font-size: 18px;">Daily Limit Reached</h2>
+                        <p style="font-size: 13px; color: #666; line-height: 1.5;">You have completed your 100 ads for today. Come back tomorrow!</p>
                         <button onclick="location.href='/dashboard?id=${userId}'" style="background: #1a1a16; color: #e6ddd0; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; margin-top: 10px;">Return to Dashboard</button>
                     </div>
                 </body>
@@ -177,10 +177,10 @@ router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
             const timeString = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
             const isMacro = secondsLeft > 60; 
-            const statusTitle = isMacro ? "System Recharging..." : "Taking a Quick Break";
+            const statusTitle = isMacro ? "Cooling Down" : "Quick Break";
             const statusDesc = isMacro 
-                ? "To keep your account safe, please wait before your next block of loops." 
-                : "Great job! Let your screen rest for 45 seconds before launching the next loop.";
+                ? "Please wait a moment before watching more ads." 
+                : "Great job! Let your screen rest for 45 seconds before the next ad.";
 
             return res.send(`
                 <body style="background-color: #e6ddd0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; padding: 20px; color: #1a1a16;">
@@ -189,7 +189,7 @@ router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
                         <h2 style="margin-top: 10px; font-size: 18px;">${statusTitle}</h2>
                         <p style="font-size: 13px; color: #666; line-height: 1.5;">${statusDesc}</p>
                         <div style="font-size: 32px; font-weight: bold; color: #1a1a16; margin: 15px 0; font-family: monospace;">${timeString}</div>
-                        ${isMacro ? '<p style="font-size: 11px; color: #999; margin-bottom: 15px;">We will ping you via our bot when the loop block unlocks!</p>' : ''}
+                        ${isMacro ? '<p style="font-size: 11px; color: #999; margin-bottom: 15px;">We will notify you via the bot when you can watch more ads!</p>' : ''}
                         <button onclick="location.href='/dashboard?id=${userId}'" style="background: #1a1a16; color: #e6ddd0; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%;">Return Home</button>
                     </div>
                     <script>
@@ -208,7 +208,7 @@ router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
 
     } catch (e) {
         console.error("Error launching ad view gateway:", e);
-        res.status(500).send("Internal gateway fault.");
+        res.status(500).send("Connection error. Try again.");
     }
 });
 
@@ -218,7 +218,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 
     try {
         if (!userId) {
-            return res.status(400).send("Invalid account parameters.");
+            return res.status(400).send("Invalid request.");
         }
 
         // 🛡️ Redis Mutex Lock to block concurrent reward farming race conditions
@@ -263,7 +263,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
             
             await sendTelegramMessageAsync(
                 userId,
-                "⚡ <b>Ad Loops Restocked!</b>\n\nYour 15-minute verification break has completed. Open the Mini App now to burn through your next 3-loop block and stack more points!",
+                "⚡ <b>Ad Loops Restocked!</b>\n\nYour break is over. Open the app now to watch more ads and earn points!",
                 {
                     reply_markup: {
                         inline_keyboard: [[
@@ -368,17 +368,27 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
     }
 });
 
-// --- ✅ CLAIM CUSTOM AD/TASK REWARD (PROTECTED) ---
-router.post(['/claim-custom-reward', '/portal/claim-custom-reward'], verifyTelegramWebAppData, async (req, res) => {
+// --- ✅ CLAIM ADSGRAM REWARD (SECURE) ---
+router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTelegramWebAppData, async (req, res) => {
     const userId = String(req.body.id || "");
-    const rewardAmount = parseInt(req.body.amount) || 1;
-    const rewardType = String(req.body.type || "Custom Ad Reward");
+    const rewardAmount = 50; // Fixed amount, cannot be exploited
+    const rewardType = "Adsgram Sponsored Task";
 
     try {
         if (!userId) return res.status(400).send("Invalid account parameters.");
 
+        // 🛡️ Redis Mutex Lock to block concurrent reward farming race conditions
+        const lockKey = `lock:adsgram:${userId}`;
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 5));
+        if (!isLocked) {
+            return res.status(429).send("Too many requests.");
+        }
+
         const user = await User.findOne({ telegram_id: userId });
-        if (!user) return res.status(404).send("User profile not found.");
+        if (!user) {
+            await redisWithTimeout(redis.del(lockKey));
+            return res.status(404).send("User profile not found.");
+        }
 
         user.points_balance = (user.points_balance || 0) + rewardAmount;
 
@@ -391,11 +401,12 @@ router.post(['/claim-custom-reward', '/portal/claim-custom-reward'], verifyTeleg
 
         await user.save();
         await invalidateUserCache(userId);
+        await redisWithTimeout(redis.del(lockKey));
+        
         res.status(200).json({ success: true, newBalance: user.points_balance });
-
     } catch (e) {
-        console.error("Custom reward allocation error:", e);
-        res.status(500).send("Internal processing fault.");
+        console.error("Adsgram reward allocation error:", e);
+        res.status(500).send("Connection error. Try again.");
     }
 });
 
@@ -636,7 +647,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
                         referrerNeedsSave = true;
 
                         // Enqueue milestone reached message to referrer via Bull Queue
-                        const milestoneMsg = `🎉 <b>Contest Milestone Reached!</b>\n\nYou have successfully unlocked <b>${m.label}</b> with ${referrerQualifiedCount} qualified downlines.\n\n⚡ <b>+${m.pts.toLocaleString()} PTS ($${(m.pts * 0.0008).toFixed(2)} USD)</b> has been instantly added to your balance!`;
+                        const milestoneMsg = `🎉 <b>Referral Milestone Reached!</b>\n\nYou have successfully unlocked <b>${m.label}</b> with ${referrerQualifiedCount} qualified referrals.\n\n⚡ <b>+${m.pts.toLocaleString()} PTS ($${(m.pts * 0.0008).toFixed(2)} USD)</b> has been added to your balance!`;
                         await sendTelegramMessageAsync(referrer.telegram_id, milestoneMsg);
                     }
                 }
@@ -678,17 +689,17 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         const approvalUrl = `${hostUrl}/admin/payout?txId=${uniqueTxId}&action=approve&secret=${ADMIN_SECRET_SIGNATURE}`;
         const rejectionUrl = `${hostUrl}/admin/payout?txId=${uniqueTxId}&action=reject&secret=${ADMIN_SECRET_SIGNATURE}`;
 
-        const adminMessageText = `🚨 <b>NEW PAYOUT TRANSACTION</b> 🚨\n\n` +
+        const adminMessageText = `🚨 <b>NEW WITHDRAWAL REQUEST</b> 🚨\n\n` +
             `👤 <b>User:</b> ${escapeTelegramHtml(user.first_name || 'N/A')} (@${escapeTelegramHtml(user.username || 'Anonymous')})\n` +
             `🆔 <b>Telegram ID:</b> <code>${escapeTelegramHtml(userId)}</code>\n` +
             `🧾 <b>TX ID:</b> <code>${escapeTelegramHtml(uniqueTxId)}</code>\n\n` +
-            `💰 <b>Points Debited:</b> <b>${debitedPoints.toLocaleString()} PTS</b>\n` +
-            `💵 <b>USD Valuation:</b> <b>${valuationString}</b>\n` +
+            `💰 <b>Amount:</b> <b>${debitedPoints.toLocaleString()} PTS</b>\n` +
+            `💵 <b>Value:</b> <b>${valuationString}</b>\n` +
             `⚡ <b>Network Selected:</b> ${escapeTelegramHtml(chosenAsset)}\n` +
             `🏦 <b>Financial Provider:</b> ${escapeTelegramHtml(req.body.bank || 'None (Crypto/Stars)')}\n` +
-            `📥 <b>Target Details Address:</b>\n<code>${escapeTelegramHtml(destination)}</code>\n\n` +
-            `📅 <b>Initialized Timestamp:</b> ${formattedTimestamp}\n\n` +
-            `👇 <b>MANUAL PROCESSOR CONTROLS:</b>\n` +
+            `📥 <b>Destination:</b>\n<code>${escapeTelegramHtml(destination)}</code>\n\n` +
+            `📅 <b>Date:</b> ${formattedTimestamp}\n\n` +
+            `👇 <b>ACTIONS:</b>\n` +
             `✅ <a href="${approvalUrl}">Approve and Post to Channel</a>\n\n` +
             `❌ <a href="${rejectionUrl}">Reject and Refund Points</a>`;
 

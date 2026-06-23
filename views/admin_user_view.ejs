@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>User Dossier</title>
+    <title>User Profile</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -23,8 +23,8 @@
         <header class="w-full flex items-center gap-3 mt-2 mb-2">
             <a href="/admin" class="w-12 h-12 rounded-full bg-white/60 backdrop-blur-md border border-neutral-300/80 flex items-center justify-center text-xl shadow-sm text-neutral-800 hover:bg-white transition-all">←</a>
             <div class="flex flex-col">
-                <h1 class="text-base font-bold tracking-tight text-neutral-900 leading-tight">User Dossier</h1>
-                <span class="text-xs text-neutral-600 font-medium mono-text">Lookup Result</span>
+                <h1 class="text-base font-bold tracking-tight text-neutral-900 leading-tight">User Profile</h1>
+                <span class="text-xs text-neutral-600 font-medium mono-text">Search Result</span>
             </div>
         </header>
 
@@ -64,7 +64,7 @@
             </div>
 
             <div class="mt-2 flex flex-col gap-2">
-                <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mono-text">Device & Sybil Data</span>
+                <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mono-text">Device Fingerprint</span>
                 <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-xs mono-text text-neutral-600 break-all">
                     <% if (user.device_fingerprint) { %>
                         <%= user.device_fingerprint %>
@@ -91,7 +91,7 @@
 
             <!-- 💰 MANUAL BALANCE ADJUSTMENT -->
             <div class="mt-2 border-t border-neutral-200 pt-4 flex flex-col gap-3">
-                <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mono-text">Manual Balance Adjustment</span>
+                <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mono-text">Update Balance</span>
                 <form action="/admin/user-manage-balance" method="POST" class="flex flex-col gap-2 bg-neutral-50 p-3 rounded-xl border border-neutral-200">
                     <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
                     <div class="flex gap-2">
@@ -124,6 +124,20 @@
             </div>
 
             <div class="mt-4 pt-4 border-t border-neutral-200">
+                <form action="/admin/user-clear-activities" method="POST" class="mb-3">
+                    <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
+                    <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-3 text-xs font-bold uppercase tracking-wider shadow-md">
+                        Clear All Activities (Reset)
+                    </button>
+                </form>
+
+                <form action="/admin/user-delete" method="POST" class="mb-3">
+                    <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
+                    <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white rounded-xl py-3 text-xs font-bold uppercase tracking-wider shadow-md" onclick="return confirm('Are you sure you want to permanently delete this user? This cannot be undone.');">
+                        Delete User Profile
+                    </button>
+                </form>
+
                 <form action="/admin/user-ban" method="POST">
                     <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
                     <% if (user.is_banned) { %>
@@ -132,7 +146,7 @@
                         </div>
                         <input type="hidden" name="action" value="unban">
                         <button type="submit" class="w-full bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl py-3 text-xs font-bold uppercase tracking-wider">
-                            Restore Access (Unban)
+                            Unban User
                         </button>
                     <% } else { %>
                         <input type="hidden" name="action" value="ban">

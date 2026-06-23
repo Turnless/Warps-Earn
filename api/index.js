@@ -142,19 +142,19 @@ app.post('/portal/claim-ad-reward', async (req, res) => {
         const { id } = req.body;
         
         if (!id) {
-            return res.status(400).send("Missing mandatory Telegram user identity identifier criteria.");
+            return res.status(400).send("Invalid request.");
         }
 
         const db = require(path.join(process.cwd(), 'database')); 
         
         const userProfile = await db.getUser(id);
         if (!userProfile) {
-            return res.status(404).send("Target record node does not exist inside system memory maps.");
+            return res.status(404).send("User not found.");
         }
 
         if (userProfile.cooldown_until && userProfile.cooldown_until > Date.now()) {
             const structuralRemainingSecs = Math.ceil((userProfile.cooldown_until - Date.now()) / 1000);
-            return res.status(429).send(`Cooling constraint parameters active. Please wait ${structuralRemainingSecs} seconds.`);
+            return res.status(429).send(`Cooling down. Please wait ${structuralRemainingSecs} seconds.`);
         }
 
         const operationResult = await db.watchAdRound(id);
@@ -166,7 +166,7 @@ app.post('/portal/claim-ad-reward', async (req, res) => {
 
     } catch (serverRouteError) {
         console.error("Critical error clearing ad asset verification route execution:", serverRouteError);
-        return res.status(500).send("Internal server router calculation node fault.");
+        return res.status(500).send("Connection error. Try again.");
     }
 });
 
@@ -174,26 +174,26 @@ app.post('/portal/claim-ad-reward', async (req, res) => {
 app.post("/portal/verify-sybil", async (req, res) => {
     const { id, fingerprint, solution, expectedCaptcha } = req.body;
     if (!id || !fingerprint) {
-        return res.status(400).json({ error: "Missing identity credentials or browser footprint metadata." });
+        return res.status(400).json({ error: "Missing credentials or fingerprint." });
     }
 
     // Securely validate the CAPTCHA solution matching check on the backend
     if (!solution || solution.trim().toUpperCase() !== expectedCaptcha.trim().toUpperCase()) {
-        return res.status(400).json({ error: "Invalid security token mismatch. Please try again." });
+        return res.status(400).json({ error: "Invalid code. Please try again." });
     }
 
     try {
         // Run advanced hardware signature checks via our security file
         const isFlagged = await sybil.isDeviceFingerprintFlagged(req, id, fingerprint);
         if (isFlagged) {
-            return res.status(403).json({ error: "Clone signature detected. Access denied." });
+            return res.status(403).json({ error: "Multiple accounts detected. Access denied." });
         }
 
         const User = require(path.join(process.cwd(), 'models', 'User'));
         const user = await User.findOne({ telegram_id: String(id) });
 
         if (!user) {
-            return res.status(404).json({ error: "User account profile not found." });
+            return res.status(404).json({ error: "User not found." });
         }
 
         // Apply onboarding updates, award initial verification points, and lock fingerprint to account
@@ -217,7 +217,7 @@ app.post("/portal/verify-sybil", async (req, res) => {
 
     } catch (err) {
         console.error("Onboarding verification endpoint handler exception:", err);
-        return res.status(500).json({ error: "Internal security engine calculation fault." });
+        return res.status(500).json({ error: "Connection error. Try again." });
     }
 });
 

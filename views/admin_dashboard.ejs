@@ -55,7 +55,7 @@
                     </div>
                     <div class="flex flex-col">
                         <h1 class="text-sm font-bold tracking-tight text-neutral-900 leading-tight uppercase">Admin Hub</h1>
-                        <span class="text-[10px] text-neutral-500 font-medium mono-text">System Oversight</span>
+                        <span class="text-[10px] text-neutral-500 font-medium mono-text">Dashboard</span>
                     </div>
                 </div>
                 <button onclick="toggleMobileMenu()" class="md:hidden text-2xl text-neutral-500">×</button>
@@ -63,7 +63,7 @@
 
             <nav class="flex flex-col gap-2">
                 <button onclick="switchTab('tab-telemetry')" id="nav-telemetry" class="sidebar-active px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
-                    <span class="text-lg">📊</span> Telemetry
+                    <span class="text-lg">📊</span> Analytics
                 </button>
                 <button onclick="switchTab('tab-payouts')" id="nav-payouts" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-all text-left group">
                     <div class="flex items-center gap-3">
@@ -99,7 +99,7 @@
 
         <div class="flex flex-col gap-3 mt-8">
             <a href="/admin/logout" class="bg-neutral-200 text-neutral-600 hover:bg-neutral-300 w-full text-center py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all">
-                Terminate Session
+                Logout
             </a>
         </div>
     </aside>
@@ -112,8 +112,8 @@
             <section id="tab-telemetry" class="flex flex-col gap-6">
                 <div class="flex justify-between items-start md:items-end flex-col md:flex-row gap-4">
                     <div>
-                        <h2 class="text-2xl font-bold tracking-tight text-neutral-900">Global Telemetry</h2>
-                        <p class="text-sm text-neutral-500 font-medium">Real-time macro economics and network statistics.</p>
+                        <h2 class="text-2xl font-bold tracking-tight text-neutral-900">Analytics</h2>
+                        <p class="text-sm text-neutral-500 font-medium">Real-time stats and metrics.</p>
                     </div>
                     <div class="flex gap-2">
                         <a href="/admin/export-users?secret=<%= secret %>" class="bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm transition-all">📄 Export Users</a>

@@ -1557,41 +1557,7 @@
             });
         }
 
-        async function claimCustomRewardOnClient(amount, type) {
-            try {
-                const telegramInitData = window.Telegram?.WebApp?.initData || "";
-                const response = await fetch('/portal/claim-custom-reward', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `WebApp ${telegramInitData}`
-                    },
-                    body: JSON.stringify({
-                        id: "<%= user.telegram_id %>",
-                        amount: amount,
-                        type: type
-                    })
-                });
 
-                if (response.ok) {
-                    const data = await response.json();
-
-                    const userBalanceEl = document.getElementById('user-balance');
-                    const walletBalanceEl = document.getElementById('wallet-balance');
-
-                    userBalanceEl.innerText = data.newBalance.toLocaleString();
-                    if (walletBalanceEl) walletBalanceEl.innerText = data.newBalance.toLocaleString();
-
-                    const newUsdVal = data.newBalance * 0.0008;
-                    const userValEl = document.getElementById('user-value');
-                    const walletValEl = document.getElementById('wallet-valuation');
-                    if (userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
-                    if (walletValEl) walletValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
-                }
-            } catch (err) {
-                console.error("Client side verification reward check failed:", err);
-            }
-        }
 
         // Promo task handler
         async function triggerPromoTask(promoKey, targetUrl, rewardPts = 150) {
@@ -1754,7 +1720,35 @@
 
                 taskAdElement.addEventListener('reward', async () => {
                     showToast("Sponsored task completed! +50 PTS Added.", "🎉");
-                    await claimCustomRewardOnClient(50, "Adsgram Sponsored Task");
+                    try {
+                        const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                        const response = await fetch('/portal/claim-adsgram-reward', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `WebApp ${telegramInitData}`
+                            },
+                            body: JSON.stringify({
+                                id: "<%= user.telegram_id %>"
+                            })
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            const userBalanceEl = document.getElementById('user-balance');
+                            const walletBalanceEl = document.getElementById('wallet-balance');
+                            if (userBalanceEl) userBalanceEl.innerText = data.newBalance.toLocaleString();
+                            if (walletBalanceEl) walletBalanceEl.innerText = data.newBalance.toLocaleString();
+                            
+                            const newUsdVal = data.newBalance * 0.0008;
+                            const userValEl = document.getElementById('user-value');
+                            const walletValEl = document.getElementById('wallet-valuation');
+                            if (userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                            if (walletValEl) walletValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                        }
+                    } catch (err) {
+                        console.error("Adsgram secure claim failed:", err);
+                    }
                     if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
                     taskAdWrapper.classList.add('hidden'); 
                 });

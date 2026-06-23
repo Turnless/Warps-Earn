@@ -42,21 +42,21 @@
                     <div class="slide px-1 text-center">
                         <img class="w-full h-44 object-cover rounded-2xl mb-4 border border-neutral-200" src="https://images.unsplash.com/photo-1614741118887-7a4ee193a5fa?q=80&w=400">
                         <h3 class="text-lg font-bold text-neutral-900">Play Premium Crypto Games</h3>
-                        <p class="text-xs text-neutral-600 mt-1 mb-5 px-4">Join active gaming events and claim real tokens instantly inside your wallet dashboard.</p>
+                        <p class="text-xs text-neutral-600 mt-1 mb-5 px-4">Join active gaming events and earn real tokens directly to your wallet.</p>
                         <div class="w-12 h-12 rounded-full border-2 border-neutral-950 bg-neutral-950 text-[#e6ddd0] flex items-center justify-center font-bold mx-auto text-sm mono-text" id="timer-1">15</div>
                     </div>
 
                     <div class="slide px-1 text-center">
                         <img class="w-full h-44 object-cover rounded-2xl mb-4 border border-neutral-200" src="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400">
                         <h3 class="text-lg font-bold text-neutral-900">Secure Crypto Staking</h3>
-                        <p class="text-xs text-neutral-600 mt-1 mb-5 px-4">Grow your portfolio daily by locking your digital coins into highly trusted pool infrastructure.</p>
+                        <p class="text-xs text-neutral-600 mt-1 mb-5 px-4">Grow your portfolio daily by staking your tokens safely.</p>
                         <div class="w-12 h-12 rounded-full border-2 border-neutral-300 bg-neutral-100 text-neutral-400 flex items-center justify-center font-bold mx-auto text-xs uppercase" id="timer-2">Locked</div>
                     </div>
 
                     <div class="slide px-1 text-center">
                         <img class="w-full h-44 object-cover rounded-2xl mb-4 border border-neutral-200" src="https://images.unsplash.com/photo-1621761191319-c6fb62004040?q=80&w=400">
                         <h3 class="text-lg font-bold text-neutral-900">Automated Yield Earnings</h3>
-                        <p class="text-xs text-neutral-600 mt-1 mb-5 px-4">Maximize your daily earnings effortlessly using advanced cross-chain trading routers.</p>
+                        <p class="text-xs text-neutral-600 mt-1 mb-5 px-4">Maximize your daily earnings effortlessly with our automated tools.</p>
                         <div class="w-12 h-12 rounded-full border-2 border-neutral-300 bg-neutral-100 text-neutral-400 flex items-center justify-center font-bold mx-auto text-xs uppercase" id="timer-3">Locked</div>
                     </div>
 
@@ -73,7 +73,7 @@
 
     <footer class="w-full max-w-md mb-2">
         <button onclick="submitClaim()" id="claim-button" class="hidden w-full bg-neutral-950 hover:bg-neutral-900 active:scale-[0.99] transition-all text-[#e6ddd0] font-bold text-sm py-4 rounded-2xl shadow-md text-center tracking-wide">
-            🎁 Complete Ads & Claim +10 PTS
+            🎁 Claim +10 PTS
         </button>
     </footer>
 
@@ -124,7 +124,7 @@
                 window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
             }
             
-            const wantToExit = confirm("⚠️ Warning: If you leave now, you will lose all current progress and won't earn your +10 PTS reward.");
+            const wantToExit = confirm("⚠️ Wait! If you leave now, you'll lose your progress and won't get your reward. Leave anyway?");
             if (wantToExit) {
                 window.location.href = `/dashboard?id=<%= userId %>`;
             }
@@ -142,7 +142,7 @@
 
         async function submitClaim() {
             claimBtn.disabled = true;
-            claimBtn.innerText = "Processing Allocation...";
+            claimBtn.innerText = "Processing...";
             
             try {
                 const response = await fetch('/claim-ad-reward', {
@@ -154,13 +154,13 @@
                 if (response.ok) {
                     window.location.href = `/dashboard?id=<%= userId %>`;
                 } else {
-                    alert("Claim validation rejected by server.");
+                    alert("Claim rejected. Please try again.");
                     claimBtn.disabled = false;
                     claimBtn.innerText = "🎁 Complete Ads & Claim +10 PTS";
                 }
             } catch (err) {
                 console.error(err);
-                alert("Network communication error.");
+                alert("Connection error. Try again.");
                 claimBtn.disabled = false;
             }
         }

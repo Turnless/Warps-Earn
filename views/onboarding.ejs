@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Security Node Verification</title>
+    <title>Verify Account</title>
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
@@ -124,19 +124,19 @@
 <body>
 
     <div class="gate-card">
-        <h3>Node Verification</h3>
-        <p>Please match the security challenge string to initialize your portal environment.</p>
+        <h3>Verify Account</h3>
+        <p>Please enter the code below to verify your account.</p>
         
         <!-- Live CAPTCHA code injected by server side rendering -->
         <div class="captcha-display"><%= captchaCode %></div>
         
-        <input type="text" id="captchaInput" class="input-field" placeholder="Enter challenge token" autocomplete="off" uppercase>
+        <input type="text" id="captchaInput" class="input-field" placeholder="Enter the code" autocomplete="off" uppercase>
         
         <button type="button" id="submitBtn" class="btn-submit" onclick="runVerification()">
-            Verify Identity
+            Verify
         </button>
         
-        <div id="feedback">System idle.</div>
+        <div id="feedback">Ready.</div>
     </div>
 
    <script>
@@ -172,13 +172,13 @@
 
             if (!solutionValue) {
                 status.style.color = "red";
-                status.innerText = "Please input the token first.";
+                status.innerText = "Please enter the code first.";
                 return;
             }
 
             btn.disabled = true;
             status.style.color = "var(--color-text-main)";
-            status.innerText = "Processing signatures...";
+            status.innerText = "Verifying...";
 
             try {
                 // Post matching payloads back to client security validator router
@@ -203,7 +203,7 @@
                     }
 
                     status.style.color = "var(--color-accent)";
-                    status.innerText = "✓ Cleared! Redirecting to hub...";
+                    status.innerText = "✓ Verified! Redirecting...";
                     
                     setTimeout(() => {
                         window.location.href = `/dashboard?id=${explicitId}`;
@@ -218,7 +218,7 @@
                 }
             } catch (err) {
                 status.style.color = "red";
-                status.innerText = "Backend communication exception structural fault.";
+                status.innerText = "Connection error. Try again.";
                 btn.disabled = false;
             }
         }
