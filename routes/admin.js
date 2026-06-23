@@ -3,7 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
 const redis = require('../services/redis');
-const { sendTelegramMessageAsync } = require('../services/queue');
+const { sendTelegramMessageAsync, telegramQueue } = require('../services/queue');
 
 // Import environment parameters securely
 require('dotenv').config();
@@ -234,6 +234,31 @@ router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true })
         res.redirect('/admin');
     } catch (e) {
         res.status(500).send("Broadcast failed");
+    }
+});
+
+// --- 📈 QUEUE MONITORING ENDPOINT ---
+router.get('/queues', checkAdminAuth, async (req, res) => {
+    try {
+        const counts = await telegramQueue.getJobCounts();
+        
+        // Fetch up to 10 recently failed jobs for debugging
+        const failedJobs = await telegramQueue.getFailed(0, 10);
+        
+        const failedList = failedJobs.map(job => ({
+            id: job.id,
+            failedReason: job.failedReason,
+            data: job.data,
+            attempts: job.attemptsMade
+        }));
+
+        res.render('admin_queues', {
+            secret: ADMIN_SECRET_SIGNATURE,
+            counts: counts,
+            failedJobs: failedList
+        });
+    } catch (err) {
+        res.status(500).send("Failed to load queue statistics.");
     }
 });
 

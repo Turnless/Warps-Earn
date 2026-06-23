@@ -33,17 +33,32 @@
 </head>
 <body class="min-h-screen flex selection:bg-neutral-800 selection:text-[#e6ddd0]">
 
+    <!-- MOBILE TOP BAR -->
+    <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-neutral-300/80 z-40 flex items-center justify-between px-4">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-neutral-900 flex items-center justify-center text-white text-sm">🛡️</div>
+            <span class="font-bold text-neutral-900 tracking-tight uppercase text-sm">Admin Hub</span>
+        </div>
+        <button onclick="toggleMobileMenu()" class="w-10 h-10 bg-neutral-100 rounded-xl flex items-center justify-center text-xl text-neutral-900 shadow-sm border border-neutral-200">
+            ☰
+        </button>
+    </div>
+
     <!-- SIDEBAR -->
-    <aside class="w-64 bg-white/60 backdrop-blur-md border-r border-neutral-300/80 fixed h-screen flex flex-col justify-between py-6 px-4 z-50 overflow-y-auto">
+    <div id="mobile-overlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+    <aside id="sidebar" class="w-64 bg-white/90 md:bg-white/60 backdrop-blur-xl border-r border-neutral-300/80 fixed h-screen flex flex-col justify-between py-6 px-4 z-50 overflow-y-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300 shadow-2xl md:shadow-none">
         <div class="flex flex-col gap-8">
-            <div class="flex items-center gap-3 px-2">
-                <div class="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-950/20 flex items-center justify-center text-[#e6ddd0] text-lg shadow-inner">
-                    🛡️
+            <div class="flex items-center justify-between px-2">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-950/20 flex items-center justify-center text-[#e6ddd0] text-lg shadow-inner">
+                        🛡️
+                    </div>
+                    <div class="flex flex-col">
+                        <h1 class="text-sm font-bold tracking-tight text-neutral-900 leading-tight uppercase">Admin Hub</h1>
+                        <span class="text-[10px] text-neutral-500 font-medium mono-text">System Oversight</span>
+                    </div>
                 </div>
-                <div class="flex flex-col">
-                    <h1 class="text-sm font-bold tracking-tight text-neutral-900 leading-tight uppercase">Admin Hub</h1>
-                    <span class="text-[10px] text-neutral-500 font-medium mono-text">System Oversight</span>
-                </div>
+                <button onclick="toggleMobileMenu()" class="md:hidden text-2xl text-neutral-500">×</button>
             </div>
 
             <nav class="flex flex-col gap-2">
@@ -84,7 +99,7 @@
     </aside>
 
     <!-- MAIN CONTENT -->
-    <main class="ml-64 flex-1 p-8 h-screen overflow-y-auto">
+    <main class="w-full md:ml-64 flex-1 p-4 md:p-8 h-screen overflow-y-auto pt-20 md:pt-8">
         <div class="max-w-4xl mx-auto flex flex-col gap-6 pb-20">
 
             <!-- 1. TELEMETRY / METRICS -->
@@ -121,7 +136,7 @@
                 </div>
 
                 <!-- Sub Metrics Grid -->
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="bg-white/60 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 flex flex-col gap-2 shadow-sm">
                         <div class="flex items-center justify-between pb-2 border-b border-neutral-200">
                             <div class="flex items-center gap-2 text-xs text-neutral-500">
@@ -234,25 +249,26 @@
                     <p class="text-sm text-neutral-500 font-medium">Top 10 highest balance accounts. Monitor for abuse.</p>
                 </div>
 
-                <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-6 border border-neutral-300/80 shadow-sm flex flex-col gap-2">
-                    <div class="grid grid-cols-12 px-4 py-2 text-[10px] uppercase font-bold text-neutral-400 tracking-widest mono-text border-b border-neutral-200">
-                        <div class="col-span-1">Rank</div>
-                        <div class="col-span-5">User</div>
-                        <div class="col-span-3 text-right">Balance</div>
-                        <div class="col-span-3 text-right">Action</div>
+                <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-4 md:p-6 border border-neutral-300/80 shadow-sm flex flex-col gap-2">
+                    <div class="grid grid-cols-12 px-2 md:px-4 py-2 text-[10px] uppercase font-bold text-neutral-400 tracking-widest mono-text border-b border-neutral-200">
+                        <div class="col-span-2 md:col-span-1">Rnk</div>
+                        <div class="col-span-6 md:col-span-5">User</div>
+                        <div class="col-span-4 md:col-span-3 text-right hidden md:block">Balance</div>
+                        <div class="col-span-4 md:col-span-3 text-right">Action</div>
                     </div>
                     <% topUsers.forEach((u, index) => { %>
-                        <div class="grid grid-cols-12 px-4 py-3 items-center bg-neutral-50 rounded-xl border border-neutral-100 hover:border-neutral-300 transition-all">
-                            <div class="col-span-1 text-sm font-bold <%= index < 3 ? 'text-amber-500' : 'text-neutral-500' %>">#<%= index + 1 %></div>
-                            <div class="col-span-5 flex flex-col">
-                                <span class="text-sm font-bold text-neutral-900 truncate">@<%= u.username || 'Anonymous' %></span>
+                        <div class="grid grid-cols-12 px-2 md:px-4 py-3 items-center bg-neutral-50 rounded-xl border border-neutral-100 hover:border-neutral-300 transition-all gap-1">
+                            <div class="col-span-2 md:col-span-1 text-sm font-bold <%= index < 3 ? 'text-amber-500' : 'text-neutral-500' %>">#<%= index + 1 %></div>
+                            <div class="col-span-6 md:col-span-5 flex flex-col truncate">
+                                <span class="text-sm font-bold text-neutral-900 truncate">@<%= u.username || 'Anon' %></span>
                                 <span class="text-[9px] text-neutral-500 mono-text"><%= u.telegram_id %></span>
                             </div>
-                            <div class="col-span-3 text-right font-bold text-emerald-700 mono-text">
+                            <div class="col-span-4 md:col-span-3 text-right font-bold text-emerald-700 mono-text hidden md:block">
                                 <%= u.points_balance.toLocaleString() %> PTS
                             </div>
-                            <div class="col-span-3 text-right">
-                                <a href="/admin/user-lookup?q=<%= u.telegram_id %>" class="text-[10px] font-bold text-neutral-950 bg-neutral-200 hover:bg-neutral-300 px-3 py-1.5 rounded-lg uppercase transition-all">Inspect</a>
+                            <div class="col-span-4 md:col-span-3 text-right flex flex-col md:block items-end gap-1">
+                                <span class="md:hidden text-[10px] font-bold text-emerald-700 mono-text"><%= u.points_balance.toLocaleString() %> PTS</span>
+                                <a href="/admin/user-lookup?q=<%= u.telegram_id %>" class="text-[10px] font-bold text-neutral-950 bg-neutral-200 hover:bg-neutral-300 px-3 py-1.5 rounded-lg uppercase transition-all whitespace-nowrap">Inspect</a>
                             </div>
                         </div>
                     <% }) %>
@@ -337,6 +353,18 @@
     <script>
         const secretKey = "<%= secret %>";
 
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
         function switchTab(tabId) {
             // Hide all sections
             document.querySelectorAll('section').forEach(el => el.classList.add('hide-section'));
@@ -350,8 +378,16 @@
             document.getElementById(tabId).classList.remove('hide-section');
             // Highlight selected button
             const btnId = 'nav-' + tabId.split('-')[1];
-            document.getElementById(btnId).classList.remove('sidebar-inactive');
-            document.getElementById(btnId).classList.add('sidebar-active');
+            if(document.getElementById(btnId)) {
+                document.getElementById(btnId).classList.remove('sidebar-inactive');
+                document.getElementById(btnId).classList.add('sidebar-active');
+            }
+
+            // Close mobile menu if open
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar.classList.contains('-translate-x-full') && window.innerWidth < 768) {
+                toggleMobileMenu();
+            }
         }
 
         function wipeAll() {

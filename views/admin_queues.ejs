@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Bull Queue Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #e6ddd0;
+            color: #1a1a16;
+        }
+        .mono-text {
+            font-family: 'Geist Mono', monospace;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start p-4 md:p-8 selection:bg-neutral-800 selection:text-[#e6ddd0]">
+    <div class="w-full max-w-4xl flex flex-col gap-6">
+
+        <header class="w-full flex items-center gap-4">
+            <a href="/admin" class="w-12 h-12 rounded-full bg-white/60 backdrop-blur-md border border-neutral-300/80 flex items-center justify-center text-xl shadow-sm text-neutral-800 hover:bg-white transition-all">←</a>
+            <div class="flex flex-col">
+                <h1 class="text-2xl font-bold tracking-tight text-neutral-900 leading-tight">Bull Queues Monitor</h1>
+                <span class="text-sm text-neutral-600 font-medium">Real-time background job telemetry</span>
+            </div>
+            <button onclick="window.location.reload()" class="ml-auto bg-neutral-950 text-[#e6ddd0] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest shadow-md">Refresh</button>
+        </header>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white/60 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 flex flex-col gap-2 shadow-sm items-center">
+                <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mono-text">Waiting</span>
+                <span class="text-4xl font-bold text-neutral-900"><%= counts.waiting %></span>
+            </div>
+            <div class="bg-white/60 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 flex flex-col gap-2 shadow-sm items-center">
+                <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mono-text">Active</span>
+                <span class="text-4xl font-bold text-amber-500"><%= counts.active %></span>
+            </div>
+            <div class="bg-white/60 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 flex flex-col gap-2 shadow-sm items-center">
+                <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mono-text">Completed</span>
+                <span class="text-4xl font-bold text-emerald-600"><%= counts.completed %></span>
+            </div>
+            <div class="bg-white/60 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 flex flex-col gap-2 shadow-sm items-center">
+                <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mono-text">Failed</span>
+                <span class="text-4xl font-bold text-rose-600"><%= counts.failed %></span>
+            </div>
+        </div>
+
+        <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-6 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+            <h3 class="font-bold text-neutral-900 border-b border-neutral-200 pb-2">Recent Failures</h3>
+            <% if (failedJobs && failedJobs.length > 0) { %>
+                <div class="flex flex-col gap-3">
+                    <% failedJobs.forEach(job => { %>
+                        <div class="flex flex-col gap-2 bg-rose-50 p-4 rounded-2xl border border-rose-200 text-xs">
+                            <div class="flex justify-between items-center font-bold text-rose-900">
+                                <span class="mono-text">Job ID: <%= job.id %></span>
+                                <span>Attempts: <%= job.attempts %></span>
+                            </div>
+                            <span class="text-rose-700 break-words font-medium"><%= job.failedReason %></span>
+                            <div class="bg-white p-2 rounded-lg border border-rose-100 overflow-x-auto mt-1">
+                                <pre class="text-[10px] text-neutral-600 mono-text"><%= JSON.stringify(job.data, null, 2) %></pre>
+                            </div>
+                        </div>
+                    <% }) %>
+                </div>
+            <% } else { %>
+                <div class="text-center py-8 flex flex-col items-center gap-2 opacity-50">
+                    <span class="text-3xl">🎉</span>
+                    <span class="text-xs font-bold text-neutral-500 uppercase tracking-widest">No Failed Jobs</span>
+                </div>
+            <% } %>
+        </div>
+
+    </div>
+</body>
+</html>
