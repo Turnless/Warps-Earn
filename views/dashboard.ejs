@@ -45,6 +45,9 @@
 
     <!-- OnClickA Ad Manager SDK -->
     <script src="https://js.onclckvd.com/in-stream-ad-admanager/tma.js"></script>
+
+    <!-- Monetag SDK -->
+    <script src="https://libtl.com/sdk.js" data-zone="11188709" data-sdk="show_11188709"></script>
 </head>
 
 <body class="min-h-screen flex flex-col items-center justify-start p-4 selection:bg-neutral-800 selection:text-[#e6ddd0]">
@@ -1105,8 +1108,9 @@
             adsgram: { enabled: true, blockId: "35947" },
             // OnClickA Rewarded Video Spots
             onclicka: { enabled: true, spotIds: ["445824", "445825", "445825"] },
+            // Monetag Rewarded Video
+            monetag: { enabled: true, zoneId: "11188709" },
             // Direct Smartlinks (Banner/Video pages only, no interstitial scripts)
-            monetag: { enabled: true, adUrl: "https://refpaqum.com/smartlink/direct" },
             andsor: { enabled: true, adUrl: "https://andsor.placeholder/smartlink" },
             telegaio: { enabled: true, adUrl: "https://telega.placeholder/smartlink" }
         };
@@ -1234,11 +1238,14 @@
                             }
                         }
                         else if (network === 'monetag' && AdConfiguration.monetag.enabled) {
-                            const completed = await triggerFallbackOverlay(AdConfiguration.monetag.adUrl);
-                            if (completed) {
+                            const sdkFnName = 'show_' + AdConfiguration.monetag.zoneId;
+                            if (typeof window[sdkFnName] === 'function') {
+                                await window[sdkFnName]('pop');
                                 adsCompletedCount++;
                                 adLoadedSuccessfully = true;
                                 showToast(`Ad ${i}/${totalChainSteps} (Monetag) completed!`, "✓", 1500);
+                            } else {
+                                throw new Error("Monetag SDK hasn't finished loading yet.");
                             }
                         }
                         else if (network === 'andsor' && AdConfiguration.andsor.enabled) {
