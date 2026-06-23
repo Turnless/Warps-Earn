@@ -260,6 +260,26 @@
                                 <span class="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded uppercase mono-text"><%= user.ad_multiplier || 1 %>x Boost</span>
                             </div>
                         </div>
+                        </div>
+                    </div>
+
+                    <!-- ⚙️ NEW FEATURE: CLOUD MINING RIG -->
+                    <div class="w-full bg-gradient-to-br from-indigo-50 to-white/90 backdrop-blur-md rounded-3xl p-5 border border-indigo-200/60 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+                        <div class="absolute -right-4 -bottom-4 text-6xl opacity-5 pointer-events-none">⚙️</div>
+                        <div class="flex justify-between items-center pb-2 border-b border-indigo-100/60 z-10">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                                <span class="font-bold uppercase tracking-widest text-indigo-900 text-[10px]">Cloud Mining Rig</span>
+                            </div>
+                            <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[9px] mono-text">Level 1</span>
+                        </div>
+                        <div class="flex items-end justify-between mt-1 z-10">
+                            <div class="flex flex-col gap-0.5">
+                                <span class="text-[10px] text-neutral-500 font-medium">Passive Hashrate</span>
+                                <span class="text-xl font-black text-indigo-900 mono-text">14.5 <span class="text-[10px] text-indigo-400">TH/s</span></span>
+                            </div>
+                            <button onclick="showToast('Mining collection available in next update!', '⛏️')" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition-all shadow-md">Collect</button>
+                        </div>
                     </div>
                 </div>
 
@@ -430,8 +450,11 @@
                             </div>
                         </div>
 
+                        <% let hasMandatory = false; %>
+
                         <!-- SOCIAL PROTOCOL TASKS -->
-                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60">
+                        <% if (!user.quests || !user.quests.channel) { hasMandatory = true; %>
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60" id="quest-row-channel">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">📢</div>
                                 <div class="flex flex-col">
@@ -440,15 +463,13 @@
                                 </div>
                             </div>
                             <div>
-                                <% if (user.quests && user.quests.channel) { %>
-                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
-                                <% } else { %>
-                                    <button onclick="verifyTask('channel', 'https://t.me/Warpsgit')" id="btn-quest-channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
-                                <% } %>
+                                <button onclick="verifyTask('channel', 'https://t.me/Warpsgit')" id="btn-quest-channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
                             </div>
                         </div>
+                        <% } %>
 
-                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60">
+                        <% if (!user.quests || !user.quests.group) { hasMandatory = true; %>
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60" id="quest-row-group">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">💬</div>
                                 <div class="flex flex-col">
@@ -457,15 +478,13 @@
                                 </div>
                             </div>
                             <div>
-                                <% if (user.quests && user.quests.group) { %>
-                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
-                                <% } else { %>
-                                    <button onclick="verifyTask('group', 'https://t.me/warpscommunity')" id="btn-quest-group" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
-                                <% } %>
+                                <button onclick="verifyTask('group', 'https://t.me/warpscommunity')" id="btn-quest-group" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
                             </div>
                         </div>
+                        <% } %>
 
-                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60">
+                        <% if (!user.quests || !user.quests.payout_channel) { hasMandatory = true; %>
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60" id="quest-row-payout_channel">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">💳</div>
                                 <div class="flex flex-col">
@@ -474,15 +493,13 @@
                                 </div>
                             </div>
                             <div>
-                                <% if (user.quests && user.quests.payout_channel) { %>
-                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
-                                <% } else { %>
-                                    <button onclick="verifyTask('payout_channel', 'https://t.me/WarpsEarn')" id="btn-quest-payout_channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
-                                <% } %>
+                                <button onclick="verifyTask('payout_channel', 'https://t.me/WarpsEarn')" id="btn-quest-payout_channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
                             </div>
                         </div>
+                        <% } %>
 
-                        <div class="flex justify-between items-center">
+                        <% if (!user.quests || !user.quests.x_account) { hasMandatory = true; %>
+                        <div class="flex justify-between items-center" id="quest-row-x_account">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">🐦</div>
                                 <div class="flex flex-col">
@@ -491,13 +508,14 @@
                                 </div>
                             </div>
                             <div>
-                                <% if (user.quests && user.quests.x_account) { %>
-                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
-                                <% } else { %>
-                                    <button onclick="verifyTask('x_account', 'https://x.com/turnless_HQ')" id="btn-quest-x_account" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
-                                <% } %>
+                                <button onclick="verifyTask('x_account', 'https://x.com/turnless_HQ')" id="btn-quest-x_account" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
                             </div>
                         </div>
+                        <% } %>
+                        
+                        <% if (!hasMandatory) { %>
+                            <div class="text-center text-xs text-neutral-400 py-4 mono-text">All mandatory quests complete.</div>
+                        <% } %>
                     </div>
 
                     <% if (dynamicQuests && Object.keys(dynamicQuests).length > 0) { %>
@@ -510,24 +528,21 @@
                             <% Object.keys(dynamicQuests).forEach(qKey => { 
                                 const q = dynamicQuests[qKey];
                                 const isDone = user.custom_promos && user.custom_promos[qKey];
+                                if (!isDone) {
                             %>
-                            <div class="flex justify-between items-center pb-3 border-b border-amber-100/60 last:border-0 last:pb-0">
+                            <div class="flex justify-between items-center pb-3 border-b border-amber-100/60 last:border-0 last:pb-0" id="promo-row-<%= qKey %>">
                                 <div class="flex items-center gap-3">
                                     <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-100 to-orange-50 flex items-center justify-center text-lg border border-amber-200/50 shadow-sm"><%= q.icon || '🔥' %></div>
                                     <div class="flex flex-col">
                                         <span class="text-xs font-bold text-neutral-800"><%= q.title %></span>
-                                        <span class="text-[10px] text-amber-600 font-bold mono-text mt-0.5">+<%= q.pts %> PTS</span>
+                                        <span class="text-[10px] text-amber-600 font-bold mono-text mt-0.5">+<%= q.pts || 150 %> PTS</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <% if (isDone) { %>
-                                        <span class="bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
-                                    <% } else { %>
-                                        <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>')" id="promo-btn-<%= qKey %>" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 active:scale-[0.95] transition-all text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Go</button>
-                                    <% } %>
+                                    <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>', <%= q.pts || 150 %>)" id="promo-btn-<%= qKey %>" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 active:scale-[0.95] transition-all text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Go</button>
                                 </div>
                             </div>
-                            <% }) %>
+                            <% }}) %>
                         </div>
                     </div>
                     <% } %>
@@ -698,6 +713,11 @@
 
                 <!-- 🛒 DYNAMIC POINT SINK STORE -->
                 <div id="view-store" class="hidden flex flex-col gap-4 w-full">
+                    <div class="px-1">
+                        <h2 class="text-lg font-bold text-neutral-900 tracking-tight">Marketplace</h2>
+                        <p class="text-xs text-neutral-500 mt-0.5">Reinvest your PTS for ecosystem upgrades.</p>
+                    </div>
+
                     <div class="w-full bg-neutral-950 text-[#e6ddd0] rounded-3xl p-5 shadow-md flex flex-col gap-2 relative overflow-hidden">
                         <div class="absolute right-[-10px] top-[-10px] text-6xl opacity-10 select-none">🛍️</div>
                         <span class="text-[10px] tracking-widest uppercase font-bold text-neutral-400 mono-text">Warps Market</span>
@@ -738,6 +758,78 @@
                             </div>
                             <button onclick="purchaseStoreItem('multiplier')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-xs mt-2 active:scale-95 transition-transform">Purchase Upgrade</button>
                         </div>
+
+                        <!-- 5 New Features Below -->
+                        <div class="bg-white/80 backdrop-blur-md border border-neutral-200/80 rounded-2xl p-4 flex flex-col gap-2 relative">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">🤖</span>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-neutral-900">Auto-Claim Bot</span>
+                                        <span class="text-[10px] text-neutral-500">Automatically farms ads while asleep</span>
+                                    </div>
+                                </div>
+                                <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-lg">8,500 PTS</span>
+                            </div>
+                            <button onclick="purchaseStoreItem('autobot')" class="w-full bg-neutral-900 text-white font-bold py-2.5 rounded-xl text-xs mt-2 active:scale-95 transition-transform">Purchase Upgrade</button>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200/80 rounded-2xl p-4 flex flex-col gap-2 relative">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">🎁</span>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-neutral-900">Mystery Loot Box</span>
+                                        <span class="text-[10px] text-neutral-500">Win up to 50,000 PTS instantly!</span>
+                                    </div>
+                                </div>
+                                <span class="bg-purple-200 text-purple-800 text-xs font-bold px-2 py-1 rounded-lg">1,500 PTS</span>
+                            </div>
+                            <button onclick="purchaseStoreItem('lootbox')" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2.5 rounded-xl text-xs mt-2 active:scale-95 transition-transform">Open Box</button>
+                        </div>
+
+                        <div class="bg-white/80 backdrop-blur-md border border-neutral-200/80 rounded-2xl p-4 flex flex-col gap-2 relative">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">⚙️</span>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-neutral-900">Mining Overclock</span>
+                                        <span class="text-[10px] text-neutral-500">Boosts Cloud Mining hashrate by +5 TH/s</span>
+                                    </div>
+                                </div>
+                                <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-lg">4,000 PTS</span>
+                            </div>
+                            <button onclick="purchaseStoreItem('mining_boost')" class="w-full bg-neutral-900 text-white font-bold py-2.5 rounded-xl text-xs mt-2 active:scale-95 transition-transform">Purchase Upgrade</button>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-2xl p-4 flex flex-col gap-2 relative">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">🎟️</span>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-neutral-900">VIP Fast Lane</span>
+                                        <span class="text-[10px] text-neutral-500">Bypasses withdrawal queue permanently</span>
+                                    </div>
+                                </div>
+                                <span class="bg-emerald-200 text-emerald-800 text-xs font-bold px-2 py-1 rounded-lg">15,000 PTS</span>
+                            </div>
+                            <button onclick="purchaseStoreItem('vip_pass')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs mt-2 active:scale-95 transition-transform">Purchase Upgrade</button>
+                        </div>
+
+                        <div class="bg-neutral-900 text-white border border-neutral-700 rounded-2xl p-4 flex flex-col gap-2 relative">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">🌙</span>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold">Dark Mode UI</span>
+                                        <span class="text-[10px] text-neutral-400">Unlock premium aesthetic dark theme</span>
+                                    </div>
+                                </div>
+                                <span class="bg-neutral-700 text-neutral-300 text-xs font-bold px-2 py-1 rounded-lg">1,000 PTS</span>
+                            </div>
+                            <button onclick="purchaseStoreItem('dark_mode')" class="w-full bg-white hover:bg-neutral-200 text-neutral-950 font-bold py-2.5 rounded-xl text-xs mt-2 active:scale-95 transition-transform">Unlock Theme</button>
+                        </div>
+
                     </div>
                 </div>
             </main>
@@ -864,9 +956,33 @@
                     if (response.ok) {
                         showToast("Quest Completed successfully! +100 PTS added.", "🎉");
 
-                        const parent = btn.parentElement;
-                        if (parent) {
-                            parent.innerHTML = `<span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>`;
+                        const rowId = `quest-row-${questKey}`;
+                        const row = document.getElementById(rowId);
+                        if (row) {
+                            row.style.opacity = '0';
+                            setTimeout(() => {
+                                row.remove();
+                                // Check if mandatory quests are all done visually
+                                const container = document.getElementById('quest-row-channel')?.parentElement;
+                                if (container && !container.querySelector('[id^="quest-row-"]')) {
+                                    container.insertAdjacentHTML('beforeend', '<div class="text-center text-xs text-neutral-400 py-4 mono-text">All mandatory quests complete.</div>');
+                                }
+                            }, 300);
+                        }
+
+                        // Add to activity history instantly
+                        const listActivity = document.getElementById('list-activity');
+                        if (listActivity) {
+                            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const historyHtml = `
+                                <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-neutral-800">Mandatory Quest: ${questKey}</span>
+                                        <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
+                                    </div>
+                                    <span class="text-xs font-bold text-emerald-700 mono-text">+100</span>
+                                </div>`;
+                            listActivity.insertAdjacentHTML('afterbegin', historyHtml);
                         }
 
                         const userBalanceEl = document.getElementById('user-balance');
@@ -1232,9 +1348,9 @@
             // OnClickA Rewarded Video Spots
             onclicka: { enabled: true, spotIds: ["445824", "445825", "445825"] },
             // Monetag Smartlink (Direct Link) to prevent external browser popouts
-            monetag: { enabled: true, adUrl: "YOUR_MONETAG_DIRECT_LINK_HERE" },
+            monetag: { enabled: true, adUrl: "https://omg10.com/4/11188717" },
             // Direct Smartlinks (Banner/Video pages only, no interstitial scripts)
-            andsor: { enabled: true, adUrl: "https://andsor.placeholder/smartlink" },
+            adsonar: { enabled: true, adUrl: "https://adsonar.placeholder/smartlink" },
             // Telega.io SDK Integration
             telegaio: { enabled: true, blockId: "b891be85-b4fe-4e4c-8c40-50b885bc5852" }
         };
@@ -1328,7 +1444,7 @@
                     } catch(e) {}
                 }
 
-                const activePool = shuffleArray(['adsgram', 'onclicka', 'monetag', 'andsor', 'telegaio']);
+                const activePool = shuffleArray(['adsgram', 'onclicka', 'monetag', 'adsonar', 'telegaio']);
                 let adLoadedSuccessfully = false;
 
                 for (let network of activePool) {
@@ -1381,9 +1497,6 @@
                             }
                         }
                         else if (network === 'monetag' && AdConfiguration.monetag.enabled) {
-                            if (AdConfiguration.monetag.adUrl === "YOUR_MONETAG_DIRECT_LINK_HERE") {
-                                throw new Error("Monetag Direct Link URL is missing. Please add it to AdConfiguration.");
-                            }
                             // Using the internal fallback player to prevent external browser pops
                             const completed = await triggerFallbackOverlay(AdConfiguration.monetag.adUrl);
                             if (completed) {
@@ -1393,13 +1506,13 @@
                                 showToast(`Ad ${i}/${totalChainSteps} (Monetag) completed!`, "✓", 1500);
                             }
                         }
-                        else if (network === 'andsor' && AdConfiguration.andsor.enabled) {
-                            const completed = await triggerFallbackOverlay(AdConfiguration.andsor.adUrl);
+                        else if (network === 'adsonar' && AdConfiguration.adsonar.enabled) {
+                            const completed = await triggerFallbackOverlay(AdConfiguration.adsonar.adUrl);
                             if (completed) {
                                 adsCompletedCount++;
                                 adLoadedSuccessfully = true;
-                                reportAdTelemetry('andsor', 'success');
-                                showToast(`Ad ${i}/${totalChainSteps} (Andsor) completed!`, "✓", 1500);
+                                reportAdTelemetry('adsonar', 'success');
+                                showToast(`Ad ${i}/${totalChainSteps} (Adsonar) completed!`, "✓", 1500);
                             }
                         }
                         else if (network === 'telegaio' && AdConfiguration.telegaio.enabled) {
@@ -1609,13 +1722,13 @@
         }
 
         // ✅ FIXED: Added promo task validation block mapping perfectly to the backend router!
-        async function triggerPromoTask(promoKey, targetUrl) {
+        async function triggerPromoTask(promoKey, targetUrl, rewardPts = 150) {
             if (window.Telegram && window.Telegram.WebApp) {
                 window.Telegram.WebApp.HapticFeedback.selectionChanged();
             }
             window.open(targetUrl, '_blank');
 
-            const btn = document.getElementById('promo-btn-1'); 
+            const btn = document.getElementById(`promo-btn-${promoKey}`); 
             if (!btn) return;
 
             btn.disabled = true;
@@ -1638,16 +1751,49 @@
                     });
 
                     if (response.ok) {
-                        showToast("Campaign quest verified! Points added.", "🎉");
-                        btn.innerText = "✓ Done";
-                        btn.className = "bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold px-4 py-2 rounded-xl";
+                        showToast(`Campaign quest verified! +${rewardPts} Points added.`, "🎉");
+                        
+                        const row = document.getElementById(`promo-row-${promoKey}`);
+                        if (row) {
+                            row.style.opacity = '0';
+                            setTimeout(() => {
+                                row.remove();
+                                // Hide whole community container if empty
+                                const remainingRows = document.querySelectorAll('[id^="promo-row-"]');
+                                if (remainingRows.length === 0) {
+                                    const communityContainer = document.querySelector('.bg-white\\/70.border-amber-200\\/60');
+                                    if(communityContainer) communityContainer.classList.add('hidden');
+                                }
+                            }, 300);
+                        }
                         
                         const userBalanceEl = document.getElementById('user-balance');
                         const walletBalanceEl = document.getElementById('wallet-balance');
                         const currentVal = parseInt(userBalanceEl.innerText.replace(/,/g, '')) || 0;
                         
-                        userBalanceEl.innerText = (currentVal + 150).toLocaleString();
-                        if (walletBalanceEl) walletBalanceEl.innerText = (currentVal + 150).toLocaleString();
+                        userBalanceEl.innerText = (currentVal + rewardPts).toLocaleString();
+                        if (walletBalanceEl) walletBalanceEl.innerText = (currentVal + rewardPts).toLocaleString();
+                        
+                        // Sync UI valuation
+                        const newUsdVal = (currentVal + rewardPts) * 0.0008;
+                        const userValEl = document.getElementById('user-value');
+                        if(userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                        
+                        // Add to activity history instantly
+                        const listActivity = document.getElementById('list-activity');
+                        if (listActivity) {
+                            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const historyHtml = `
+                                <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-neutral-800">Community Quest: ${promoKey}</span>
+                                        <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
+                                    </div>
+                                    <span class="text-xs font-bold text-emerald-700 mono-text">+${rewardPts}</span>
+                                </div>`;
+                            listActivity.insertAdjacentHTML('afterbegin', historyHtml);
+                        }
+                    } else {
                     } else {
                         showToast("Verification failed. Please complete the target action first.", "⚠️");
                         btn.disabled = false;
