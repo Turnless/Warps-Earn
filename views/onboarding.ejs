@@ -149,6 +149,18 @@
         // Auto-focus on input field for a premium native feel
         document.getElementById('captchaInput').focus();
 
+        // Generate and retrieve persistent device fingerprint
+        function getDeviceFingerprint() {
+            let fp = localStorage.getItem('warps_device_fp');
+            if (!fp) {
+                const randomPart = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                const timePart = Date.now().toString(36);
+                fp = `fp_${timePart}_${randomPart}`;
+                localStorage.setItem('warps_device_fp', fp);
+            }
+            return fp;
+        }
+
         async function runVerification() {
             const btn = document.getElementById('submitBtn');
             const status = document.getElementById('feedback');
@@ -175,7 +187,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         id: explicitId,
-                        fingerprint: "menu-button-hardware-token", // Browser fingerprint payload indicator
+                        fingerprint: getDeviceFingerprint(), // Dynamically generated unique hardware tracking token
                         solution: solutionValue,
                         expectedCaptcha: "<%= captchaCode %>",
                         upline: "<%= upline %>"

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
+const redis = require('../services/redis');
 const { sendTelegramMessageAsync } = require('../services/queue');
 
 // Import environment parameters securely
@@ -28,6 +29,17 @@ function getFormattedDateTime() {
     const timeStr = new Date().toLocaleTimeString('en-US', optionsTime);
     return `${dateStr} • ${timeStr}`;
 }
+
+// --- 🖥️ MAIN ADMIN DASHBOARD ---
+router.get('/', (req, res) => {
+    const { secret } = req.query;
+
+    if (secret !== ADMIN_SECRET_SIGNATURE) {
+        return res.status(403).send("Unauthorized administrative sequence.");
+    }
+
+    res.render('admin_dashboard', { secret: ADMIN_SECRET_SIGNATURE });
+});
 
 // --- ⚡ EXCLUSIVE ADMINISTRATIVE PAYOUT DECISION CONTROL ENDPOINT ---
 router.get('/payout', async (req, res) => {
@@ -126,6 +138,57 @@ router.get('/payout', async (req, res) => {
     } catch (err) {
         console.error("Administrative transaction decision failure:", err);
         return res.status(500).send("Administrative decision process crashed.");
+    }
+});
+
+// --- ⚡ EXCLUSIVE ADMINISTRATIVE DATA WIPE ENDPOINT ---
+router.get('/delete-user', async (req, res) => {
+    const { id, secret } = req.query;
+
+    if (secret !== ADMIN_SECRET_SIGNATURE) {
+        return res.status(403).send("Unauthorized administrative sequence.");
+    }
+
+    if (!id) {
+        return res.status(400).send("Please provide an 'id' parameter (Telegram ID or 'all').");
+    }
+
+    try {
+        if (id.toLowerCase() === 'all') {
+            await User.deleteMany({});
+            await redis.flushall();
+            return res.send(`
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #e6ddd0; color: #1a1a16;">
+                    <div style="background: white; padding: 40px; border-radius: 24px; text-align: center;">
+                        <span style="font-size: 48px;">🗑️</span>
+                        <h2>Global Database Wiped</h2>
+                        <p>All users and cached sessions have been completely removed from production.</p>
+                    </div>
+                </body>
+            `);
+        } else {
+            const result = await User.deleteOne({ telegram_id: String(id) });
+            await redis.del(`user:${id}:profile`);
+            await redis.del(`lock:claim:${id}`);
+            await redis.del(`lock:payout:${id}`);
+            
+            const message = result.deletedCount > 0 
+                ? `Successfully removed user <b>${id}</b> from database and cache.`
+                : `User <b>${id}</b> was not found in the database, but their cache was cleared.`;
+
+            return res.send(`
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #e6ddd0; color: #1a1a16;">
+                    <div style="background: white; padding: 40px; border-radius: 24px; text-align: center;">
+                        <span style="font-size: 48px;">✅</span>
+                        <h2>User Data Cleared</h2>
+                        <p>${message}</p>
+                    </div>
+                </body>
+            `);
+        }
+    } catch (err) {
+        console.error("Data wipe failure:", err);
+        return res.status(500).send("Wipe operation failed.");
     }
 });
 

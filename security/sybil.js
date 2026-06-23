@@ -57,8 +57,8 @@ async function isDeviceFingerprintFlagged(req, telegramId, browserFingerprint) {
         }
 
         // 2. BROWSER FINGERPRINT STORAGE CHECK (If it survived account switching)
-        // Ignore the hardcoded "menu-button-hardware-token" from the client side
-        if (browserFingerprint && browserFingerprint !== "menu-button-hardware-token") {
+        // Checks the persistent localStorage token from the client
+        if (browserFingerprint && browserFingerprint.startsWith('fp_')) {
             const fingerprintExists = await User.findOne({
                 device_fingerprint: browserFingerprint,
                 telegram_id: { $ne: String(telegramId) }

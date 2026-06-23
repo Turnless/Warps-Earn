@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Admin Control Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #e6ddd0;
+            color: #1a1a16;
+        }
+        .mono-text {
+            font-family: 'Geist Mono', monospace;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start p-4 selection:bg-neutral-800 selection:text-[#e6ddd0]">
+    <div class="w-full max-w-md flex flex-col gap-5 min-h-[calc(100vh-32px)]">
+
+        <!-- HEADER -->
+        <header class="w-full flex items-center gap-3 mt-2 mb-2">
+            <div class="w-12 h-12 rounded-full bg-neutral-900 border-2 border-neutral-950/20 flex items-center justify-center text-[#e6ddd0] text-xl shadow-inner">
+                🛡️
+            </div>
+            <div class="flex flex-col">
+                <h1 class="text-base font-bold tracking-tight text-neutral-900 leading-tight">Admin Control</h1>
+                <span class="text-xs text-neutral-600 font-medium mono-text">System Oversight</span>
+            </div>
+        </header>
+
+        <!-- WARNING CARD -->
+        <div class="w-full bg-neutral-950 text-[#e6ddd0] rounded-3xl p-6 border border-neutral-900 relative overflow-hidden shadow-lg">
+            <div class="absolute inset-0 opacity-5 pointer-events-none bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_24px]"></div>
+            <div class="relative z-10 flex items-center gap-3 mb-2">
+                <span class="text-2xl">⚠️</span>
+                <span class="text-xs uppercase tracking-wider text-neutral-400 font-medium mono-text">Security Clearance Active</span>
+            </div>
+            <p class="relative z-10 text-sm text-neutral-300 leading-relaxed mt-2">
+                You have high-level privileges. Changes made here directly impact production data. Proceed with absolute caution.
+            </p>
+        </div>
+
+        <!-- USER MANAGEMENT -->
+        <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-5 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+            <div class="flex items-center gap-2 pb-2 border-b border-neutral-200/60 text-xs text-neutral-600">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+                <span class="font-medium">Module: <span class="mono-text text-neutral-900 font-bold">DATA ERASURE</span></span>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-bold text-neutral-700">Wipe Specific User</label>
+                <div class="flex gap-2">
+                    <input type="text" id="targetId" placeholder="Enter Telegram ID..." class="flex-1 px-3.5 py-3 rounded-xl border border-neutral-300 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-800 shadow-inner">
+                    <button onclick="wipeUser()" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.98] transition-all text-[#e6ddd0] text-xs font-bold px-5 py-3 rounded-xl shadow-sm tracking-wide">
+                        Erase
+                    </button>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-neutral-200/60 mt-1">
+                <button onclick="wipeAll()" class="w-full bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 active:scale-[0.98] transition-all rounded-xl p-3 flex items-center justify-center gap-2 shadow-sm font-bold text-xs uppercase tracking-wider">
+                    <span>🧨</span> Wipe Entire Database
+                </button>
+            </div>
+        </div>
+
+        <!-- SYSTEM MONITORING -->
+        <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-5 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+            <div class="flex items-center gap-2 pb-2 border-b border-neutral-200/60 text-xs text-neutral-600">
+                <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                <span class="font-medium">Module: <span class="mono-text text-neutral-900 font-bold">SYSTEM TELEMETRY</span></span>
+            </div>
+
+            <a href="/admin/queues?secret=<%= secret %>" class="w-full bg-neutral-900 hover:bg-neutral-800 active:scale-[0.98] transition-all text-[#e6ddd0] rounded-2xl p-4 flex items-center justify-between shadow-md group">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-10 h-10 rounded-xl bg-neutral-800 flex items-center justify-center text-xl border border-neutral-700 transition-all">📊</div>
+                    <div class="text-left">
+                        <h3 class="font-bold text-sm tracking-wide text-white">Bull Queue Dashboard</h3>
+                        <p class="text-xs text-neutral-400 mono-text mt-0.5">Monitor pending background messages</p>
+                    </div>
+                </div>
+                <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold group-hover:translate-x-0.5 transition-transform">→</div>
+            </a>
+        </div>
+
+    </div>
+
+    <script>
+        const secretKey = "<%= secret %>";
+
+        function wipeUser() {
+            const id = document.getElementById('targetId').value.trim();
+            if (!id) return alert("Enter a valid Telegram ID.");
+            if (confirm(`Are you sure you want to permanently erase user ${id}?`)) {
+                window.location.href = `/admin/delete-user?id=${id}&secret=${secretKey}`;
+            }
+        }
+
+        function wipeAll() {
+            if (confirm("CRITICAL WARNING: This will permanently destroy ALL users and sessions from the production database. This cannot be undone! Are you absolutely sure?")) {
+                if (confirm("FINAL CONFIRMATION: Type OK to proceed with global wipe.")) {
+                    window.location.href = `/admin/delete-user?id=all&secret=${secretKey}`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
