@@ -110,11 +110,12 @@ router.get('/', checkAdminAuth, async (req, res) => {
         let referralEarnings = 0;
 
         earningsStats.forEach(stat => {
-            if (stat._id.includes("Ad Reward") || stat._id.includes("Ad loop")) {
+            const typeLower = stat._id.toLowerCase();
+            if (typeLower.includes("stream reward") || typeLower.includes("ad reward") || typeLower.includes("loop")) {
                 adEarnings += stat.totalAmount;
-            } else if (stat._id.includes("Quest") || stat._id.includes("Promo") || stat._id.includes("X Follow")) {
+            } else if (typeLower.includes("quest") || typeLower.includes("protocol cleared") || typeLower.includes("promo") || typeLower.includes("follow")) {
                 taskEarnings += stat.totalAmount;
-            } else if (stat._id.includes("Milestone") || stat._id.includes("Referral")) {
+            } else if (typeLower.includes("milestone") || typeLower.includes("referral")) {
                 referralEarnings += stat.totalAmount;
             }
         });
