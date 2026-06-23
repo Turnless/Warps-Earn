@@ -263,22 +263,22 @@
                         </div>
                     </div>
 
-                    <!-- ⚙️ NEW FEATURE: CLOUD MINING RIG -->
-                    <div class="w-full bg-gradient-to-br from-indigo-50 to-white/90 backdrop-blur-md rounded-3xl p-5 border border-indigo-200/60 shadow-sm flex flex-col gap-3 relative overflow-hidden">
-                        <div class="absolute -right-4 -bottom-4 text-6xl opacity-5 pointer-events-none">⚙️</div>
-                        <div class="flex justify-between items-center pb-2 border-b border-indigo-100/60 z-10">
+                    <!-- 🎡 NEW FEATURE: CLASSIC SPIN WHEEL -->
+                    <div class="w-full bg-gradient-to-br from-fuchsia-50 to-purple-50/90 backdrop-blur-md rounded-3xl p-5 border border-purple-200/60 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+                        <div class="absolute -right-4 -bottom-4 text-6xl opacity-5 pointer-events-none">🎡</div>
+                        <div class="flex justify-between items-center pb-2 border-b border-purple-100/60 z-10">
                             <div class="flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                                <span class="font-bold uppercase tracking-widest text-indigo-900 text-[10px]">Cloud Mining Rig</span>
+                                <span class="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+                                <span class="font-bold uppercase tracking-widest text-purple-900 text-[10px]">Daily Spin Wheel</span>
                             </div>
-                            <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[9px] mono-text">Level 1</span>
+                            <span class="bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded text-[9px] mono-text">1 Free Spin</span>
                         </div>
                         <div class="flex items-end justify-between mt-1 z-10">
                             <div class="flex flex-col gap-0.5">
-                                <span class="text-[10px] text-neutral-500 font-medium">Passive Hashrate</span>
-                                <span class="text-xl font-black text-indigo-900 mono-text">14.5 <span class="text-[10px] text-indigo-400">TH/s</span></span>
+                                <span class="text-[10px] text-neutral-500 font-medium">Next free spin in:</span>
+                                <span class="text-xl font-black text-purple-900 mono-text">04:20:15 <span class="text-[10px] text-purple-400">HRS</span></span>
                             </div>
-                            <button onclick="showToast('Mining collection available in next update!', '⛏️')" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition-all shadow-md">Collect</button>
+                            <button onclick="showToast('Spin Wheel opening soon in next update!', '🎡')" class="bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition-all shadow-md">Spin Now</button>
                         </div>
                     </div>
                 </div>
@@ -1793,7 +1793,6 @@
                                 </div>`;
                             listActivity.insertAdjacentHTML('afterbegin', historyHtml);
                         }
-                    } else {
                     } else {
                         showToast("Verification failed. Please complete the target action first.", "⚠️");
                         btn.disabled = false;
