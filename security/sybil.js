@@ -52,12 +52,13 @@ async function isDeviceFingerprintFlagged(req, telegramId, browserFingerprint) {
             telegram_id: { $ne: String(telegramId) }
         });
         if (deviceMatchInDb) {
-            console.log(`❌ Sybil Blocked: Device signature matches existing database profile ${deviceMatchInDb.telegram_id}`);
-            return true;
+            console.log(`⚠️ Sybil Warning: Device signature matches existing database profile ${deviceMatchInDb.telegram_id}. Permitting access to avoid false positives on identical device models.`);
+            // Removed strict return true; to avoid false positives on identical phone models
         }
 
         // 2. BROWSER FINGERPRINT STORAGE CHECK (If it survived account switching)
-        if (browserFingerprint) {
+        // Ignore the hardcoded "menu-button-hardware-token" from the client side
+        if (browserFingerprint && browserFingerprint !== "menu-button-hardware-token") {
             const fingerprintExists = await User.findOne({
                 device_fingerprint: browserFingerprint,
                 telegram_id: { $ne: String(telegramId) }
