@@ -223,8 +223,43 @@
                         <div class="w-full bg-neutral-100/80 rounded-xl p-3 flex justify-between items-center border border-neutral-200/40 text-xs">
                             <span class="text-neutral-600 font-medium">Total ads watched:</span>
                             <span id="total-ads-watched" class="font-bold text-neutral-900 bg-white px-2.5 py-0.5 rounded-md border border-neutral-200 shadow-sm mono-text">
-                                <%= user.video_views || 0 %>
+                                <%= user.total_ads_watched || user.video_views || 0 %>
                             </span>
+                        </div>
+                    </div>
+
+                    <!-- 🚀 NEW FEATURE: LOGIN STREAK & VIP STATUS -->
+                    <div class="grid grid-cols-2 gap-3 w-full">
+                        <!-- Daily Streak Card -->
+                        <div class="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/60 rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden shadow-sm">
+                            <div class="absolute -right-4 -bottom-4 text-6xl opacity-10">🔥</div>
+                            <div class="flex flex-col gap-1 z-10">
+                                <span class="text-[10px] font-extrabold text-amber-600 tracking-wider uppercase mono-text">Login Streak</span>
+                                <span class="text-2xl font-black text-amber-950"><%= user.login_streak || 0 %><span class="text-sm text-amber-700 ml-1">Days</span></span>
+                            </div>
+                            <div class="mt-3 z-10">
+                                <div class="w-full h-1.5 bg-amber-200/50 rounded-full overflow-hidden">
+                                    <div class="h-full bg-amber-500 rounded-full" style="width: <%= Math.min(((user.login_streak || 0) % 7) / 7 * 100, 100) %>%"></div>
+                                </div>
+                                <span class="text-[9px] text-amber-700 font-bold mt-1 block">Reach 7 days for a huge bonus!</span>
+                            </div>
+                        </div>
+
+                        <!-- VIP Status Card -->
+                        <div class="bg-gradient-to-br from-slate-900 to-neutral-900 border border-neutral-800 rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden shadow-sm">
+                            <div class="absolute -right-2 -bottom-2 text-6xl opacity-10">👑</div>
+                            <div class="flex flex-col gap-1 z-10">
+                                <span class="text-[10px] font-extrabold text-neutral-400 tracking-wider uppercase mono-text">Account Tier</span>
+                                <% if ((user.ad_multiplier || 1) >= 2 || (user.referrals && user.referrals.length >= 50)) { %>
+                                    <span class="text-xl font-black text-amber-400">GOLD VIP</span>
+                                <% } else { %>
+                                    <span class="text-xl font-black text-white">STANDARD</span>
+                                <% } %>
+                            </div>
+                            <div class="mt-3 z-10 flex items-center justify-between">
+                                <span class="text-[9px] text-neutral-400 font-medium">Ad Yield Multiplier:</span>
+                                <span class="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded uppercase mono-text"><%= user.ad_multiplier || 1 %>x Boost</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -466,6 +501,38 @@
                         </div>
                     </div>
 
+                    <% if (dynamicQuests && Object.keys(dynamicQuests).length > 0) { %>
+                    <div class="w-full bg-white/70 backdrop-blur-md border border-amber-200/60 rounded-3xl p-5 shadow-sm flex flex-col gap-4 relative overflow-hidden mt-4">
+                        <div class="absolute -right-4 -bottom-4 text-6xl opacity-5 select-none">🎯</div>
+                        <div class="flex justify-between items-center z-10">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-amber-600 mono-text">Community Quests</span>
+                        </div>
+                        <div class="flex flex-col gap-4 z-10">
+                            <% Object.keys(dynamicQuests).forEach(qKey => { 
+                                const q = dynamicQuests[qKey];
+                                const isDone = user.custom_promos && user.custom_promos[qKey];
+                            %>
+                            <div class="flex justify-between items-center pb-3 border-b border-amber-100/60 last:border-0 last:pb-0">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-100 to-orange-50 flex items-center justify-center text-lg border border-amber-200/50 shadow-sm"><%= q.icon || '🔥' %></div>
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-neutral-800"><%= q.title %></span>
+                                        <span class="text-[10px] text-amber-600 font-bold mono-text mt-0.5">+<%= q.pts %> PTS</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <% if (isDone) { %>
+                                        <span class="bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Done</span>
+                                    <% } else { %>
+                                        <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>')" id="promo-btn-<%= qKey %>" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 active:scale-[0.95] transition-all text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Go</button>
+                                    <% } %>
+                                </div>
+                            </div>
+                            <% }) %>
+                        </div>
+                    </div>
+                    <% } %>
+
                     <!-- 💎 ECOSYSTEM GROWTH CAMPAIGNS (DYNAMICALLY REVEALED) -->
                     <div id="ecosystem-container" class="hidden relative w-full overflow-hidden bg-gradient-to-br from-indigo-50/90 to-white/90 backdrop-blur-xl border border-indigo-200/60 rounded-[28px] p-5 shadow-[0_4px_20px_-4px_rgba(79,70,229,0.1)] flex-col gap-4 mt-4">
                         <!-- Decorative Background Glow -->
@@ -478,22 +545,28 @@
                         </span>
                         
                         <!-- 1. DYNAMIC ADSGRAM TASK CARD -->
-                        <div class="hidden flex-col gap-3 z-10" id="adsgram-task-wrapper">
-                            <div class="flex items-center gap-3 bg-white/60 p-3 rounded-2xl border border-white/80 shadow-sm backdrop-blur-md">
-                                <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-50 flex items-center justify-center text-xl shadow-inner border border-indigo-200/50">💎</div>
-                                <div class="flex flex-col flex-1">
-                                    <span class="text-xs font-extrabold text-neutral-800">Adsgram Partner Challenge</span>
-                                    <span class="text-[10px] text-emerald-600 font-bold mono-text mt-0.5 tracking-wide">+50 PTS Guaranteed</span>
+                        <div class="hidden flex-col z-10" id="adsgram-task-wrapper">
+                            <div class="relative flex items-center justify-between bg-white p-3 rounded-2xl border border-indigo-100 shadow-sm overflow-hidden group">
+                                <div class="flex items-center gap-3 relative z-10 pointer-events-none">
+                                    <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-50 flex items-center justify-center text-xl shadow-inner border border-indigo-200/50">💎</div>
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-extrabold text-neutral-800">Adsgram Partner Challenge</span>
+                                        <span class="text-[10px] text-emerald-600 font-bold mono-text mt-0.5 tracking-wide">+50 PTS Guaranteed</span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="w-full relative rounded-xl overflow-hidden shadow-sm border border-black/5 bg-white">
-                                <adsgram-task 
-                                    id="adsgram-task-element"
-                                    data-block-id="task-35948" 
-                                    data-debug="true" 
-                                    data-debug-console="false" 
-                                    class="w-full block">
-                                </adsgram-task>
+                                <div class="absolute inset-0 z-20 opacity-0 hover:opacity-10 transition-opacity pointer-events-none bg-indigo-500"></div>
+                                <div class="absolute inset-0 z-30 flex items-center justify-end pr-4">
+                                    <div class="w-full h-full opacity-0 absolute top-0 left-0">
+                                        <adsgram-task 
+                                            id="adsgram-task-element"
+                                            data-block-id="task-35948" 
+                                            data-debug="true" 
+                                            data-debug-console="false" 
+                                            class="w-full h-full block">
+                                        </adsgram-task>
+                                    </div>
+                                    <span class="bg-indigo-600 text-white text-[10px] font-bold px-4 py-2 rounded-xl shadow-sm tracking-wider uppercase pointer-events-none relative z-10">Start</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -620,12 +693,58 @@
                                 <div class="text-center py-6 text-xs text-neutral-400">No connections inside pipeline network yet.</div>
                             <% } %>
                         </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🛒 DYNAMIC POINT SINK STORE -->
+                <div id="view-store" class="hidden flex flex-col gap-4 w-full">
+                    <div class="w-full bg-neutral-950 text-[#e6ddd0] rounded-3xl p-5 shadow-md flex flex-col gap-2 relative overflow-hidden">
+                        <div class="absolute right-[-10px] top-[-10px] text-6xl opacity-10 select-none">🛍️</div>
+                        <span class="text-[10px] tracking-widest uppercase font-bold text-neutral-400 mono-text">Warps Market</span>
+                        <div class="flex items-baseline gap-1.5 z-10">
+                            <span id="store-balance" class="text-3xl font-extrabold tracking-tight text-white">
+                                <%= (user.points_balance || 0).toLocaleString() %>
+                            </span>
+                            <span class="text-xs font-bold text-neutral-400 mono-text">PTS</span>
+                        </div>
+                        <p class="text-xs text-neutral-400 z-10">Spend your hard-earned points to upgrade your account instead of cashing out.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 w-full">
+                        <div class="bg-white/80 backdrop-blur-md border border-neutral-200/80 rounded-2xl p-4 flex flex-col gap-2 relative">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">⚡</span>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-neutral-900">Instant Cooldown Reset</span>
+                                        <span class="text-[10px] text-neutral-500">Skip the timer and dive right back in</span>
+                                    </div>
+                                </div>
+                                <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-lg">500 PTS</span>
+                            </div>
+                            <button onclick="purchaseStoreItem('cooldown')" class="w-full bg-neutral-900 text-white font-bold py-2.5 rounded-xl text-xs mt-2 active:scale-95 transition-transform">Purchase Upgrade</button>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-4 flex flex-col gap-2 relative">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">🚀</span>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-neutral-900">2x Yield Multiplier</span>
+                                        <span class="text-[10px] text-neutral-500">Double ad rewards for 24 hours</span>
+                                    </div>
+                                </div>
+                                <span class="bg-amber-200 text-amber-800 text-xs font-bold px-2 py-1 rounded-lg">3,000 PTS</span>
+                            </div>
+                            <button onclick="purchaseStoreItem('multiplier')" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-xs mt-2 active:scale-95 transition-transform">Purchase Upgrade</button>
+                        </div>
                     </div>
                 </div>
             </main>
 
             <!-- 📱 NAVIGATION BAR WITH NOTIFICATION BADGE -->
-            <nav class="bg-white/80 backdrop-blur-md border border-neutral-300/80 rounded-2xl p-1.5 grid grid-cols-4 gap-1 shadow-md">
+            <nav class="bg-white/80 backdrop-blur-md border border-neutral-300/80 rounded-2xl p-1.5 grid grid-cols-5 gap-1 shadow-md">
                 <button onclick="switchTab('home')" id="tab-home" class="active-tab py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all">
                     <span class="text-base">🏠</span>
                     <span class="text-[10px] font-bold tracking-tight">Home</span>
@@ -635,10 +754,15 @@
                     <span class="text-base">📋</span>
                     <span class="text-[10px] font-bold tracking-tight">Tasks</span>
                     <% if (incompleteCount> 0) { %>
-                        <span id="task-nav-badge" class="absolute top-1 right-3 bg-rose-500 text-white text-[8px] font-extrabold h-4 w-4 rounded-full flex items-center justify-center border border-white animate-pulse shadow-sm mono-text">
+                        <span id="task-nav-badge" class="absolute top-1 right-2 bg-rose-500 text-white text-[8px] font-extrabold h-4 w-4 rounded-full flex items-center justify-center border border-white animate-pulse shadow-sm mono-text">
                             <%= incompleteCount %>
                         </span>
                     <% } %>
+                </button>
+
+                <button onclick="switchTab('store')" id="tab-store" class="text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all">
+                    <span class="text-base">🛒</span>
+                    <span class="text-[10px] font-bold tracking-tight">Store</span>
                 </button>
 
                 <button onclick="switchTab('invite')" id="tab-invite" class="text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all">
@@ -694,16 +818,16 @@
                 window.Telegram.WebApp.HapticFeedback.selectionChanged();
             }
 
-            const tabs = ['home', 'tasks', 'invite', 'wallet'];
+            const tabs = ['home', 'tasks', 'store', 'invite', 'wallet'];
             tabs.forEach(t => {
                 const buttonElement = document.getElementById(`tab-${t}`);
                 const viewElement = document.getElementById(`view-${t}`);
 
                 if (t === tabId) {
-                    buttonElement.className = "active-tab py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all shadow-sm relative";
+                    if (buttonElement) buttonElement.className = "active-tab py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all shadow-sm relative";
                     if (viewElement) viewElement.classList.remove('hidden');
                 } else {
-                    buttonElement.className = "text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all relative";
+                    if (buttonElement) buttonElement.className = "text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all relative";
                     if (viewElement) viewElement.classList.add('hidden');
                 }
             });
@@ -1508,6 +1632,48 @@
                     btn.innerText = "Verify";
                 }
             }, 8000);
+        }
+
+        // ✅ PURCHASE STORE ITEM
+        async function purchaseStoreItem(itemKey) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+
+            const telegramInitData = window.Telegram?.WebApp?.initData || "";
+            try {
+                showToast("Processing purchase...", "⏳");
+                const response = await fetch('/portal/purchase-store-item', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify({
+                        id: "<%= user.telegram_id %>",
+                        item: itemKey
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast("Upgrade purchased successfully!", "🎉");
+                    
+                    const newBalanceStr = data.newBalance.toLocaleString();
+                    document.getElementById('user-balance').innerText = newBalanceStr;
+                    document.getElementById('store-balance').innerText = newBalanceStr;
+                    if (document.getElementById('wallet-balance')) document.getElementById('wallet-balance').innerText = newBalanceStr;
+
+                    const newUsdVal = data.newBalance * 0.0008;
+                    document.getElementById('user-value').innerText = `$${newUsdVal.toFixed(2)} USD`;
+                    if (document.getElementById('wallet-valuation')) document.getElementById('wallet-valuation').innerText = `$${newUsdVal.toFixed(2)} USD`;
+                } else {
+                    const errMsg = await response.text();
+                    showToast(`Purchase failed: ${errMsg}`, "⚠️");
+                }
+            } catch (err) {
+                showToast("Connection timeout. Try again.", "⚠️");
+            }
         }
 
         document.addEventListener("DOMContentLoaded", () => {

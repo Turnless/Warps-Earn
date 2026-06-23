@@ -124,7 +124,10 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
             return res.redirect(`/onboarding?id=${userId}`);
         }
 
-        res.render('dashboard', { user: user });
+        const questsStr = await redis.get('admin:dynamic_quests');
+        const dynamicQuests = questsStr ? JSON.parse(questsStr) : {};
+
+        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests });
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
@@ -401,9 +404,8 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
     const userId = String(req.body.id || "");
     const promoKey = String(req.body.promoKey || "");
 
-    const promoMap = {
-        promo1: { pts: 150, title: "Turnless Ecosystem Promo" }
-    };
+    const promoMapStr = await redis.get('admin:dynamic_quests');
+    const promoMap = promoMapStr ? JSON.parse(promoMapStr) : {};
 
     try {
         if (!userId || !promoKey || !promoMap[promoKey]) return res.status(400).send("Invalid payload.");
@@ -431,6 +433,52 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
     } catch (e) {
         console.error("Custom Promo Error:", e);
         res.status(500).send("Internal error.");
+    }
+});
+
+// --- 🛒 PURCHASE STORE ITEM ---
+router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTelegramWebAppData, async (req, res) => {
+    const userId = String(req.body.id || "");
+    const item = String(req.body.item || "");
+
+    const items = {
+        cooldown: { pts: 500, title: "Instant Cooldown Reset" },
+        multiplier: { pts: 3000, title: "2x Yield Multiplier" }
+    };
+
+    try {
+        if (!userId || !item || !items[item]) return res.status(400).send("Invalid item payload.");
+
+        const user = await User.findOne({ telegram_id: userId });
+        if (!user) return res.status(404).send("User not found.");
+
+        const cost = items[item].pts;
+        if ((user.points_balance || 0) < cost) {
+            return res.status(400).send(`Insufficient balance. You need ${cost} PTS.`);
+        }
+
+        user.points_balance -= cost;
+
+        if (item === 'cooldown') {
+            user.cooldown_until = 0;
+            user.current_session_loop = 0;
+        } else if (item === 'multiplier') {
+            user.ad_multiplier = 2; // Hardcoded for simplicity right now
+        }
+
+        if (!user.earnings_history) user.earnings_history = [];
+        user.earnings_history.unshift({
+            type: `Store Purchase: ${items[item].title}`,
+            amount: -cost,
+            timestamp: getFormattedDateTime()
+        });
+
+        await user.save();
+        await invalidateUserCache(userId);
+        res.status(200).json({ success: true, newBalance: user.points_balance });
+    } catch (e) {
+        console.error("Store Purchase Error:", e);
+        res.status(500).send("Internal error processing purchase.");
     }
 });
 
@@ -579,7 +627,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
             asset: chosenAsset,
             bank_provider: req.body.bank || null,
             destination_details: destination,
-            status: "PENDING_AUDIT",
+            status: "Pending",
             created_at: new Date()
         });
         await ticket.save();

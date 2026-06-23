@@ -82,6 +82,9 @@
                 <button onclick="switchTab('tab-leaderboard')" id="nav-leaderboard" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
                     <span class="text-lg">🏆</span> Leaderboard
                 </button>
+                <button onclick="switchTab('tab-quests')" id="nav-quests" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
+                    <span class="text-lg">🎯</span> Quests
+                </button>
                 <button onclick="switchTab('tab-broadcast')" id="nav-broadcast" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
                     <span class="text-lg">📢</span> Broadcast
                 </button>
@@ -369,6 +372,74 @@
                     <button onclick="wipeAll()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 rounded-2xl shadow-md tracking-widest uppercase transition-all text-xs">
                         Wipe Entire Production Database
                     </button>
+                </div>
+            </section>
+
+            <!-- QUESTS & PROMOS ENGINE -->
+            <section id="tab-quests" class="hide-section flex flex-col gap-6">
+                <div>
+                    <h2 class="text-2xl font-bold tracking-tight text-neutral-900">Dynamic Quests Engine</h2>
+                    <p class="text-sm text-neutral-500 font-medium">Build, deploy, and manage on-chain custom promotional tasks.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-6 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+                        <h3 class="font-bold uppercase tracking-wider text-sm">Create New Quest</h3>
+                        <form action="/admin/quests?secret=<%= secret %>" method="POST" class="flex flex-col gap-4">
+                            <input type="hidden" name="action" value="create">
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-neutral-500 uppercase">Quest Key (No spaces)</label>
+                                <input type="text" name="key" placeholder="e.g., promo2" required class="px-4 py-3 rounded-xl border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-neutral-500 uppercase">Display Title</label>
+                                <input type="text" name="title" placeholder="e.g., Retweet latest post" required class="px-4 py-3 rounded-xl border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-neutral-500 uppercase">Target URL</label>
+                                <input type="url" name="url" placeholder="https://..." required class="px-4 py-3 rounded-xl border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-neutral-500 uppercase">Reward (PTS)</label>
+                                    <input type="number" name="pts" placeholder="150" required class="px-4 py-3 rounded-xl border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-neutral-500 uppercase">Emoji Icon</label>
+                                    <input type="text" name="icon" placeholder="🔥" value="🔥" required class="px-4 py-3 rounded-xl border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
+                                </div>
+                            </div>
+                            <button type="submit" class="bg-neutral-950 text-white font-bold py-3 rounded-xl uppercase tracking-widest text-xs mt-2 hover:bg-neutral-800">Deploy Quest</button>
+                        </form>
+                    </div>
+
+                    <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-6 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+                        <h3 class="font-bold uppercase tracking-wider text-sm">Active Quests</h3>
+                        <div class="flex flex-col gap-3">
+                            <% 
+                                let activeQuests = {};
+                                try { activeQuests = JSON.parse(settings.dynamicQuests || '{}'); } catch(e) {}
+                                const questKeys = Object.keys(activeQuests);
+                            %>
+                            <% if (questKeys.length > 0) { %>
+                                <% questKeys.forEach(k => { %>
+                                    <div class="flex items-center justify-between bg-neutral-50 border border-neutral-200 p-3 rounded-xl">
+                                        <div class="flex flex-col">
+                                            <span class="text-sm font-bold"><%= activeQuests[k].icon %> <%= activeQuests[k].title %></span>
+                                            <span class="text-[10px] text-neutral-500 mono-text">Key: <%= k %> | Reward: <%= activeQuests[k].pts %> PTS</span>
+                                        </div>
+                                        <form action="/admin/quests?secret=<%= secret %>" method="POST">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="key" value="<%= k %>">
+                                            <button type="submit" class="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all">Remove</button>
+                                        </form>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <div class="text-center text-neutral-400 text-xs py-4 border border-dashed border-neutral-300 rounded-xl">No dynamic quests deployed.</div>
+                            <% } %>
+                        </div>
+                    </div>
                 </div>
             </section>
         </div>

@@ -138,6 +138,9 @@ router.get('/', checkAdminAuth, async (req, res) => {
             reward_per_ad: 3
         };
 
+        const questsStr = await redis.get('admin:dynamic_quests');
+        globalSettings.dynamicQuests = questsStr || '{}';
+
         res.render('admin_dashboard', { 
             secret: ADMIN_SECRET_SIGNATURE,
             stats: {
@@ -176,6 +179,31 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
         res.redirect('/admin');
     } catch (e) {
         res.status(500).send("Failed to update settings");
+    }
+});
+
+// --- 🎯 DYNAMIC QUESTS ENGINE ---
+router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    try {
+        const { action, key, title, url, pts, icon } = req.body;
+        const questsStr = await redis.get('admin:dynamic_quests');
+        let quests = questsStr ? JSON.parse(questsStr) : {};
+
+        if (action === 'create' && key && title && url && pts) {
+            quests[key] = {
+                title: title.trim(),
+                url: url.trim(),
+                pts: parseInt(pts) || 0,
+                icon: (icon || "🔥").trim()
+            };
+        } else if (action === 'delete' && key) {
+            delete quests[key];
+        }
+
+        await redis.set('admin:dynamic_quests', JSON.stringify(quests));
+        res.redirect('/admin');
+    } catch (e) {
+        res.status(500).send("Failed to manage quests");
     }
 });
 

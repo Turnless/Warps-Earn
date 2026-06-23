@@ -227,7 +227,7 @@ async function createWithdrawal(userId, destination, asset, bank = null) {
         asset: asset,
         bank_provider: bank,
         destination_details: destination,
-        status: "PENDING_AUDIT",
+        status: "Pending",
         created_at: new Date()
     });
     
