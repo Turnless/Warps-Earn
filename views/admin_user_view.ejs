@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>User Dossier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #e6ddd0;
+            color: #1a1a16;
+        }
+        .mono-text {
+            font-family: 'Geist Mono', monospace;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start p-4 selection:bg-neutral-800 selection:text-[#e6ddd0]">
+    <div class="w-full max-w-md flex flex-col gap-5 min-h-[calc(100vh-32px)]">
+
+        <header class="w-full flex items-center gap-3 mt-2 mb-2">
+            <a href="/admin" class="w-12 h-12 rounded-full bg-white/60 backdrop-blur-md border border-neutral-300/80 flex items-center justify-center text-xl shadow-sm text-neutral-800 hover:bg-white transition-all">←</a>
+            <div class="flex flex-col">
+                <h1 class="text-base font-bold tracking-tight text-neutral-900 leading-tight">User Dossier</h1>
+                <span class="text-xs text-neutral-600 font-medium mono-text">Lookup Result</span>
+            </div>
+        </header>
+
+        <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-6 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+            <div class="flex items-center gap-4 border-b border-neutral-200 pb-4">
+                <div class="w-16 h-16 rounded-full bg-neutral-900 overflow-hidden flex items-center justify-center text-white text-xl font-bold">
+                    <% if (user.photo_url) { %>
+                        <img src="<%= user.photo_url %>" class="w-full h-full object-cover">
+                    <% } else { %>
+                        <%= (user.first_name || 'U').charAt(0) %>
+                    <% } %>
+                </div>
+                <div class="flex flex-col">
+                    <span class="font-bold text-lg text-neutral-900"><%= user.first_name %></span>
+                    <span class="text-xs font-medium text-neutral-500 mono-text">@<%= user.username || 'N/A' %></span>
+                    <span class="text-[10px] bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded mt-1 w-max mono-text"><%= user.telegram_id %></span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 flex flex-col gap-1">
+                    <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mono-text">Balance</span>
+                    <span class="font-bold text-neutral-900 text-xl"><%= user.points_balance %> PTS</span>
+                </div>
+                <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 flex flex-col gap-1">
+                    <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mono-text">Ads Watched</span>
+                    <span class="font-bold text-neutral-900 text-xl"><%= user.total_ads_watched %></span>
+                </div>
+                <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 flex flex-col gap-1">
+                    <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mono-text">Referrals</span>
+                    <span class="font-bold text-neutral-900 text-xl"><%= (user.referrals || []).length %></span>
+                </div>
+                <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 flex flex-col gap-1">
+                    <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mono-text">Payouts Done</span>
+                    <span class="font-bold text-neutral-900 text-xl"><%= user.withdrawals_count || 0 %></span>
+                </div>
+            </div>
+
+            <div class="mt-2 flex flex-col gap-2">
+                <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mono-text">Device & Sybil Data</span>
+                <div class="bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-xs mono-text text-neutral-600 break-all">
+                    <% if (user.device_fingerprint) { %>
+                        <%= user.device_fingerprint %>
+                    <% } else { %>
+                        No fingerprint recorded
+                    <% } %>
+                </div>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-neutral-200">
+                <form action="/admin/user-ban" method="POST">
+                    <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
+                    <% if (user.is_banned) { %>
+                        <div class="bg-rose-100 text-rose-800 p-3 rounded-xl text-xs font-bold mb-3 flex items-center gap-2 border border-rose-200">
+                            <span class="text-base">⚠️</span> USER IS CURRENTLY BANNED
+                        </div>
+                        <input type="hidden" name="action" value="unban">
+                        <button type="submit" class="w-full bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl py-3 text-xs font-bold uppercase tracking-wider">
+                            Restore Access (Unban)
+                        </button>
+                    <% } else { %>
+                        <input type="hidden" name="action" value="ban">
+                        <button type="submit" class="w-full bg-rose-500 hover:bg-rose-600 text-white rounded-xl py-3 text-xs font-bold uppercase tracking-wider shadow-md">
+                            Permanently Ban User
+                        </button>
+                    <% } %>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

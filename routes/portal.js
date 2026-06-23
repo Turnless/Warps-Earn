@@ -57,8 +57,28 @@ function redisWithTimeout(promise, timeoutMs = 3000) {
     ]);
 }
 
+// 🛡️ GLOBAL ECOSYSTEM & BAN CHECK MIDDLEWARE
+const globalEcosystemCheck = async (req, res, next) => {
+    try {
+        let settingsStr = await redisWithTimeout(redis.get('global_settings'));
+        req.globalSettings = settingsStr ? JSON.parse(settingsStr) : { maintenance: false, withdrawals: true };
+
+        if (req.globalSettings.maintenance) {
+            if (req.method === 'GET') {
+                return res.send(`<body style="background:#1a1a16; color:#e6ddd0; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; text-align:center;"><div style="padding:40px;"><span style="font-size:48px;">🛠️</span><h1 style="margin-top:20px;">System Upgrade</h1><p style="color:#999; margin-top:10px;">The Warps Earn platform is currently undergoing scheduled maintenance.<br>Please check back shortly.</p></div></body>`);
+            } else {
+                return res.status(503).send("Platform is in maintenance mode.");
+            }
+        }
+        next();
+    } catch (e) {
+        req.globalSettings = { maintenance: false, withdrawals: true };
+        next();
+    }
+};
+
 // --- 📊 CORE DASHBOARD CONTROLLER ---
-router.get('/dashboard', async (req, res) => {
+router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
     const userId = String(req.query.id || "");
 
     try {
@@ -96,6 +116,10 @@ router.get('/dashboard', async (req, res) => {
             return res.redirect(`/auth?id=${userId}`);
         }
 
+        if (user.is_banned) {
+            return res.send(`<body style="background:#1a1a16; color:#e6ddd0; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; text-align:center;"><div style="padding:40px;"><span style="font-size:48px;">🚫</span><h1 style="margin-top:20px;">Account Suspended</h1><p style="color:#999; margin-top:10px;">Your access to the platform has been permanently restricted due to terms of service violations.</p></div></body>`);
+        }
+
         if (!user.onboarding_passed) {
             return res.redirect(`/onboarding?id=${userId}`);
         }
@@ -109,7 +133,7 @@ router.get('/dashboard', async (req, res) => {
 });
 
 // --- 📺 AD GATEWAY INTERFACE CONTROLLER ---
-router.get('/watch-ads', async (req, res) => {
+router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
     const userId = String(req.query.id || "");
     if (!userId) return res.status(400).send("Identity validation parameter missing.");
 
@@ -117,6 +141,8 @@ router.get('/watch-ads', async (req, res) => {
         // Fetch user from MongoDB
         const user = await User.findOne({ telegram_id: userId });
         if (!user) return res.status(404).send("User profile not found.");
+        
+        if (user.is_banned) return res.status(403).send("Account suspended.");
 
         const todayStr = new Date().toISOString().split('T')[0];
         const now = Date.now();
@@ -184,7 +210,7 @@ router.get('/watch-ads', async (req, res) => {
 });
 
 // --- 📺 CLAIM COMPLETED AD LOOP REWARD (PROTECTED + RATE-LIMITED) ---
-router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
+router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
 
     try {
@@ -204,6 +230,11 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
         if (!user) {
             await redisWithTimeout(redis.del(lockKey));
             return res.status(404).send("User profile not found.");
+        }
+
+        if (user.is_banned) {
+            await redisWithTimeout(redis.del(lockKey));
+            return res.status(403).send("Account suspended.");
         }
 
         const todayStr = new Date().toISOString().split('T')[0];
@@ -404,13 +435,17 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
 });
 
 // --- 💸 SECURE TRANSACTIONAL PAYOUT ROUTE (PROTECTED + MUTEX + QUEUED) ---
-router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
+router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const destination = String(req.body.destination || "");
     const chosenAsset = String(req.body.asset || "");
     const requestedAmount = parseInt(req.body.amount) || 0;
 
     try {
+        if (!req.globalSettings.withdrawals) {
+            return res.status(403).send("Withdrawals are temporarily disabled by the administrator.");
+        }
+
         if (!userId || !destination || !chosenAsset || requestedAmount <= 0) {
             return res.status(400).send("Incomplete payload specifications.");
         }
@@ -427,6 +462,11 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         if (!user) {
             await redisWithTimeout(redis.del(lockKey));
             return res.status(404).send("User profile signature missing.");
+        }
+
+        if (user.is_banned) {
+            await redisWithTimeout(redis.del(lockKey));
+            return res.status(403).send("Account suspended. Withdrawals blocked.");
         }
 
         if (requestedAmount > (user.points_balance || 0)) {

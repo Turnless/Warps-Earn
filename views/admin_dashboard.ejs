@@ -29,7 +29,26 @@
                 <h1 class="text-base font-bold tracking-tight text-neutral-900 leading-tight">Admin Control</h1>
                 <span class="text-xs text-neutral-600 font-medium mono-text">System Oversight</span>
             </div>
+            <div class="ml-auto">
+                <a href="/admin/logout" class="bg-neutral-200 text-neutral-600 hover:bg-neutral-300 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all">Logout</a>
+            </div>
         </header>
+
+        <!-- REAL-TIME METRICS -->
+        <div class="grid grid-cols-3 gap-2 w-full">
+            <div class="bg-white/60 backdrop-blur-md border border-neutral-300/80 rounded-2xl p-4 flex flex-col gap-1 shadow-sm items-center text-center">
+                <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mono-text">Users</span>
+                <span class="text-2xl font-bold text-neutral-900 tracking-tight"><%= stats.users %></span>
+            </div>
+            <div class="bg-white/60 backdrop-blur-md border border-neutral-300/80 rounded-2xl p-4 flex flex-col gap-1 shadow-sm items-center text-center">
+                <span class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mono-text">Payouts</span>
+                <span class="text-2xl font-bold text-emerald-700 tracking-tight"><%= stats.withdrawals %></span>
+            </div>
+            <div class="bg-white/60 backdrop-blur-md border border-amber-300/80 rounded-2xl p-4 flex flex-col gap-1 shadow-sm items-center text-center relative overflow-hidden">
+                <span class="text-[10px] uppercase font-bold text-amber-700 tracking-widest mono-text">Pending</span>
+                <span class="text-2xl font-bold text-amber-600 tracking-tight"><%= stats.pending %></span>
+            </div>
+        </div>
 
         <!-- WARNING CARD -->
         <div class="w-full bg-neutral-950 text-[#e6ddd0] rounded-3xl p-6 border border-neutral-900 relative overflow-hidden shadow-lg">
@@ -43,7 +62,81 @@
             </p>
         </div>
 
-        <!-- USER MANAGEMENT -->
+        <!-- GLOBAL SETTINGS MODULE -->
+        <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-5 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+            <div class="flex items-center gap-2 pb-2 border-b border-neutral-200/60 text-xs text-neutral-600">
+                <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                <span class="font-medium">Module: <span class="mono-text text-neutral-900 font-bold">ECOSYSTEM CONTROLS</span></span>
+            </div>
+
+            <form action="/admin/settings" method="POST" class="flex flex-col gap-3">
+                <div class="flex justify-between items-center bg-neutral-50 p-3 rounded-xl border border-neutral-200">
+                    <label class="text-xs font-bold text-neutral-700">Maintenance Mode</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="maintenance" class="sr-only peer" <%= settings.maintenance ? 'checked' : '' %>>
+                        <div class="w-11 h-6 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                </div>
+
+                <div class="flex justify-between items-center bg-neutral-50 p-3 rounded-xl border border-neutral-200">
+                    <label class="text-xs font-bold text-neutral-700">Allow Withdrawals</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="withdrawals" class="sr-only peer" <%= settings.withdrawals ? 'checked' : '' %>>
+                        <div class="w-11 h-6 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+                
+                <button type="submit" class="bg-neutral-950 text-[#e6ddd0] rounded-xl py-3 text-xs font-bold uppercase tracking-wider mt-1">Save Global Settings</button>
+            </form>
+        </div>
+
+        <!-- USER LOOKUP MODULE -->
+        <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-5 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+            <div class="flex items-center gap-2 pb-2 border-b border-neutral-200/60 text-xs text-neutral-600">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
+                <span class="font-medium">Module: <span class="mono-text text-neutral-900 font-bold">USER LOOKUP</span></span>
+            </div>
+
+            <form action="/admin/user-lookup" method="GET" class="flex flex-col gap-2">
+                <label class="text-xs font-bold text-neutral-700">Search Database</label>
+                <div class="flex gap-2">
+                    <input type="text" name="q" placeholder="Telegram ID or Username..." class="flex-1 px-3.5 py-3 rounded-xl border border-neutral-300 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-800 shadow-inner">
+                    <button type="submit" class="bg-neutral-950 hover:bg-neutral-900 text-[#e6ddd0] text-xs font-bold px-5 py-3 rounded-xl shadow-sm tracking-wide">
+                        Search
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- PENDING PAYOUTS -->
+        <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-5 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
+            <div class="flex items-center gap-2 pb-2 border-b border-neutral-200/60 text-xs text-neutral-600">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <span class="font-medium">Module: <span class="mono-text text-neutral-900 font-bold">PENDING PAYOUTS</span></span>
+            </div>
+
+            <div class="flex flex-col gap-3 max-h-64 overflow-y-auto pr-1">
+                <% if (pendingList && pendingList.length > 0) { %>
+                    <% pendingList.forEach(p => { %>
+                        <div class="flex flex-col bg-neutral-50 p-3 rounded-xl border border-neutral-200 gap-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-neutral-800">TX: <span class="mono-text text-neutral-500"><%= p.id.substring(0,8) %>...</span></span>
+                                <span class="text-xs font-bold text-emerald-700 mono-text"><%= p.amount %> PTS</span>
+                            </div>
+                            <span class="text-[10px] text-neutral-500 break-all mono-text bg-white p-1.5 rounded border border-neutral-200"><%= p.destination %></span>
+                            <div class="grid grid-cols-2 gap-2 mt-1">
+                                <a href="/admin/payout?txId=<%= p.id %>&action=reject" class="text-center py-2 bg-rose-100 text-rose-800 rounded-lg text-xs font-bold uppercase">Reject</a>
+                                <a href="/admin/payout?txId=<%= p.id %>&action=approve" class="text-center py-2 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold uppercase">Approve</a>
+                            </div>
+                        </div>
+                    <% }) %>
+                <% } else { %>
+                    <div class="text-center py-4 text-xs font-bold text-neutral-400">No pending payouts.</div>
+                <% } %>
+            </div>
+        </div>
+
+        <!-- DATA ERASURE MODULE -->
         <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-5 border border-neutral-300/80 shadow-sm flex flex-col gap-4">
             <div class="flex items-center gap-2 pb-2 border-b border-neutral-200/60 text-xs text-neutral-600">
                 <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>

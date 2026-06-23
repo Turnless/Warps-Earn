@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema({
     points_balance: { type: Number, default: 0 },
     total_ads_watched: { type: Number, default: 0 },
     onboarding_passed: { type: Boolean, default: false },
+    is_banned: { type: Boolean, default: false },
     
     // Referral tracking fields (supporting various naming styles across the legacy codebase)
     upline: { type: String, default: null },

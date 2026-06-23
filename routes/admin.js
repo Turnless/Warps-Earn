@@ -30,26 +30,137 @@ function getFormattedDateTime() {
     return `${dateStr} • ${timeStr}`;
 }
 
-// --- 🖥️ MAIN ADMIN DASHBOARD ---
-router.get('/', (req, res) => {
-    const { secret } = req.query;
-
-    if (secret !== ADMIN_SECRET_SIGNATURE) {
-        return res.status(403).send("Unauthorized administrative sequence.");
+// --- 🛡️ AUTHENTICATION MIDDLEWARE ---
+const checkAdminAuth = (req, res, next) => {
+    // Support legacy secret query strings (like from the Telegram inline buttons) OR session cookies
+    const secret = req.query.secret || req.headers['x-admin-secret'];
+    let cookieSecret = null;
+    
+    if (req.headers.cookie) {
+        const cookies = req.headers.cookie.split(';').map(c => c.trim());
+        const match = cookies.find(c => c.startsWith('admin_token='));
+        if (match) cookieSecret = match.split('=')[1];
     }
+    
+    if (secret === ADMIN_SECRET_SIGNATURE || cookieSecret === ADMIN_SECRET_SIGNATURE) {
+        return next();
+    }
+    
+    // If not authenticated, redirect to login page
+    res.redirect('/admin/login');
+};
 
-    res.render('admin_dashboard', { secret: ADMIN_SECRET_SIGNATURE });
+// --- 🔐 LOGIN SYSTEM ---
+router.get('/login', (req, res) => {
+    res.render('admin_login');
+});
+
+router.post('/login', express.urlencoded({ extended: true }), (req, res) => {
+    const { password } = req.body;
+    if (password === ADMIN_SECRET_SIGNATURE) {
+        // Set an authentication cookie valid for 24 hours
+        res.cookie('admin_token', password, { maxAge: 24 * 60 * 60 * 1000, httpOnly: true });
+        return res.redirect('/admin');
+    }
+    res.render('admin_login', { error: "Invalid Passphrase." });
+});
+
+router.get('/logout', (req, res) => {
+    res.clearCookie('admin_token');
+    res.redirect('/admin/login');
+});
+
+// --- 🖥️ MAIN ADMIN DASHBOARD ---
+router.get('/', checkAdminAuth, async (req, res) => {
+    try {
+        // Fetch real-time system metrics
+        const totalUsers = await User.countDocuments();
+        const totalWithdrawals = await Withdrawal.countDocuments();
+        
+        // Fetch full list of pending withdrawals
+        const pendingList = await Withdrawal.find({ status: 'Pending' }).sort({ created_at: -1 }).limit(50).lean();
+        const pendingCount = await Withdrawal.countDocuments({ status: 'Pending' });
+
+        // Fetch Global Settings from Redis
+        let globalSettingsStr = await redis.get('global_settings');
+        let globalSettings = globalSettingsStr ? JSON.parse(globalSettingsStr) : {
+            maintenance: false,
+            withdrawals: true
+        };
+
+        res.render('admin_dashboard', { 
+            secret: ADMIN_SECRET_SIGNATURE,
+            stats: {
+                users: totalUsers,
+                withdrawals: totalWithdrawals,
+                pending: pendingCount
+            },
+            pendingList: pendingList,
+            settings: globalSettings
+        });
+    } catch (e) {
+        res.status(500).send("Metrics Engine Failed");
+    }
+});
+
+// --- ⚙️ GLOBAL SETTINGS CONTROLLER ---
+router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    try {
+        const { maintenance, withdrawals } = req.body;
+        const newSettings = {
+            maintenance: maintenance === 'on',
+            withdrawals: withdrawals === 'on'
+        };
+        await redis.set('global_settings', JSON.stringify(newSettings));
+        res.redirect('/admin');
+    } catch (e) {
+        res.status(500).send("Failed to update settings");
+    }
+});
+
+// --- 🔍 USER LOOKUP & BAN CONTROLLER ---
+router.get('/user-lookup', checkAdminAuth, async (req, res) => {
+    const query = (req.query.q || '').trim();
+    if (!query) return res.redirect('/admin');
+
+    try {
+        // Search by Telegram ID (exact) OR Username (regex case-insensitive)
+        const targetUser = await User.findOne({
+            $or: [
+                { telegram_id: query },
+                { username: new RegExp('^' + query + '$', 'i') }
+            ]
+        }).lean();
+
+        if (!targetUser) {
+            return res.send(`<h2>User not found.</h2><a href="/admin">Back</a>`);
+        }
+
+        // Render a simple template string or you could use ejs. For speed, we'll return a basic page.
+        // Or better yet, we can render admin_dashboard again but inject the targetUser
+        // However, I will just return an HTML snippet for now since it's an admin panel.
+        res.render('admin_user_view', { user: targetUser });
+    } catch (e) {
+        res.status(500).send("Lookup failed");
+    }
+});
+
+router.post('/user-ban', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    const { telegram_id, action } = req.body;
+    try {
+        if (action === 'ban') {
+            await User.updateOne({ telegram_id }, { is_banned: true });
+        } else if (action === 'unban') {
+            await User.updateOne({ telegram_id }, { is_banned: false });
+        }
+        res.redirect(`/admin/user-lookup?q=${telegram_id}`);
+    } catch (e) {
+        res.status(500).send("Action failed");
+    }
 });
 
 // --- ⚡ EXCLUSIVE ADMINISTRATIVE PAYOUT DECISION CONTROL ENDPOINT ---
-router.get('/payout', async (req, res) => {
-    const { txId, action, secret } = req.query;
-
-    try {
-        // Enforce strong secret check
-        if (secret !== ADMIN_SECRET_SIGNATURE) {
-            return res.status(403).send("Unauthorized administrative transaction sequence.");
-        }
+router.get('/payout', checkAdminAuth, async (req, res) => {
 
         if (!txId || !action) {
             return res.status(400).send("Incomplete routing parameters.");
@@ -142,12 +253,8 @@ router.get('/payout', async (req, res) => {
 });
 
 // --- ⚡ EXCLUSIVE ADMINISTRATIVE DATA WIPE ENDPOINT ---
-router.get('/delete-user', async (req, res) => {
-    const { id, secret } = req.query;
-
-    if (secret !== ADMIN_SECRET_SIGNATURE) {
-        return res.status(403).send("Unauthorized administrative sequence.");
-    }
+router.get('/delete-user', checkAdminAuth, async (req, res) => {
+    const { id } = req.query;
 
     if (!id) {
         return res.status(400).send("Please provide an 'id' parameter (Telegram ID or 'all').");
