@@ -1258,7 +1258,10 @@
         function initOnClickA() {
             if (window.initCdTma) {
                 if (AdConfiguration.onclicka.spotIds[0] !== "SPOT_ID_1_HERE") {
-                    window.initCdTma({ id: AdConfiguration.onclicka.spotIds[0] }).then(show => OnClickAShowAd1 = show).catch(e => console.warn("OnClickA 1 Error:", e));
+                    window.initCdTma({ id: AdConfiguration.onclicka.spotIds[0] }).then(show => OnClickAShowAd1 = show).catch(e => {
+                        console.warn("OnClickA 1 Error:", e);
+                        showToast(`OnClickA Error: ${e.message || e}`, "⚠️");
+                    });
                 }
                 if (AdConfiguration.onclicka.spotIds[1] !== "SPOT_ID_2_HERE") {
                     window.initCdTma({ id: AdConfiguration.onclicka.spotIds[1] }).then(show => OnClickAShowAd2 = show).catch(e => console.warn("OnClickA 2 Error:", e));
@@ -1266,6 +1269,8 @@
                 if (AdConfiguration.onclicka.spotIds[2] !== "SPOT_ID_3_HERE") {
                     window.initCdTma({ id: AdConfiguration.onclicka.spotIds[2] }).then(show => OnClickAShowAd3 = show).catch(e => console.warn("OnClickA 3 Error:", e));
                 }
+            } else {
+                showToast("OnClickA SDK failed to load completely.", "⚠️");
             }
         }
 
