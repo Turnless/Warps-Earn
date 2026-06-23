@@ -1,5 +1,6 @@
 const User = require('./models/User');
 const Withdrawal = require('./models/Withdrawal');
+const redis = require('./services/redis');
 
 async function getUser(userId) {
     console.log(`📡 [Database] Fetching user: ${userId}`);
@@ -68,14 +69,53 @@ async function watchAdRound(userId) {
     
     if (!user) throw new Error("User profile not found");
     
+    // --- DAILY LOGIN STREAK SYSTEM ---
     const todayStr = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    if (user.last_login_date !== todayStr) {
+        if (user.last_login_date === yesterday) {
+            user.login_streak = (user.login_streak || 0) + 1;
+        } else {
+            user.login_streak = 1; // Reset streak
+        }
+        user.last_login_date = todayStr;
+
+        // Give PTS bonus for every 7 days
+        if (user.login_streak > 0 && user.login_streak % 7 === 0) {
+            const settingsStr = await redis.get('global_settings');
+            const settings = settingsStr ? JSON.parse(settingsStr) : {};
+            const streakReward = settings.streak_reward || 500;
+
+            user.points_balance += streakReward;
+            if (!user.earnings_history) user.earnings_history = [];
+            user.earnings_history.unshift({
+                type: "7-Day Login Streak Bonus",
+                amount: streakReward,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            console.log(`[STREAK] User ${userId} hit a 7-day streak! Awarded ${streakReward} PTS.`);
+        }
+    }
 
     if (!user.daily_tracker || user.daily_tracker.date !== todayStr) {
         user.daily_tracker = { date: todayStr, count: 0 };
         user.current_session_loop = 0;
     }
 
-    user.points_balance = (user.points_balance || 0) + 3;
+    // --- TIERED VIP ACCOUNTS (50+ Referrals) ---
+    const refCount = (user.referrals || []).length;
+    if (refCount >= 50 && user.ad_multiplier < 2) {
+        user.ad_multiplier = 2; // VIP Gold: 2x multiplier
+        console.log(`[VIP] User ${userId} upgraded to Gold VIP (2x Multiplier)!`);
+    } else if (!user.ad_multiplier) {
+        user.ad_multiplier = 1;
+    }
+
+    // Apply Ad Multiplier to Base Reward (Base = 3 PTS)
+    const baseReward = 3;
+    const finalReward = baseReward * user.ad_multiplier;
+
+    user.points_balance = (user.points_balance || 0) + finalReward;
     user.total_ads_watched = (user.total_ads_watched || 0) + 3; 
     user.daily_tracker.count += 3;
     user.current_session_loop = (user.current_session_loop || 0) + 1;
@@ -92,7 +132,7 @@ async function watchAdRound(userId) {
     if (!user.earnings_history) user.earnings_history = [];
     user.earnings_history.unshift({
         type: `Loop ${user.current_session_loop === 0 ? 3 : user.current_session_loop} Stream Reward`,
-        amount: 3,
+        amount: finalReward,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
 

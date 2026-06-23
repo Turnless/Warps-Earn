@@ -47,6 +47,11 @@ const userSchema = new mongoose.Schema({
         count: { type: Number, default: 0 }
     },
     
+    login_streak: { type: Number, default: 0 },
+    last_login_date: { type: String, default: null },
+    
+    ad_multiplier: { type: Number, default: 1 },
+    
     quests: {
         channel: { type: Boolean, default: false },
         group: { type: Boolean, default: false },

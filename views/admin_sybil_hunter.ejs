@@ -44,7 +44,7 @@
                         <div class="bg-white p-4 rounded-2xl border border-rose-200 shadow-sm flex flex-col gap-3">
                             <div class="flex justify-between items-center bg-rose-100 p-2 rounded-lg">
                                 <span class="text-[10px] font-bold text-rose-900 uppercase tracking-widest mono-text">Cluster #<%= index + 1 %></span>
-                                <span class="text-[10px] font-bold text-rose-900 bg-white px-2 py-1 rounded-md mono-text">Fingerprint: <%= cluster._id.substring(0, 15) %>...</span>
+                                <span class="text-[10px] font-bold text-rose-900 bg-white px-2 py-1 rounded-md mono-text">Fingerprint: <%= String(cluster._id || '').substring(0, 15) %>...</span>
                             </div>
                             
                             <div class="flex flex-col gap-2">

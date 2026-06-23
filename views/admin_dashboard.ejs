@@ -293,13 +293,23 @@
 
                 <div class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-8 border border-neutral-300/80 shadow-sm flex flex-col gap-4 relative overflow-hidden">
                     <div class="absolute right-[-20px] top-[-20px] text-8xl opacity-5 select-none pointer-events-none">📢</div>
-                    <form action="/admin/broadcast" method="POST" class="flex flex-col gap-4 relative z-10">
+                    <form action="/admin/broadcast" method="POST" class="flex flex-col gap-4 relative z-10 border-b border-neutral-200 pb-6">
                         <div class="flex flex-col gap-2">
                             <label class="text-xs font-bold text-neutral-700 uppercase tracking-widest mono-text">Message Payload</label>
                             <textarea name="message_text" rows="5" placeholder="Enter your HTML formatted message here... (e.g. <b>Hello</b>)" class="w-full px-5 py-4 rounded-2xl border border-neutral-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-800 shadow-inner resize-none"></textarea>
                         </div>
                         <button type="submit" onclick="return confirm('WARNING: This will instantly queue a message to <%= stats.users %> users. Are you absolutely sure?')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-8 py-4 rounded-2xl shadow-md tracking-widest uppercase transition-all self-end">
                             Deploy Broadcast
+                        </button>
+                    </form>
+
+                    <form action="/admin/wakeup-push" method="POST" class="flex items-center justify-between mt-2">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-neutral-900">Automated Wake-up Call</span>
+                            <span class="text-[10px] text-neutral-500 uppercase tracking-widest mono-text">Ping inactive users who haven't logged in for 48 hrs</span>
+                        </div>
+                        <button type="submit" onclick="return confirm('This will ping all inactive users with a reminder. Proceed?')" class="bg-amber-100 hover:bg-amber-200 text-amber-700 text-[10px] font-bold px-4 py-2 rounded-xl uppercase transition-all">
+                            Send Wake-up Pings
                         </button>
                     </form>
                 </div>
@@ -339,6 +349,11 @@
                     <div class="flex flex-col gap-2">
                         <label class="text-xs font-bold text-neutral-700 uppercase tracking-widest mono-text">Reward Yield Per Loop</label>
                         <input type="number" name="reward_per_ad" value="<%= settings.reward_per_ad || 3 %>" class="w-full px-5 py-4 rounded-2xl border border-neutral-300 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-800 shadow-inner">
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs font-bold text-neutral-700 uppercase tracking-widest mono-text">7-Day Login Streak Reward</label>
+                        <input type="number" name="streak_reward" value="<%= settings.streak_reward || 500 %>" class="w-full px-5 py-4 rounded-2xl border border-neutral-300 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-800 shadow-inner">
                     </div>
 
                     <button type="submit" class="bg-neutral-950 hover:bg-neutral-900 text-[#e6ddd0] text-sm font-bold px-8 py-4 rounded-2xl shadow-sm tracking-widest uppercase transition-all mt-2">

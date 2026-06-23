@@ -165,11 +165,12 @@ router.get('/', checkAdminAuth, async (req, res) => {
 // --- ⚙️ GLOBAL SETTINGS CONTROLLER ---
 router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { maintenance, withdrawals, reward_per_ad } = req.body;
+        const { maintenance, withdrawals, reward_per_ad, streak_reward } = req.body;
         const newSettings = {
             maintenance: maintenance === 'on',
             withdrawals: withdrawals === 'on',
-            reward_per_ad: parseInt(reward_per_ad) || 3
+            reward_per_ad: parseInt(reward_per_ad) || 3,
+            streak_reward: parseInt(streak_reward) || 500
         };
         await redis.set('global_settings', JSON.stringify(newSettings));
         res.redirect('/admin');
@@ -272,10 +273,32 @@ router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true })
         users.forEach((user, index) => {
             sendTelegramMessageAsync(user.telegram_id, message_text, {}, index * 50);
         });
-        // We will just redirect. Ideally, we show a success flash message.
         res.redirect('/admin');
     } catch (e) {
         res.status(500).send("Broadcast failed");
+    }
+});
+
+// --- ⏰ AUTOMATED WAKE-UP NOTIFICATIONS ---
+router.post('/wakeup-push', checkAdminAuth, async (req, res) => {
+    try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        
+        // Find users who haven't logged in today or yesterday
+        const inactiveUsers = await User.find({
+            last_login_date: { $nin: [todayStr, yesterday, null] }
+        }, { telegram_id: 1, username: 1, points_balance: 1 }).lean();
+
+        inactiveUsers.forEach((user, index) => {
+            const message = `👋 Hey @${user.username || 'there'}!\n\nIt's been a while since we saw you. You have ${user.points_balance || 0} PTS waiting for you! Come back and watch a few ads to claim your next payout! 💸`;
+            sendTelegramMessageAsync(user.telegram_id, message, {}, index * 100);
+        });
+        
+        res.redirect('/admin');
+    } catch (e) {
+        console.error(e);
+        res.status(500).send("Wakeup Push Failed");
     }
 });
 
@@ -327,7 +350,7 @@ router.get('/sybil-hunter', checkAdminAuth, async (req, res) => {
     try {
         // Aggregate users by device_fingerprint to find duplicates
         const sybilClusters = await User.aggregate([
-            { $match: { device_fingerprint: { $ne: null, $ne: "" } } },
+            { $match: { device_fingerprint: { $type: "string", $nin: ["", null] } } },
             { $group: {
                 _id: "$device_fingerprint",
                 users: { $push: { telegram_id: "$telegram_id", username: "$username", balance: "$points_balance", is_banned: "$is_banned" } },
@@ -343,7 +366,8 @@ router.get('/sybil-hunter', checkAdminAuth, async (req, res) => {
             clusters: sybilClusters
         });
     } catch (err) {
-        res.status(500).send("Sybil Hunter Failed");
+        console.error(err);
+        res.status(500).send("Sybil Hunter Failed: " + err.message);
     }
 });
 
