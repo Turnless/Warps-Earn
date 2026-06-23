@@ -161,6 +161,8 @@ router.post('/user-ban', checkAdminAuth, express.urlencoded({ extended: true }),
 
 // --- ⚡ EXCLUSIVE ADMINISTRATIVE PAYOUT DECISION CONTROL ENDPOINT ---
 router.get('/payout', checkAdminAuth, async (req, res) => {
+    try {
+        const { txId, action, secret } = req.query;
 
         if (!txId || !action) {
             return res.status(400).send("Incomplete routing parameters.");
