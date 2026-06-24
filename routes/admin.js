@@ -237,11 +237,14 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
 // --- 🛒 STORE CONFIG CONTROLLER ---
 router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { cooldown, multiplier, premium_tier, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue, enable_cooldown, enable_multiplier, enable_premium, enable_gold } = req.body;
+        const { cooldown, multiplier, premium_tier_3m, premium_tier_6m, premium_tier_3m_blue, premium_tier_6m_blue, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue, enable_cooldown, enable_multiplier, enable_premium, enable_gold } = req.body;
         const newConfig = {
             cooldown: parseInt(cooldown) || 500,
             multiplier: parseInt(multiplier) || 3000,
-            premium_tier: parseInt(premium_tier) || 15000,
+            premium_tier_3m: parseInt(premium_tier_3m) || 15000,
+            premium_tier_6m: parseInt(premium_tier_6m) || 28000,
+            premium_tier_3m_blue: parseInt(premium_tier_3m_blue) || 45000,
+            premium_tier_6m_blue: parseInt(premium_tier_6m_blue) || 85000,
             gold_tier_3m: parseInt(gold_tier_3m) || 50000,
             gold_tier_6m: parseInt(gold_tier_6m) || 90000,
             gold_tier_3m_blue: parseInt(gold_tier_3m_blue) || 80000,
@@ -279,6 +282,12 @@ router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extende
                 user.x_blue_tick = true;
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + (order.item_key === 'gold_tier_3m' ? 3 : 6));
+                user.tier_expires_at = expDate;
+            } else if (order.item_key === 'premium_tier_3m' || order.item_key === 'premium_tier_6m') {
+                user.account_tier = 'Premium';
+                user.x_blue_tick = true;
+                const expDate = new Date();
+                expDate.setMonth(expDate.getMonth() + (order.item_key === 'premium_tier_3m' ? 3 : 6));
                 user.tier_expires_at = expDate;
             }
 

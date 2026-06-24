@@ -83,12 +83,16 @@
             <!-- Top Identity Section -->
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 relative z-10">
                 <div class="flex items-center gap-6">
-                    <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-4xl shadow-inner border border-neutral-300 relative">
-                        <span class="relative z-10"><%= (user.first_name || 'A').charAt(0).toUpperCase() %></span>
-                        <% if (user.is_banned) { %>
-                            <div class="absolute -bottom-2 -right-2 bg-rose-500 w-6 h-6 rounded-full border-4 border-[#050505]"></div>
+                    <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-4xl shadow-inner border border-neutral-300 relative overflow-hidden">
+                        <% if (user.photo_url) { %>
+                            <img src="<%= user.photo_url %>" class="w-full h-full object-cover">
                         <% } else { %>
-                            <div class="absolute -bottom-2 -right-2 bg-emerald-500 w-6 h-6 rounded-full border-4 border-[#050505]"></div>
+                            <span class="relative z-10 font-black text-neutral-600"><%= (user.first_name || 'A').charAt(0).toUpperCase() %></span>
+                        <% } %>
+                        <% if (user.is_banned) { %>
+                            <div class="absolute -bottom-1 -right-1 bg-rose-500 w-6 h-6 rounded-full border-4 border-white"></div>
+                        <% } else { %>
+                            <div class="absolute -bottom-1 -right-1 bg-emerald-500 w-6 h-6 rounded-full border-4 border-white"></div>
                         <% } %>
                     </div>
                     <div class="flex flex-col gap-1">
@@ -166,12 +170,13 @@
                     <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">⚙️ Direct Interventions</h3>
                     
                     <!-- Adjust Balance -->
-                    <form action="/admin/user-deduct" method="POST" class="bg-white/60 p-5 rounded-xl border border-neutral-200 flex flex-col gap-4">
+                    <form action="/admin/user-manage-balance" method="POST" class="bg-white/60 p-5 rounded-xl border border-neutral-200 flex flex-col gap-4">
                         <div class="flex flex-col gap-1">
                             <span class="text-sm font-bold text-neutral-900">Adjust Ledger Balance</span>
                             <span class="text-[10px] text-neutral-500">Add or deduct PTS manually.</span>
                         </div>
                         <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
+                        <input type="hidden" name="reason" value="Manual Adjustment from Admin Panel">
                         <div class="flex gap-2">
                             <input type="number" name="amount" placeholder="e.g. 5000 or -5000" class="flex-1 bg-white/80 border border-neutral-300 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm focus:border-violet-500 focus:outline-none" required>
                             <button type="submit" class="glass-btn px-4 py-2 rounded-lg text-xs font-bold text-neutral-900 uppercase tracking-widest hover:text-violet-400">Apply</button>
@@ -185,7 +190,17 @@
                             <span class="text-[10px] text-neutral-500">Resets today's ad limits & cooldowns.</span>
                         </div>
                         <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
-                        <button type="submit" class="glass-btn px-4 py-3 rounded-lg text-xs font-bold text-rose-400 uppercase tracking-widest text-center hover:bg-rose-500/10">Execute Reset</button>
+                        <button type="submit" class="glass-btn px-4 py-3 rounded-lg text-xs font-bold text-rose-400 uppercase tracking-widest text-center hover:bg-rose-500/10" onclick="return confirm('Reset all activities for this user?');">Execute Reset</button>
+                    </form>
+
+                    <!-- Delete User -->
+                    <form action="/admin/user-delete" method="POST" class="bg-rose-500/10 p-5 rounded-xl border border-rose-500/30 flex flex-col gap-4">
+                        <div class="flex flex-col gap-1">
+                            <span class="text-sm font-bold text-rose-600">Eradicate User</span>
+                            <span class="text-[10px] text-rose-500/80">Permanently deletes account from database.</span>
+                        </div>
+                        <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
+                        <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-widest text-center shadow-lg transition-all" onclick="return confirm('WARNING: Are you absolutely sure you want to permanently delete this user? This cannot be undone!');">Annihilate Record</button>
                     </form>
 
                 </div>
