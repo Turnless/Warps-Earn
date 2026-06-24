@@ -1145,6 +1145,8 @@
                 showToast("Connection error.", "⚠️");
             }
         }
+
+        function showToast(message, icon, duration = 3000) {
             const toast = document.getElementById('custom-toast');
             const toastIcon = document.getElementById('toast-icon');
             const toastMessage = document.getElementById('toast-message');

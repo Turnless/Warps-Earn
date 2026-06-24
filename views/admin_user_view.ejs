@@ -8,10 +8,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #050505;
-            --glass-bg: rgba(255, 255, 255, 0.02);
-            --glass-border: rgba(255, 255, 255, 0.05);
-            --glass-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            --bg-color: #e6ddd0;
+            --glass-bg: rgba(255, 255, 255, 0.6);
+            --glass-border: rgba(0, 0, 0, 0.1);
+            --glass-glow: 0 4px 24px rgba(0, 0, 0, 0.06);
             --accent-primary: #8b5cf6;
             --accent-cyan: #06b6d4;
         }
@@ -19,7 +19,7 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: var(--bg-color);
-            color: #e5e5e5;
+            color: #1a1a16;
             background-image: 
                 radial-gradient(circle at 50% -20%, rgba(139, 92, 246, 0.15), transparent 60%);
             min-height: 100vh;
@@ -38,8 +38,8 @@
         }
 
         .glass-btn {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.1); color: #1a1a16; font-weight: bold;
             backdrop-filter: blur(8px);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -57,7 +57,7 @@
         
         <!-- Header Actions -->
         <div class="flex justify-between items-center">
-            <a href="/admin" class="glass-btn px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-neutral-400 hover:text-white flex items-center gap-2">
+            <a href="/admin" class="glass-btn px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-neutral-500 hover:text-neutral-900 flex items-center gap-2">
                 <span>←</span> Back to Command Center
             </a>
             
@@ -83,7 +83,7 @@
             <!-- Top Identity Section -->
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 relative z-10">
                 <div class="flex items-center gap-6">
-                    <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-4xl shadow-inner border border-white/10 relative">
+                    <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-4xl shadow-inner border border-neutral-300 relative">
                         <span class="relative z-10"><%= (user.first_name || 'A').charAt(0).toUpperCase() %></span>
                         <% if (user.is_banned) { %>
                             <div class="absolute -bottom-2 -right-2 bg-rose-500 w-6 h-6 rounded-full border-4 border-[#050505]"></div>
@@ -92,10 +92,10 @@
                         <% } %>
                     </div>
                     <div class="flex flex-col gap-1">
-                        <h1 class="text-4xl font-heading font-black text-white tracking-tight"><%= user.first_name || 'Anonymous' %></h1>
+                        <h1 class="text-4xl font-heading font-black text-neutral-900 tracking-tight"><%= user.first_name || 'Anonymous' %></h1>
                         <span class="text-lg text-indigo-400 font-mono">@<%= user.username || 'N/A' %></span>
                         <div class="flex gap-2 mt-2">
-                            <span class="bg-white/5 border border-white/10 px-2.5 py-1 rounded-lg text-[10px] font-mono text-neutral-400"><%= user.telegram_id %></span>
+                            <span class="bg-white/5 border border-neutral-300 px-2.5 py-1 rounded-lg text-[10px] font-mono text-neutral-500"><%= user.telegram_id %></span>
                             <span class="bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg text-[10px] font-bold text-indigo-400 uppercase tracking-widest"><%= user.account_tier || 'Standard' %> Tier</span>
                             <span class="bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg text-[10px] font-bold text-amber-400 uppercase tracking-widest flex items-center gap-1">🌎 <%= user.country || 'Unknown' %></span>
                         </div>
@@ -110,44 +110,44 @@
 
             <!-- Stats Grid -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
-                <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex flex-col gap-1">
+                <div class="bg-white/60 p-4 rounded-xl border border-neutral-200 flex flex-col gap-1">
                     <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Ads Watched</span>
-                    <span class="text-2xl font-mono text-white font-bold"><%= user.total_ads_watched || 0 %></span>
+                    <span class="text-2xl font-mono text-neutral-900 font-bold"><%= user.total_ads_watched || 0 %></span>
                 </div>
-                <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex flex-col gap-1">
+                <div class="bg-white/60 p-4 rounded-xl border border-neutral-200 flex flex-col gap-1">
                     <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Referrals</span>
-                    <span class="text-2xl font-mono text-white font-bold"><%= (user.referrals || []).length %></span>
+                    <span class="text-2xl font-mono text-neutral-900 font-bold"><%= (user.referrals || []).length %></span>
                 </div>
-                <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex flex-col gap-1">
+                <div class="bg-white/60 p-4 rounded-xl border border-neutral-200 flex flex-col gap-1">
                     <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Payouts</span>
-                    <span class="text-2xl font-mono text-white font-bold"><%= user.withdrawals_count || 0 %></span>
+                    <span class="text-2xl font-mono text-neutral-900 font-bold"><%= user.withdrawals_count || 0 %></span>
                 </div>
-                <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex flex-col gap-1">
+                <div class="bg-white/60 p-4 rounded-xl border border-neutral-200 flex flex-col gap-1">
                     <span class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Joined</span>
-                    <span class="text-xs font-mono text-white font-bold mt-1"><%= user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown' %></span>
+                    <span class="text-xs font-mono text-neutral-900 font-bold mt-1"><%= user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown' %></span>
                 </div>
             </div>
 
             <!-- Deep Intelligence & Actions -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10 border-t border-white/5 pt-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10 border-t border-neutral-200 pt-8">
                 
                 <!-- Security Profile -->
                 <div class="flex flex-col gap-4">
-                    <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">🛡️ Security Fingerprint</h3>
-                    <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex flex-col gap-2">
+                    <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🛡️ Security Fingerprint</h3>
+                    <div class="bg-white/60 p-4 rounded-xl border border-neutral-200 flex flex-col gap-2">
                         <span class="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Device Hash</span>
-                        <div class="text-[10px] font-mono text-neutral-300 break-all bg-black/40 p-3 rounded-lg border border-white/5">
+                        <div class="text-[10px] font-mono text-neutral-600 break-all bg-white/80 p-3 rounded-lg border border-neutral-200">
                             <%= user.device_fingerprint || 'No fingerprint captured.' %>
                         </div>
                     </div>
 
-                    <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2 mt-4">💰 Financial History</h3>
-                    <div class="bg-black/20 p-4 rounded-xl border border-white/5 flex flex-col gap-3 max-h-[300px] overflow-y-auto">
+                    <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2 mt-4">💰 Financial History</h3>
+                    <div class="bg-white/60 p-4 rounded-xl border border-neutral-200 flex flex-col gap-3 max-h-[300px] overflow-y-auto">
                         <% if (user.earnings_history && user.earnings_history.length > 0) { %>
                             <% user.earnings_history.forEach(tx => { %>
-                                <div class="flex justify-between items-center border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                                <div class="flex justify-between items-center border-b border-neutral-200 pb-2 last:border-0 last:pb-0">
                                     <div class="flex flex-col">
-                                        <span class="text-xs text-white font-semibold"><%= tx.type %></span>
+                                        <span class="text-xs text-neutral-900 font-semibold"><%= tx.type %></span>
                                         <span class="text-[9px] text-neutral-500 font-mono"><%= tx.timestamp %></span>
                                     </div>
                                     <span class="text-xs font-mono font-bold <%= tx.amount > 0 ? 'text-emerald-400' : 'text-rose-400' %>">
@@ -163,25 +163,25 @@
 
                 <!-- Admin Overrides -->
                 <div class="flex flex-col gap-4">
-                    <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">⚙️ Direct Interventions</h3>
+                    <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">⚙️ Direct Interventions</h3>
                     
                     <!-- Adjust Balance -->
-                    <form action="/admin/user-deduct" method="POST" class="bg-black/20 p-5 rounded-xl border border-white/5 flex flex-col gap-4">
+                    <form action="/admin/user-deduct" method="POST" class="bg-white/60 p-5 rounded-xl border border-neutral-200 flex flex-col gap-4">
                         <div class="flex flex-col gap-1">
-                            <span class="text-sm font-bold text-white">Adjust Ledger Balance</span>
+                            <span class="text-sm font-bold text-neutral-900">Adjust Ledger Balance</span>
                             <span class="text-[10px] text-neutral-500">Add or deduct PTS manually.</span>
                         </div>
                         <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
                         <div class="flex gap-2">
-                            <input type="number" name="amount" placeholder="e.g. 5000 or -5000" class="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white font-mono text-sm focus:border-violet-500 focus:outline-none" required>
-                            <button type="submit" class="glass-btn px-4 py-2 rounded-lg text-xs font-bold text-white uppercase tracking-widest hover:text-violet-400">Apply</button>
+                            <input type="number" name="amount" placeholder="e.g. 5000 or -5000" class="flex-1 bg-white/80 border border-neutral-300 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm focus:border-violet-500 focus:outline-none" required>
+                            <button type="submit" class="glass-btn px-4 py-2 rounded-lg text-xs font-bold text-neutral-900 uppercase tracking-widest hover:text-violet-400">Apply</button>
                         </div>
                     </form>
 
                     <!-- Reset Activities -->
-                    <form action="/admin/user-clear-activities" method="POST" class="bg-black/20 p-5 rounded-xl border border-white/5 flex flex-col gap-4">
+                    <form action="/admin/user-clear-activities" method="POST" class="bg-white/60 p-5 rounded-xl border border-neutral-200 flex flex-col gap-4">
                         <div class="flex flex-col gap-1">
-                            <span class="text-sm font-bold text-white">Clear Daily Metrics</span>
+                            <span class="text-sm font-bold text-neutral-900">Clear Daily Metrics</span>
                             <span class="text-[10px] text-neutral-500">Resets today's ad limits & cooldowns.</span>
                         </div>
                         <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
