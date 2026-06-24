@@ -147,7 +147,9 @@ router.get('/', checkAdminAuth, async (req, res) => {
 
         // Fetch pending bounty submissions
         const BountySubmission = require('../models/BountySubmission');
+        const StoreOrder = require('../models/StoreOrder');
         const pendingBounties = await BountySubmission.find({ status: 'pending' }).sort({ submitted_at: -1 }).lean();
+        const pendingStoreOrders = await StoreOrder.find({ status: 'pending' }).sort({ created_at: -1 }).lean();
         
         // Populate user details and bounty details manually for the view since it's NoSQL without direct population setup
         const Bounty = require('../models/Bounty');
@@ -155,6 +157,21 @@ router.get('/', checkAdminAuth, async (req, res) => {
             sub.user = await User.findOne({ telegram_id: sub.telegram_id }).lean() || {};
             sub.bounty = await Bounty.findById(sub.bounty_id).lean() || {};
         }
+
+        for (let order of pendingStoreOrders) {
+            order.user = await User.findOne({ telegram_id: order.telegram_id }).lean() || {};
+        }
+
+        const storeConfigStr = await redis.get('admin:store_config');
+        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
+            cooldown: 500,
+            multiplier: 3000,
+            premium_tier: 15000,
+            gold_tier_3m: 50000,
+            gold_tier_6m: 90000,
+            gold_tier_3m_blue: 80000,
+            gold_tier_6m_blue: 150000
+        };
 
         res.render('admin_dashboard', { 
             secret: ADMIN_SECRET_SIGNATURE,
@@ -172,9 +189,11 @@ router.get('/', checkAdminAuth, async (req, res) => {
             },
             pendingList: pendingList,
             pendingBounties: pendingBounties,
+            pendingStoreOrders: pendingStoreOrders,
             topUsers: topUsers,
             settings: globalSettings,
-            telemetry: telemetryData
+            telemetry: telemetryData,
+            storeConfig: storeConfig
         });
     } catch (e) {
         console.error(e);
@@ -196,6 +215,74 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
         res.redirect('/admin');
     } catch (e) {
         res.status(500).send("Failed to update settings");
+    }
+});
+
+// --- 🛒 STORE CONFIG CONTROLLER ---
+router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    try {
+        const { cooldown, multiplier, premium_tier, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue } = req.body;
+        const newConfig = {
+            cooldown: parseInt(cooldown) || 500,
+            multiplier: parseInt(multiplier) || 3000,
+            premium_tier: parseInt(premium_tier) || 15000,
+            gold_tier_3m: parseInt(gold_tier_3m) || 50000,
+            gold_tier_6m: parseInt(gold_tier_6m) || 90000,
+            gold_tier_3m_blue: parseInt(gold_tier_3m_blue) || 80000,
+            gold_tier_6m_blue: parseInt(gold_tier_6m_blue) || 150000
+        };
+        await redis.set('admin:store_config', JSON.stringify(newConfig));
+        res.redirect('/admin');
+    } catch (e) {
+        res.status(500).send("Failed to update store config");
+    }
+});
+
+// --- 🛒 STORE ORDERS CONTROLLER ---
+router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    try {
+        const { order_id, action } = req.body;
+        const StoreOrder = require('../models/StoreOrder');
+        
+        const order = await StoreOrder.findById(order_id);
+        if (!order || order.status !== 'pending') return res.redirect('/admin');
+
+        const user = await User.findOne({ telegram_id: order.telegram_id });
+        if (!user) return res.redirect('/admin');
+
+        if (action === 'approve') {
+            order.status = 'completed';
+            
+            // Upgrade User
+            if (order.item_key === 'gold_tier_3m' || order.item_key === 'gold_tier_6m') {
+                user.account_tier = 'Gold';
+                user.x_blue_tick = true;
+                const expDate = new Date();
+                expDate.setMonth(expDate.getMonth() + (order.item_key === 'gold_tier_3m' ? 3 : 6));
+                user.tier_expires_at = expDate;
+            }
+
+            // Optional: Send Telegram DM to user letting them know it's approved
+        } else if (action === 'reject') {
+            order.status = 'rejected';
+            
+            // Refund user pts
+            user.points_balance = (user.points_balance || 0) + order.cost;
+            if (!user.earnings_history) user.earnings_history = [];
+            user.earnings_history.unshift({
+                type: `Refund: ${order.item_title} (Rejected)`,
+                amount: order.cost,
+                timestamp: getFormattedDateTime()
+            });
+        }
+
+        order.resolved_at = new Date();
+        await order.save();
+        await user.save();
+        
+        res.redirect('/admin');
+    } catch (e) {
+        res.status(500).send("Action Failed");
     }
 });
 

@@ -53,10 +53,32 @@
 
     <div class="w-full max-w-md flex flex-col min-h-[calc(100vh-32px)]">
 
-        <% var incompleteCount=0; if (!user.quests || !user.quests.channel) incompleteCount++; if (!user.quests ||
-            !user.quests.group) incompleteCount++; if (!user.quests || !user.quests.payout_channel) incompleteCount++;
-            if (!user.quests || !user.quests.x_account) incompleteCount++; var
-            firstWithdrawalDone=(user.withdrawals_count && user.withdrawals_count> 0);
+        <% var incompleteCount=0; 
+            if (!user.quests || !user.quests.channel) incompleteCount++; 
+            if (!user.quests || !user.quests.group) incompleteCount++; 
+            if (!user.quests || !user.quests.payout_channel) incompleteCount++;
+            if (!user.quests || !user.quests.x_account) incompleteCount++; 
+
+            if (typeof dynamicQuests !== 'undefined') {
+                Object.keys(dynamicQuests).forEach(k => {
+                    let q = dynamicQuests[k];
+                    if (!user.custom_promos || !user.custom_promos[k]) {
+                        if (!q.target_countries || q.target_countries.length === 0 || q.target_countries.includes(user.country)) {
+                            incompleteCount++;
+                        }
+                    }
+                });
+            }
+
+            if (typeof bounties !== 'undefined') {
+                bounties.forEach(b => {
+                    if (!b.target_countries || b.target_countries.length === 0 || b.target_countries.includes(user.country)) {
+                        incompleteCount++;
+                    }
+                });
+            }
+
+            var firstWithdrawalDone=(user.withdrawals_count && user.withdrawals_count> 0);
 
             var totalRefs = (user.referrals || []).length;
             var qualifiedRefs = (user.referrals || []).filter(r => r.qualified).length;
@@ -322,6 +344,28 @@
                             </div>
                         </div>
 
+                        <div class="bg-white rounded-3xl p-5 border border-neutral-200 shadow-sm flex flex-col gap-4">
+                            <% 
+                                let wLimit = "1 per day (24h processing)";
+                                let wThreshold = "1,500 PTS";
+                                if (user.account_tier === 'Premium') {
+                                    wLimit = "2 per day (1h processing)";
+                                    wThreshold = "1,250 PTS";
+                                } else if (user.account_tier === 'Gold') {
+                                    wLimit = "3 per day (Instant)";
+                                    wThreshold = "1,000 PTS";
+                                }
+                            %>
+                            <div class="flex justify-between items-center pb-3 border-b border-neutral-100">
+                                <span class="text-xs font-bold text-neutral-500 uppercase tracking-widest mono-text">Limits</span>
+                                <span class="text-[10px] font-extrabold text-neutral-800 bg-neutral-100 px-2 py-1 rounded"><%= wLimit %></span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-neutral-500 uppercase tracking-widest mono-text">Min. Withdrawal</span>
+                                <span class="text-[10px] font-extrabold text-neutral-800 bg-neutral-100 px-2 py-1 rounded"><%= wThreshold %></span>
+                            </div>
+                        </div>
+
                         <div id="withdrawal-flow" class="hidden w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-4">
                             <div class="flex justify-between items-center border-b border-neutral-200/60 pb-2">
                                 <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Withdraw</span>
@@ -411,7 +455,7 @@
                                             </div>
                                             <div class="flex flex-col items-end">
                                                 <span class="text-xs font-bold text-blue-700 mono-text">-$<%= (tx.amount * 0.0008).toFixed(2) %> USD</span>
-                                                <span class="text-[9px] uppercase tracking-wider font-extrabold <%= tx.status === 'Successful' ? 'text-emerald-600' : (tx.status === 'Rejected' ? 'text-rose-600' : 'text-amber-500 animate-pulse') %> mono-text">
+                                                <span class="text-[9px] uppercase tracking-wider font-extrabold <%= tx.status === 'Successful' ? 'text-emerald-600' : (tx.status === 'Rejected' ? 'text-rose-600' : 'text-amber-500') %> mono-text">
                                                     <%= tx.status || 'Pending' %>
                                                 </span>
                                             </div>
@@ -829,7 +873,7 @@
                         </div>
                         
                         <% if (user.account_tier === 'Standard') { %>
-                            <button onclick="purchaseStoreItem('premium_tier')" class="w-full bg-white text-indigo-900 font-bold text-xs py-3 rounded-xl shadow-md active:scale-[0.98] transition-all">Buy for 15,000 PTS</button>
+                            <button onclick="promptStorePurchase('premium_tier')" class="w-full bg-white text-indigo-900 font-bold text-xs py-3 rounded-xl shadow-md active:scale-[0.98] transition-all">Buy for <%= (storeConfig.premium_tier || 15000).toLocaleString() %> PTS</button>
                         <% } else { %>
                             <button disabled class="w-full bg-violet-900/50 text-violet-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-violet-700/50">You are already Premium (or Gold)</button>
                         <% } %>
@@ -839,21 +883,29 @@
                     <div class="w-full bg-gradient-to-br from-amber-500 to-orange-600 rounded-3xl p-5 shadow-lg border border-amber-300/40 text-white relative overflow-hidden">
                         <div class="absolute -right-4 -top-4 text-7xl opacity-20">👑</div>
                         <span class="bg-red-600 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded mb-2 inline-block relative z-10 shadow-sm border border-red-500">Highest Earnings</span>
-                        <h3 class="font-black text-lg tracking-tight mb-1 relative z-10">Gold Tier + X Verification</h3>
+                        <h3 class="font-black text-lg tracking-tight mb-1 relative z-10">Gold Tier Upgrade</h3>
                         <p class="text-xs text-amber-100 mb-3 max-w-[85%] relative z-10">The ultimate earner status. Partner with us for automated X verification.</p>
                         <div class="flex flex-col gap-2 relative z-10 mb-4 text-xs font-medium text-amber-50">
                             <div class="flex gap-2 items-center"><span class="bg-amber-900/40 w-5 h-5 rounded flex items-center justify-center text-[10px]">✓</span> Access ALL Bounty tasks</div>
-                            <div class="flex gap-2 items-center"><span class="bg-amber-900/40 w-5 h-5 rounded flex items-center justify-center text-[10px]">✓</span> Guaranteed Blue Tick Status via partner</div>
+                            <div class="flex gap-2 items-center"><span class="bg-amber-900/40 w-5 h-5 rounded flex items-center justify-center text-[10px]">✓</span> 3 Withdrawals/day (Instant)</div>
+                        </div>
+
+                        <div class="mb-4 bg-amber-900/20 p-3 rounded-xl border border-amber-500/30 relative z-10 flex flex-col gap-2">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="store-bluetick-toggle" class="w-4 h-4 text-emerald-600 bg-amber-100 border-amber-300 rounded focus:ring-emerald-500" onchange="updateGoldPrices()">
+                                <span class="text-xs font-bold text-white">Include Real X Blue Tick (Automated via Partner)</span>
+                            </label>
+                            <span class="text-[9px] text-amber-200/80">Only available on 3 and 6 month packages.</span>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-2 mt-2 relative z-10">
-                            <button onclick="purchaseStoreItem('gold_tier_3m')" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
+                            <button onclick="promptStorePurchase('gold_tier_3m')" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
                                 <span>3 Months</span>
-                                <span class="text-[9px] text-amber-300 mono-text">50,000 PTS</span>
+                                <span id="price-gold-3m" class="text-[9px] text-amber-300 mono-text"><%= (storeConfig.gold_tier_3m || 50000).toLocaleString() %> PTS</span>
                             </button>
-                            <button onclick="purchaseStoreItem('gold_tier_6m')" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
+                            <button onclick="promptStorePurchase('gold_tier_6m')" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
                                 <span>6 Months</span>
-                                <span class="text-[9px] text-amber-300 mono-text">90,000 PTS</span>
+                                <span id="price-gold-6m" class="text-[9px] text-amber-300 mono-text"><%= (storeConfig.gold_tier_6m || 90000).toLocaleString() %> PTS</span>
                             </button>
                         </div>
                     </div>
@@ -866,14 +918,14 @@
                                 <span class="text-xs font-bold text-neutral-800">Instant Cooldown Reset</span>
                                 <span class="text-[10px] text-neutral-500 mt-0.5">Skip the 45s wait between ad blocks</span>
                             </div>
-                            <button onclick="purchaseStoreItem('cooldown')" class="bg-neutral-900 text-white text-[10px] font-bold px-3 py-2 rounded-lg shrink-0">500 PTS</button>
+                            <button onclick="promptStorePurchase('cooldown')" class="bg-neutral-900 text-white text-[10px] font-bold px-3 py-2 rounded-lg shrink-0"><%= (storeConfig.cooldown || 500).toLocaleString() %> PTS</button>
                         </div>
                         <div class="flex justify-between items-center">
                             <div class="flex flex-col">
                                 <span class="text-xs font-bold text-neutral-800">2x Yield Multiplier</span>
-                                <span class="text-[10px] text-neutral-500 mt-0.5">Double your ad earnings permanently</span>
+                                <span class="text-[10px] text-neutral-500 mt-0.5">Double your ad earnings for 1 Month</span>
                             </div>
-                            <button onclick="purchaseStoreItem('multiplier')" class="bg-neutral-900 text-white text-[10px] font-bold px-3 py-2 rounded-lg shrink-0">3,000 PTS</button>
+                            <button onclick="promptStorePurchase('multiplier')" class="bg-neutral-900 text-white text-[10px] font-bold px-3 py-2 rounded-lg shrink-0"><%= (storeConfig.multiplier || 3000).toLocaleString() %> PTS</button>
                         </div>
                     </div>
                 </div>
@@ -958,8 +1010,135 @@
         </div>
     </div>
 
+    <!-- 🛒 STORE PURCHASE CONFIRMATION MODAL -->
+    <div id="store-confirm-modal" class="hidden fixed inset-0 z-[160] bg-neutral-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="w-full max-w-sm bg-white rounded-3xl p-6 border border-neutral-200 shadow-2xl flex flex-col gap-4 text-neutral-900">
+            <div class="flex items-center gap-2 pb-2 border-b border-neutral-100">
+                <span class="text-lg">🛒</span>
+                <h3 class="font-bold text-xs uppercase tracking-wider text-neutral-400 mono-text">Confirm Purchase</h3>
+            </div>
+
+            <div class="flex flex-col gap-3 my-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-neutral-500 uppercase tracking-widest mono-text">Item</span>
+                    <span id="store-modal-item" class="text-xs font-black text-neutral-900"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-neutral-500 uppercase tracking-widest mono-text">Cost</span>
+                    <span id="store-modal-cost" class="text-xs font-black text-rose-600 mono-text"></span>
+                </div>
+            </div>
+
+            <p id="store-modal-desc" class="text-[10px] text-neutral-500 text-center leading-relaxed"></p>
+
+            <div class="flex gap-3 mt-2">
+                <button onclick="closeStoreModal()" class="flex-1 py-3.5 rounded-xl border border-neutral-300 text-neutral-600 font-bold text-xs uppercase tracking-wider hover:bg-neutral-50 active:scale-95 transition-all">Cancel</button>
+                <button id="btn-store-confirm" class="flex-1 py-3.5 rounded-xl bg-neutral-950 hover:bg-neutral-900 text-[#e6ddd0] font-bold text-xs shadow-md uppercase tracking-wider active:scale-95 transition-all">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        function showToast(message, icon = "⚡", duration = 3000) {
+        const STORE_CONFIG = <%- JSON.stringify(storeConfig || {
+            cooldown: 500, multiplier: 3000, premium_tier: 15000,
+            gold_tier_3m: 50000, gold_tier_6m: 90000,
+            gold_tier_3m_blue: 80000, gold_tier_6m_blue: 150000
+        }) %>;
+
+        function updateGoldPrices() {
+            const hasBlueTick = document.getElementById('store-bluetick-toggle').checked;
+            document.getElementById('price-gold-3m').innerText = (hasBlueTick ? STORE_CONFIG.gold_tier_3m_blue : STORE_CONFIG.gold_tier_3m).toLocaleString() + ' PTS';
+            document.getElementById('price-gold-6m').innerText = (hasBlueTick ? STORE_CONFIG.gold_tier_6m_blue : STORE_CONFIG.gold_tier_6m).toLocaleString() + ' PTS';
+        }
+
+        let currentStoreItem = null;
+        let currentStoreCost = 0;
+
+        function promptStorePurchase(itemKey) {
+            currentStoreItem = itemKey;
+            const hasBlueTick = document.getElementById('store-bluetick-toggle') ? document.getElementById('store-bluetick-toggle').checked : false;
+            
+            let itemName = "";
+            let desc = "";
+            
+            if (itemKey === 'gold_tier_3m') {
+                itemName = hasBlueTick ? "Gold Tier (3 Months) + Blue Tick" : "Gold Tier (3 Months)";
+                currentStoreCost = hasBlueTick ? STORE_CONFIG.gold_tier_3m_blue : STORE_CONFIG.gold_tier_3m;
+                desc = hasBlueTick ? "You will upgrade to Gold Tier and we will verify your X account via our partner." : "You will upgrade to Gold Tier for 3 months.";
+            } else if (itemKey === 'gold_tier_6m') {
+                itemName = hasBlueTick ? "Gold Tier (6 Months) + Blue Tick" : "Gold Tier (6 Months)";
+                currentStoreCost = hasBlueTick ? STORE_CONFIG.gold_tier_6m_blue : STORE_CONFIG.gold_tier_6m;
+                desc = hasBlueTick ? "You will upgrade to Gold Tier and we will verify your X account via our partner." : "You will upgrade to Gold Tier for 6 months.";
+            } else if (itemKey === 'multiplier') {
+                itemName = "2x Yield Multiplier (1 Month)";
+                currentStoreCost = STORE_CONFIG.multiplier;
+                desc = "Double your points from ad views for 30 days.";
+            } else if (itemKey === 'premium_tier') {
+                itemName = "Premium Tier Upgrade";
+                currentStoreCost = STORE_CONFIG.premium_tier;
+                desc = "Unlock premium tasks and faster withdrawals.";
+            } else if (itemKey === 'cooldown') {
+                itemName = "Instant Cooldown Reset";
+                currentStoreCost = STORE_CONFIG.cooldown;
+                desc = "Skip the 45s wait between ad blocks.";
+            }
+
+            document.getElementById('store-modal-item').innerText = itemName;
+            document.getElementById('store-modal-cost').innerText = currentStoreCost.toLocaleString() + " PTS";
+            document.getElementById('store-modal-desc').innerText = desc;
+            
+            document.getElementById('btn-store-confirm').onclick = () => {
+                closeStoreModal();
+                purchaseStoreItem(itemKey, hasBlueTick);
+            };
+
+            document.getElementById('store-confirm-modal').classList.remove('hidden');
+        }
+
+        function closeStoreModal() {
+            document.getElementById('store-confirm-modal').classList.add('hidden');
+        }
+
+        async function purchaseStoreItem(itemKey, hasBlueTick = false) {
+            showToast("Processing purchase...", "⚡");
+            
+            try {
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                
+                const response = await fetch('/portal/purchase-store-item', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify({
+                        id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "<%= user.telegram_id %>",
+                        item: itemKey,
+                        blue_tick: hasBlueTick
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast("Purchase Successful!", "🎉");
+                    
+                    const userBalanceEl = document.getElementById('user-balance');
+                    const storeBalanceEl = document.getElementById('store-balance');
+                    const walletBalanceEl = document.getElementById('wallet-balance');
+                    
+                    if(userBalanceEl) userBalanceEl.innerText = data.newBalance.toLocaleString();
+                    if(storeBalanceEl) storeBalanceEl.innerText = data.newBalance.toLocaleString();
+                    if(walletBalanceEl) walletBalanceEl.innerText = data.newBalance.toLocaleString();
+                    
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    const errMsg = await response.text();
+                    showToast(errMsg || "Insufficient balance.", "❌");
+                }
+            } catch (err) {
+                showToast("Connection error.", "⚠️");
+            }
+        }
             const toast = document.getElementById('custom-toast');
             const toastIcon = document.getElementById('toast-icon');
             const toastMessage = document.getElementById('toast-message');

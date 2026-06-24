@@ -81,6 +81,14 @@
                         <span class="bg-indigo-500 text-white px-2 py-0.5 rounded-md text-[10px] mono-text group-hover:animate-pulse"><%= pendingBounties.length %></span>
                     <% } %>
                 </button>
+                <button onclick="switchTab('tab-orders')" id="nav-orders" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-all text-left group">
+                    <div class="flex items-center gap-3">
+                        <span class="text-lg">🛒</span> Store Orders
+                    </div>
+                    <% if (typeof pendingStoreOrders !== 'undefined' && pendingStoreOrders.length > 0) { %>
+                        <span class="bg-amber-500 text-white px-2 py-0.5 rounded-md text-[10px] mono-text group-hover:animate-pulse"><%= pendingStoreOrders.length %></span>
+                    <% } %>
+                </button>
                 <button onclick="switchTab('tab-lookup')" id="nav-lookup" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
                     <span class="text-lg">🔍</span> User Lookup
                 </button>
@@ -194,6 +202,40 @@
                         <span class="text-2xl font-bold text-neutral-900 mt-1"><%= stats.paidOutPts.toLocaleString() %> <span class="text-[10px] text-neutral-500 mono-text">PTS</span></span>
                         <span class="text-xs font-bold text-emerald-600 mono-text">≈ $<%= stats.paidOutUsd %> USD</span>
                     </div>
+                </div>
+
+                <!-- PTS CALCULATOR -->
+                <div class="bg-indigo-950 text-indigo-100 rounded-3xl p-6 border border-indigo-900 shadow-md flex flex-col gap-4 relative overflow-hidden mt-4">
+                    <div class="absolute -right-4 -top-4 text-7xl opacity-10">🧮</div>
+                    <div class="flex items-center gap-2 pb-2 border-b border-indigo-900 relative z-10">
+                        <span class="text-xl">🧮</span>
+                        <h3 class="font-bold text-sm uppercase tracking-wider text-indigo-300 mono-text">Quick Converter (PTS ↔ USD)</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Points (PTS)</label>
+                            <input type="number" id="calc-pts" placeholder="Enter PTS..." class="w-full bg-indigo-900/50 border border-indigo-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500" oninput="calcToUsd()">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Dollars (USD)</label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300 font-bold">$</span>
+                                <input type="number" id="calc-usd" placeholder="Enter USD..." class="w-full bg-indigo-900/50 border border-indigo-800 rounded-xl pl-8 pr-4 py-3 text-white focus:outline-none focus:border-indigo-500" oninput="calcToPts()">
+                            </div>
+                        </div>
+                    </div>
+                    <script>
+                        function calcToUsd() {
+                            const pts = parseFloat(document.getElementById('calc-pts').value) || 0;
+                            const usd = pts * 0.0008;
+                            document.getElementById('calc-usd').value = usd > 0 ? usd.toFixed(2) : "";
+                        }
+                        function calcToPts() {
+                            const usd = parseFloat(document.getElementById('calc-usd').value) || 0;
+                            const pts = usd / 0.0008;
+                            document.getElementById('calc-pts').value = pts > 0 ? Math.round(pts) : "";
+                        }
+                    </script>
                 </div>
 
                 <!-- AD NETWORK TELEMETRY -->
@@ -324,6 +366,50 @@
                         <div class="text-center py-12 flex flex-col items-center gap-3 opacity-50">
                             <span class="text-4xl">📭</span>
                             <span class="text-sm font-bold text-neutral-500 uppercase tracking-widest">No Pending Bounties</span>
+                        </div>
+                    <% } %>
+                </div>
+            </section>
+
+            <!-- 2.5 STORE ORDERS -->
+            <section id="tab-orders" class="hide-section flex flex-col gap-6">
+                <div>
+                    <h2 class="text-2xl font-bold tracking-tight text-neutral-900">Pending Store Orders</h2>
+                    <p class="text-sm text-neutral-500 font-medium">Verify Blue Tick upgrades via your partner and approve to grant Gold status.</p>
+                </div>
+
+                <div class="flex flex-col gap-4">
+                    <% if (typeof pendingStoreOrders !== 'undefined' && pendingStoreOrders.length > 0) { %>
+                        <% pendingStoreOrders.forEach(order => { %>
+                            <div class="bg-white/60 backdrop-blur-md rounded-3xl p-6 border border-amber-300/80 shadow-sm flex flex-col gap-4">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex flex-col">
+                                        <div class="flex items-center gap-2">
+                                            <h3 class="font-bold text-lg text-neutral-900"><%= order.item_title %></h3>
+                                            <span class="bg-amber-100 text-amber-800 text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded">Pending</span>
+                                        </div>
+                                        <span class="text-xs text-neutral-500 mono-text">User: @<%= order.user.username || order.telegram_id %></span>
+                                    </div>
+                                    <span class="text-xl font-bold text-rose-600 mono-text"><%= order.cost.toLocaleString() %> PTS</span>
+                                </div>
+                                <div class="flex gap-2">
+                                    <form action="/admin/store-orders/action" method="POST" class="flex-1">
+                                        <input type="hidden" name="order_id" value="<%= order._id %>">
+                                        <input type="hidden" name="action" value="approve">
+                                        <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl uppercase tracking-widest transition-all">Approve (Upgrade Tier)</button>
+                                    </form>
+                                    <form action="/admin/store-orders/action" method="POST" class="flex-1">
+                                        <input type="hidden" name="order_id" value="<%= order._id %>">
+                                        <input type="hidden" name="action" value="reject">
+                                        <button class="w-full bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold py-3 rounded-xl uppercase tracking-widest transition-all">Reject (Refund PTS)</button>
+                                    </form>
+                                </div>
+                            </div>
+                        <% }) %>
+                    <% } else { %>
+                        <div class="text-center py-12 bg-white/60 backdrop-blur-md rounded-3xl border border-dashed border-neutral-300">
+                            <span class="text-4xl opacity-50 mb-4 block">🛒</span>
+                            <h3 class="text-neutral-500 font-bold uppercase tracking-widest text-sm">No Pending Orders</h3>
                         </div>
                     <% } %>
                 </div>
@@ -460,6 +546,50 @@
                     </button>
                 </form>
 
+                <form action="/admin/store-config" method="POST" class="w-full bg-white/60 backdrop-blur-md rounded-3xl p-8 border border-neutral-300/80 shadow-sm flex flex-col gap-6 mt-4">
+                    <div class="flex items-center gap-2 pb-2 border-b border-neutral-200">
+                        <span class="text-xl">🛒</span>
+                        <h3 class="font-bold text-sm uppercase tracking-wider text-neutral-900">Store Pricing Configuration</h3>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-neutral-700 uppercase">Cooldown Reset (PTS)</label>
+                            <input type="number" name="cooldown" value="<%= storeConfig.cooldown %>" required class="w-full px-4 py-3 rounded-xl border border-neutral-300 bg-white focus:ring-2 focus:ring-neutral-900 shadow-inner">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-neutral-700 uppercase">2x Multiplier 1 Month (PTS)</label>
+                            <input type="number" name="multiplier" value="<%= storeConfig.multiplier %>" required class="w-full px-4 py-3 rounded-xl border border-neutral-300 bg-white focus:ring-2 focus:ring-neutral-900 shadow-inner">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-violet-700 uppercase">Premium Tier Upgrade (PTS)</label>
+                            <input type="number" name="premium_tier" value="<%= storeConfig.premium_tier %>" required class="w-full px-4 py-3 rounded-xl border border-violet-200 bg-violet-50 focus:ring-2 focus:ring-violet-500 shadow-inner">
+                        </div>
+                        <div class="hidden md:block"></div>
+                        
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-amber-700 uppercase">Gold Tier 3 Months (PTS)</label>
+                            <input type="number" name="gold_tier_3m" value="<%= storeConfig.gold_tier_3m %>" required class="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 focus:ring-2 focus:ring-amber-500 shadow-inner">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-amber-700 uppercase">Gold Tier 6 Months (PTS)</label>
+                            <input type="number" name="gold_tier_6m" value="<%= storeConfig.gold_tier_6m %>" required class="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 focus:ring-2 focus:ring-amber-500 shadow-inner">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-amber-700 uppercase">Gold 3M + Blue Tick (PTS)</label>
+                            <input type="number" name="gold_tier_3m_blue" value="<%= storeConfig.gold_tier_3m_blue %>" required class="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 focus:ring-2 focus:ring-amber-500 shadow-inner">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-amber-700 uppercase">Gold 6M + Blue Tick (PTS)</label>
+                            <input type="number" name="gold_tier_6m_blue" value="<%= storeConfig.gold_tier_6m_blue %>" required class="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 focus:ring-2 focus:ring-amber-500 shadow-inner">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-8 py-4 rounded-2xl shadow-sm tracking-widest uppercase transition-all mt-2 self-end">
+                        Update Pricing
+                    </button>
+                </form>
+
                 <div class="w-full bg-rose-50 border border-rose-200 rounded-3xl p-6 mt-4 flex flex-col gap-4">
                     <div class="flex items-center gap-2 text-rose-800">
                         <span class="text-xl">🧨</span>
@@ -573,21 +703,20 @@
         }
 
         function switchTab(tabId) {
-            // Hide all sections
-            document.querySelectorAll('section').forEach(el => el.classList.add('hide-section'));
-            // Reset all sidebar buttons
-            document.querySelectorAll('aside button').forEach(el => {
-                el.classList.remove('sidebar-active');
-                el.classList.add('sidebar-inactive');
+            const tabs = ['tab-telemetry', 'tab-payouts', 'tab-bounties', 'tab-orders', 'tab-lookup', 'tab-leaderboard', 'tab-quests', 'tab-broadcast', 'tab-controls'];
+            tabs.forEach(t => {
+                const el = document.getElementById(t);
+                if(el) el.classList.add('hide-section');
+                const navBtn = document.getElementById('nav-' + t.replace('tab-', ''));
+                if (navBtn) {
+                    navBtn.className = "sidebar-inactive px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-all text-left group";
+                }
             });
-
-            // Show selected section
-            document.getElementById(tabId).classList.remove('hide-section');
-            // Highlight selected button
-            const btnId = 'nav-' + tabId.split('-')[1];
-            if(document.getElementById(btnId)) {
-                document.getElementById(btnId).classList.remove('sidebar-inactive');
-                document.getElementById(btnId).classList.add('sidebar-active');
+            const activeSection = document.getElementById(tabId);
+            if(activeSection) activeSection.classList.remove('hide-section');
+            const activeNav = document.getElementById('nav-' + tabId.replace('tab-', ''));
+            if (activeNav) {
+                activeNav.className = "sidebar-active px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-all text-left group";
             }
 
             // Close mobile menu if open

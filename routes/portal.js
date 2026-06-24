@@ -130,7 +130,18 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
         const Bounty = require('../models/Bounty');
         const bounties = await Bounty.find({ status: 'active', expires_at: { $gt: new Date() } }).sort({ created_at: -1 }).lean();
 
-        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties });
+        const storeConfigStr = await redis.get('admin:store_config');
+        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
+            cooldown: 500,
+            multiplier: 3000,
+            premium_tier: 15000,
+            gold_tier_3m: 50000,
+            gold_tier_6m: 90000,
+            gold_tier_3m_blue: 80000,
+            gold_tier_6m_blue: 150000
+        };
+
+        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig });
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
@@ -485,56 +496,130 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         console.error("Custom Promo Error:", e);
         res.status(500).send("Internal error.");
     }
-});
+const Bounty = require('../models/Bounty');
+const StoreOrder = require('../models/StoreOrder');
 
 // --- 🛒 PURCHASE STORE ITEM ---
 router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTelegramWebAppData, async (req, res) => {
     const userId = String(req.body.id || "");
     const item = String(req.body.item || "");
+    const hasBlueTick = req.body.blue_tick === true;
 
     const items = {
-        cooldown: { pts: 500, title: "Instant Cooldown Reset" },
-        multiplier: { pts: 3000, title: "2x Yield Multiplier" },
-        premium_tier: { pts: 15000, title: "Premium Tier Upgrade" },
-        gold_tier_3m: { pts: 50000, title: "Gold Tier (3 Months)" },
-        gold_tier_6m: { pts: 90000, title: "Gold Tier (6 Months)" }
+        cooldown: { key: 'cooldown', title: "Instant Cooldown Reset" },
+        multiplier: { key: 'multiplier', title: "2x Yield Multiplier (1 Month)" },
+        premium_tier: { key: 'premium_tier', title: "Premium Tier Upgrade" },
+        gold_tier_3m: { key: 'gold_tier_3m', title: "Gold Tier (3 Months)" },
+        gold_tier_6m: { key: 'gold_tier_6m', title: "Gold Tier (6 Months)" }
     };
 
     try {
         if (!userId || !item || !items[item]) return res.status(400).send("Invalid item payload.");
 
+        const storeConfigStr = await redis.get('admin:store_config');
+        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
+            cooldown: 500,
+            multiplier: 3000,
+            premium_tier: 15000,
+            gold_tier_3m: 50000,
+            gold_tier_6m: 90000,
+            gold_tier_3m_blue: 80000,
+            gold_tier_6m_blue: 150000
+        };
+
         const user = await User.findOne({ telegram_id: userId });
         if (!user) return res.status(404).send("User not found.");
 
-        const cost = items[item].pts;
+        let cost = storeConfig[item];
+        let title = items[item].title;
+
+        if (item === 'gold_tier_3m' && hasBlueTick) {
+            cost = storeConfig.gold_tier_3m_blue;
+            title += " + Blue Tick";
+        } else if (item === 'gold_tier_6m' && hasBlueTick) {
+            cost = storeConfig.gold_tier_6m_blue;
+            title += " + Blue Tick";
+        }
+
         if ((user.points_balance || 0) < cost) {
-            return res.status(400).send(`Insufficient balance. You need ${cost} PTS.`);
+            return res.status(400).send(`Insufficient balance. You need ${cost.toLocaleString()} PTS.`);
         }
 
         user.points_balance -= cost;
+
+        let isPending = false;
 
         if (item === 'cooldown') {
             user.cooldown_until = 0;
             user.current_session_loop = 0;
         } else if (item === 'multiplier') {
-            user.ad_multiplier = 2; // Hardcoded for simplicity right now
+            user.ad_multiplier = 2;
+            const expDate = new Date();
+            expDate.setMonth(expDate.getMonth() + 1);
+            user.multiplier_expires_at = expDate;
         } else if (item === 'premium_tier') {
             user.account_tier = 'Premium';
-        } else if (item === 'gold_tier_3m' || item === 'gold_tier_6m') {
-            user.account_tier = 'Gold';
-            user.x_blue_tick = true;
-            // A more comprehensive subscription expiry could be added here in the future.
+        } else if (item === 'gold_tier_3m') {
+            if (hasBlueTick) {
+                isPending = true;
+            } else {
+                user.account_tier = 'Gold';
+                user.x_blue_tick = false;
+                const expDate = new Date();
+                expDate.setMonth(expDate.getMonth() + 3);
+                user.tier_expires_at = expDate;
+            }
+        } else if (item === 'gold_tier_6m') {
+            if (hasBlueTick) {
+                isPending = true;
+            } else {
+                user.account_tier = 'Gold';
+                user.x_blue_tick = false;
+                const expDate = new Date();
+                expDate.setMonth(expDate.getMonth() + 6);
+                user.tier_expires_at = expDate;
+            }
         }
+
+        // Save to Store Orders
+        const newOrder = new StoreOrder({
+            telegram_id: user.telegram_id,
+            item_key: item,
+            item_title: title,
+            cost: cost,
+            blue_tick: hasBlueTick,
+            status: isPending ? 'pending' : 'completed',
+            resolved_at: isPending ? null : new Date()
+        });
+        await newOrder.save();
 
         if (!user.earnings_history) user.earnings_history = [];
         user.earnings_history.unshift({
-            type: `Store Purchase: ${items[item].title}`,
+            type: isPending ? `[PENDING] Store Purchase: ${title}` : `[COMPLETED] Store Purchase: ${title}`,
             amount: -cost,
             timestamp: getFormattedDateTime()
         });
 
         await user.save();
         await invalidateUserCache(userId);
+
+        // Notify Admin via Telegram if it's a Blue Tick request
+        if (isPending) {
+            try {
+                const fetch = require('node-fetch');
+                const tgToken = process.env.BOT_TOKEN;
+                const msg = `🚨 *New Gold Tier + Blue Tick Request* 🚨\n\nUser: @${user.username || user.telegram_id}\nItem: ${title}\nCost: ${cost.toLocaleString()} PTS\n\nCheck the Admin Dashboard to fulfill the X Blue Tick verification and approve the upgrade.`;
+                const tgUrl = `https://api.telegram.org/bot${tgToken}/sendMessage`;
+                await fetch(tgUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: '@tun_less', text: msg, parse_mode: 'Markdown' })
+                });
+            } catch (err) {
+                console.error("Failed to notify admin on Telegram:", err);
+            }
+        }
+
         res.status(200).json({ success: true, newBalance: user.points_balance });
     } catch (e) {
         console.error("Store Purchase Error:", e);
