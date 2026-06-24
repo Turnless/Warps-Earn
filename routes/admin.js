@@ -145,6 +145,17 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const telemetryStr = await redis.get('admin:ad_telemetry');
         const telemetryData = telemetryStr ? JSON.parse(telemetryStr) : {};
 
+        // Fetch pending bounty submissions
+        const BountySubmission = require('../models/BountySubmission');
+        const pendingBounties = await BountySubmission.find({ status: 'pending' }).sort({ submitted_at: -1 }).lean();
+        
+        // Populate user details and bounty details manually for the view since it's NoSQL without direct population setup
+        const Bounty = require('../models/Bounty');
+        for (let sub of pendingBounties) {
+            sub.user = await User.findOne({ telegram_id: sub.telegram_id }).lean() || {};
+            sub.bounty = await Bounty.findById(sub.bounty_id).lean() || {};
+        }
+
         res.render('admin_dashboard', { 
             secret: ADMIN_SECRET_SIGNATURE,
             stats: {
@@ -160,6 +171,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
                 paidOutUsd: (totalPaidOut * 0.0008).toFixed(2)
             },
             pendingList: pendingList,
+            pendingBounties: pendingBounties,
             topUsers: topUsers,
             settings: globalSettings,
             telemetry: telemetryData
@@ -190,7 +202,7 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
 // --- 🎯 DYNAMIC QUESTS ENGINE ---
 router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { action, key, title, url, pts, icon } = req.body;
+        const { action, key, title, url, pts, icon, tier_required, target_countries, is_telegram } = req.body;
         const questsStr = await redis.get('admin:dynamic_quests');
         let quests = questsStr ? JSON.parse(questsStr) : {};
 
@@ -199,7 +211,10 @@ router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), a
                 title: title.trim(),
                 url: url.trim(),
                 pts: parseInt(pts) || 0,
-                icon: (icon || "🔥").trim()
+                icon: (icon || "🔥").trim(),
+                tier_required: tier_required || "Any",
+                target_countries: target_countries ? target_countries.split(',').map(c => c.trim().toUpperCase()) : [],
+                is_telegram: is_telegram === 'on'
             };
         } else if (action === 'delete' && key) {
             delete quests[key];
@@ -553,6 +568,80 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
     } catch (err) {
         console.error("Administrative transaction decision failure:", err);
         return res.status(500).send("Administrative decision process crashed.");
+    }
+});
+
+// --- 🎯 ADMIN BOUNTY DECISION ACTION ---
+router.get('/bounty/action', checkAdminAuth, async (req, res) => {
+    const { subId, action } = req.query;
+
+    if (!subId || !['approve', 'reject'].includes(action)) {
+        return res.status(400).send("Invalid administrative payload.");
+    }
+
+    try {
+        const BountySubmission = require('../models/BountySubmission');
+        const Bounty = require('../models/Bounty');
+        
+        const submission = await BountySubmission.findById(subId);
+        if (!submission) return res.status(404).send("Submission trace missing.");
+        if (submission.status !== 'pending') return res.status(400).send("Submission already processed.");
+
+        const targetUser = await User.findOne({ telegram_id: submission.telegram_id });
+        const targetBounty = await Bounty.findById(submission.bounty_id);
+
+        if (!targetUser || !targetBounty) {
+            return res.status(404).send("User or Bounty not found.");
+        }
+
+        if (action === 'approve') {
+            submission.status = 'approved';
+            submission.reviewed_at = new Date();
+            
+            targetBounty.completions += 1;
+            
+            targetUser.points_balance = (targetUser.points_balance || 0) + targetBounty.reward_pts;
+            if (!targetUser.earnings_history) targetUser.earnings_history = [];
+            targetUser.earnings_history.unshift({
+                type: `Bounty: ${targetBounty.title}`,
+                amount: targetBounty.reward_pts,
+                timestamp: getFormattedDateTime()
+            });
+
+            await submission.save();
+            await targetBounty.save();
+            await targetUser.save();
+            
+            // Notify user of success
+            await sendTelegramMessageAsync(targetUser.telegram_id, `🎉 <b>Bounty Approved!</b>\n\nYour submission for <b>${targetBounty.title}</b> was verified. <b>+${targetBounty.reward_pts} PTS</b> has been added to your balance!`);
+            
+            return res.redirect('/admin');
+            
+        } else if (action === 'reject') {
+            submission.status = 'rejected';
+            submission.reviewed_at = new Date();
+            
+            targetUser.bounty_strikes = (targetUser.bounty_strikes || 0) + 1;
+            if (targetUser.bounty_strikes >= 3) {
+                targetUser.bounty_banned = true;
+            }
+            
+            await submission.save();
+            await targetUser.save();
+            
+            // Notify user of rejection
+            let warningText = targetUser.bounty_banned ? 
+                "\n\n🚨 <b>ACCOUNT BANNED FROM BOUNTIES</b>\nYou have received 3 strikes for fraudulent submissions. You can no longer participate in social tasks." :
+                `\n\n⚠️ <b>Strike Added (${targetUser.bounty_strikes}/3)</b>\nSubmit valid links only to avoid being banned from tasks.`;
+                
+            await sendTelegramMessageAsync(targetUser.telegram_id, `❌ <b>Bounty Rejected</b>\n\nYour submission for <b>${targetBounty.title}</b> was marked as invalid.` + warningText);
+            
+            return res.redirect('/admin');
+        }
+        
+    } catch (err) {
+        console.error("Admin Bounty Action Error:", err);
+        return res.status(500).send("Administrative process crashed.");
     }
 });
 

@@ -60,6 +60,16 @@ const userSchema = new mongoose.Schema({
         sybil_verified: { type: Boolean, default: false }
     },
     
+    // Social Bounty & Tier System Fields
+    country: { type: String, default: null },
+    x_handle: { type: String, default: null },
+    x_followers: { type: Number, default: 0 },
+    x_blue_tick: { type: Boolean, default: false },
+    account_tier: { type: String, enum: ['Standard', 'Premium', 'Gold'], default: 'Standard' },
+    tier_expiry: { type: Date, default: null }, // For subscription upgrades
+    bounty_strikes: { type: Number, default: 0 },
+    bounty_banned: { type: Boolean, default: false },
+    
     referrals: [referralSchema],
     
     device_fingerprint: { type: String, default: null },

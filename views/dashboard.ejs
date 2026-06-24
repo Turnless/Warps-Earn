@@ -261,6 +261,26 @@
                             </div>
                         </div>
                         </div>
+                        
+                        <!-- 🚀 NEW FEATURE: BOUNTY HUB BANNER -->
+                        <div class="w-full mt-1 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-3xl p-5 border border-indigo-500/50 shadow-lg relative overflow-hidden group cursor-pointer" onclick="switchTab('tasks', 'nav-tasks')">
+                            <!-- Background elements -->
+                            <div class="absolute -right-6 -bottom-6 text-7xl opacity-20 transform group-hover:scale-110 group-hover:rotate-12 transition-transform duration-500">🎯</div>
+                            <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjxwYXRoIGQ9Ik0wIDBMOCA4Wk04IDBMMCA4WiIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utb3BhY2l0eT0iMC4wNSIvPjwvc3ZnPg==')] opacity-30"></div>
+                            
+                            <div class="relative z-10 flex flex-col gap-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="bg-indigo-950/50 text-indigo-200 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded mono-text backdrop-blur-sm border border-indigo-400/30">New Feature</span>
+                                </div>
+                                <h3 class="text-white font-black text-xl tracking-tight">Earn PTS - Social Tasks</h3>
+                                <p class="text-indigo-100/80 text-xs font-medium max-w-[80%]">Get paid to like, repost, and engage on X (Twitter).</p>
+                                
+                                <div class="mt-4 flex items-center justify-between">
+                                    <span class="text-xs font-bold text-white mono-text">Up to +1,000 PTS / Task</span>
+                                    <div class="w-8 h-8 rounded-full bg-white text-indigo-600 flex items-center justify-center font-bold text-lg shadow-sm group-hover:translate-x-1 transition-transform">→</div>
+                                </div>
+                            </div>
+                        </div>
 
                 </div>
 
@@ -411,6 +431,69 @@
                         <p class="text-xs text-neutral-500 mt-0.5">Complete tasks to earn bonus points.</p>
                     </div>
 
+                    <!-- 🎯 BOUNTY HUB FEED -->
+                    <div class="w-full bg-gradient-to-b from-indigo-50/50 to-white/80 backdrop-blur-md border border-indigo-100/80 rounded-3xl p-5 shadow-sm flex flex-col gap-3">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mono-text">Social Bounties</span>
+                            <span class="text-[10px] font-bold text-neutral-500 bg-white px-2 py-0.5 rounded shadow-sm border border-neutral-200">Tier: <%= user.account_tier || 'Standard' %></span>
+                        </div>
+
+                        <% if (typeof bounties !== 'undefined' && bounties.length > 0) { %>
+                            <div class="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-1">
+                            <% bounties.forEach(bounty => { 
+                                let isEligible = true;
+                                let eligibilityMsg = '';
+                                if (bounty.tier_required === 'Premium' && user.account_tier === 'Standard') {
+                                    isEligible = false;
+                                    eligibilityMsg = 'Requires Premium Tier';
+                                } else if (bounty.tier_required === 'Gold' && user.account_tier !== 'Gold') {
+                                    isEligible = false;
+                                    eligibilityMsg = 'Requires Gold Tier';
+                                }
+                                
+                                if (bounty.target_countries && bounty.target_countries.length > 0 && !bounty.target_countries.includes(user.country)) {
+                                    return; // Completely hide if not in region
+                                }
+                            %>
+                                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-neutral-200 relative overflow-hidden group">
+                                    <% if (!isEligible) { %>
+                                        <div class="absolute inset-0 bg-neutral-100/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                                            <span class="bg-white/90 text-rose-600 font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-rose-100 shadow-sm"><%= eligibilityMsg %></span>
+                                        </div>
+                                    <% } %>
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex flex-col">
+                                            <div class="flex items-center gap-1.5 mb-1">
+                                                <span class="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded uppercase border border-indigo-100"><%= bounty.platform %></span>
+                                                <span class="text-[9px] font-bold text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded uppercase border border-neutral-200"><%= bounty.action_type %></span>
+                                            </div>
+                                            <h4 class="font-bold text-xs text-neutral-900 leading-tight"><%= bounty.title %></h4>
+                                        </div>
+                                        <span class="font-black text-emerald-600 text-sm mono-text shrink-0">+<%= bounty.reward_pts %></span>
+                                    </div>
+                                    <p class="text-[10px] text-neutral-500 mt-1.5 line-clamp-2"><%= bounty.description %></p>
+                                    
+                                    <div class="mt-2.5 flex justify-between items-center border-t border-neutral-100 pt-2.5">
+                                        <div class="flex items-center gap-1.5">
+                                            <div class="w-full h-1 bg-neutral-100 rounded-full w-16 overflow-hidden">
+                                                <div class="h-full bg-indigo-400 rounded-full" style="width: <%= Math.min((bounty.completions / bounty.max_completions) * 100, 100) %>%"></div>
+                                            </div>
+                                            <span class="text-[9px] text-neutral-400 font-medium mono-text"><%= bounty.completions %>/<%= bounty.max_completions %></span>
+                                        </div>
+                                        <button onclick="openBountyModal('<%= bounty._id %>', '<%= bounty.title %>', '<%= bounty.platform %>', '<%= bounty.action_type %>', '<%= bounty.reward_pts %>', '<%= bounty.target_url %>')" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
+                                    </div>
+                                </div>
+                            <% }) %>
+                            </div>
+                        <% } else { %>
+                            <div class="text-center py-8 text-neutral-400 flex flex-col items-center justify-center border-2 border-dashed border-indigo-100/50 rounded-2xl bg-white/50">
+                                <span class="text-3xl mb-2 opacity-50">📭</span>
+                                <span class="text-xs font-medium">No bounties available right now.</span>
+                                <span class="text-[10px]">Check back later!</span>
+                            </div>
+                        <% } %>
+                    </div>
+
                     <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-3">
                         <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Required</span>
 
@@ -500,27 +583,51 @@
                     </div>
 
                     <% if (dynamicQuests && Object.keys(dynamicQuests).length > 0) { %>
-                    <div class="w-full bg-white/70 backdrop-blur-md border border-amber-200/60 rounded-3xl p-5 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+                    <div class="w-full bg-gradient-to-br from-amber-50 to-orange-50/50 backdrop-blur-md border border-amber-200/60 rounded-3xl p-5 shadow-sm flex flex-col gap-3 relative overflow-hidden">
                         <div class="absolute -right-4 -bottom-4 text-6xl opacity-5 select-none">🎯</div>
                         <div class="flex justify-between items-center z-10">
-                            <span class="text-[10px] font-bold uppercase tracking-widest text-amber-600 mono-text">Bonus Tasks</span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-amber-600 mono-text">Partner Quests</span>
                         </div>
                         <div class="flex flex-col gap-4 z-10">
                             <% Object.keys(dynamicQuests).forEach(qKey => { 
                                 const q = dynamicQuests[qKey];
                                 const isDone = user.custom_promos && user.custom_promos[qKey];
+                                
+                                let isEligible = true;
+                                let eligibilityMsg = '';
+                                if (q.tier_required === 'Premium' && user.account_tier === 'Standard') {
+                                    isEligible = false;
+                                    eligibilityMsg = 'Requires Premium';
+                                } else if (q.tier_required === 'Gold' && user.account_tier !== 'Gold') {
+                                    isEligible = false;
+                                    eligibilityMsg = 'Requires Gold';
+                                }
+                                
+                                if (q.target_countries && q.target_countries.length > 0 && !q.target_countries.includes(user.country)) {
+                                    return; // Completely hide if not in region
+                                }
+                                
                                 if (!isDone) {
                             %>
-                            <div class="flex justify-between items-center pb-3 border-b border-amber-100/60 last:border-0 last:pb-0" id="promo-row-<%= qKey %>">
+                            <div class="flex justify-between items-center pb-3 border-b border-amber-100/80 last:border-0 last:pb-0 relative group" id="promo-row-<%= qKey %>">
+                                <% if (!isEligible) { %>
+                                    <div class="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-end pr-2 rounded-xl">
+                                        <span class="bg-white/90 text-amber-700 font-bold text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-amber-200 shadow-sm"><%= eligibilityMsg %></span>
+                                    </div>
+                                <% } %>
                                 <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-100 to-orange-50 flex items-center justify-center text-lg border border-amber-200/50 shadow-sm"><%= q.icon || '🔥' %></div>
+                                    <div class="w-11 h-11 rounded-2xl bg-white flex items-center justify-center text-xl border border-amber-200/60 shadow-sm"><%= q.icon || '🔥' %></div>
                                     <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-neutral-800"><%= q.title %></span>
+                                        <span class="text-xs font-extrabold text-neutral-800"><%= q.title %></span>
                                         <span class="text-[10px] text-amber-600 font-bold mono-text mt-0.5">+<%= q.pts || 150 %> PTS</span>
                                     </div>
                                 </div>
-                                <div>
-                                    <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>', <%= q.pts || 150 %>)" id="promo-btn-<%= qKey %>" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 active:scale-[0.95] transition-all text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Go</button>
+                                <div class="relative z-0">
+                                    <% if (isEligible) { %>
+                                        <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>', <%= q.pts || 150 %>, <%= q.is_telegram || false %>)" id="promo-btn-<%= qKey %>" class="bg-neutral-900 hover:bg-neutral-800 active:scale-[0.95] transition-all text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md border border-neutral-800">Start</button>
+                                    <% } else { %>
+                                        <button disabled class="bg-neutral-200 text-neutral-400 text-xs font-bold px-5 py-2.5 rounded-xl border border-neutral-300">Lock</button>
+                                    <% } %>
                                 </div>
                             </div>
                             <% }}) %>
@@ -695,13 +802,79 @@
                 <div id="view-store" class="hidden flex flex-col gap-3 w-full">
                     <div class="px-1">
                         <h2 class="text-lg font-bold text-neutral-900 tracking-tight">Store</h2>
-                        <p class="text-xs text-neutral-500 mt-0.5">Spend your points on upgrades and perks.</p>
+                        <p class="text-xs text-neutral-500 mt-0.5">Upgrade your account and unlock premium perks.</p>
                     </div>
 
-                    <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-200/60 rounded-3xl p-8 shadow-sm flex flex-col items-center justify-center gap-3 min-h-[280px]">
-                        <div class="text-5xl">🛒</div>
-                        <h3 class="text-base font-bold text-neutral-800">Opening Soon</h3>
-                        <p class="text-xs text-neutral-500 text-center max-w-[220px]">The store is being stocked with upgrades and boosts. Check back soon!</p>
+                    <div class="w-full bg-neutral-950 text-[#e6ddd0] rounded-3xl p-5 shadow-md flex flex-col gap-4 relative overflow-hidden">
+                        <div class="absolute right-[-10px] top-[-10px] text-6xl opacity-10 select-none">💳</div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[10px] tracking-widest uppercase font-bold text-neutral-400 mono-text">Available Points</span>
+                            <div class="flex items-baseline gap-1.5">
+                                <span id="store-balance" class="text-3xl font-extrabold tracking-tight text-white">
+                                    <%= (user.points_balance || 0).toLocaleString() %>
+                                </span>
+                                <span class="text-xs font-bold text-neutral-400 mono-text">PTS</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PREMIUM TIER UPGRADE -->
+                    <div class="w-full bg-gradient-to-br from-violet-600 to-indigo-800 rounded-3xl p-5 shadow-lg border border-violet-400/30 text-white relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 text-7xl opacity-20">⭐</div>
+                        <h3 class="font-black text-lg tracking-tight mb-1 relative z-10">Premium Tier Upgrade</h3>
+                        <p class="text-xs text-violet-200 mb-3 max-w-[85%] relative z-10">Unlock high-paying premium bounties on the task hub.</p>
+                        <div class="flex flex-col gap-2 relative z-10 mb-4 text-xs font-medium text-violet-100">
+                            <div class="flex gap-2 items-center"><span class="bg-violet-900/50 w-5 h-5 rounded flex items-center justify-center text-[10px]">✓</span> Access Premium-only tasks</div>
+                            <div class="flex gap-2 items-center"><span class="bg-violet-900/50 w-5 h-5 rounded flex items-center justify-center text-[10px]">✓</span> Priority withdrawal queue</div>
+                        </div>
+                        
+                        <% if (user.account_tier === 'Standard') { %>
+                            <button onclick="purchaseStoreItem('premium_tier')" class="w-full bg-white text-indigo-900 font-bold text-xs py-3 rounded-xl shadow-md active:scale-[0.98] transition-all">Buy for 15,000 PTS</button>
+                        <% } else { %>
+                            <button disabled class="w-full bg-violet-900/50 text-violet-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-violet-700/50">You are already Premium (or Gold)</button>
+                        <% } %>
+                    </div>
+
+                    <!-- GOLD TIER & X-VERIFICATION -->
+                    <div class="w-full bg-gradient-to-br from-amber-500 to-orange-600 rounded-3xl p-5 shadow-lg border border-amber-300/40 text-white relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 text-7xl opacity-20">👑</div>
+                        <span class="bg-red-600 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded mb-2 inline-block relative z-10 shadow-sm border border-red-500">Highest Earnings</span>
+                        <h3 class="font-black text-lg tracking-tight mb-1 relative z-10">Gold Tier + X Verification</h3>
+                        <p class="text-xs text-amber-100 mb-3 max-w-[85%] relative z-10">The ultimate earner status. Partner with us for automated X verification.</p>
+                        <div class="flex flex-col gap-2 relative z-10 mb-4 text-xs font-medium text-amber-50">
+                            <div class="flex gap-2 items-center"><span class="bg-amber-900/40 w-5 h-5 rounded flex items-center justify-center text-[10px]">✓</span> Access ALL Bounty tasks</div>
+                            <div class="flex gap-2 items-center"><span class="bg-amber-900/40 w-5 h-5 rounded flex items-center justify-center text-[10px]">✓</span> Guaranteed Blue Tick Status via partner</div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-2 mt-2 relative z-10">
+                            <button onclick="purchaseStoreItem('gold_tier_3m')" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
+                                <span>3 Months</span>
+                                <span class="text-[9px] text-amber-300 mono-text">50,000 PTS</span>
+                            </button>
+                            <button onclick="purchaseStoreItem('gold_tier_6m')" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
+                                <span>6 Months</span>
+                                <span class="text-[9px] text-amber-300 mono-text">90,000 PTS</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- BOOSTS -->
+                    <div class="w-full bg-white/70 backdrop-blur-md rounded-3xl p-5 shadow-sm border border-neutral-300/80 mt-1">
+                        <h3 class="font-bold text-sm text-neutral-800 mb-3">Utility Boosts</h3>
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60 mb-3">
+                            <div class="flex flex-col">
+                                <span class="text-xs font-bold text-neutral-800">Instant Cooldown Reset</span>
+                                <span class="text-[10px] text-neutral-500 mt-0.5">Skip the 45s wait between ad blocks</span>
+                            </div>
+                            <button onclick="purchaseStoreItem('cooldown')" class="bg-neutral-900 text-white text-[10px] font-bold px-3 py-2 rounded-lg shrink-0">500 PTS</button>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div class="flex flex-col">
+                                <span class="text-xs font-bold text-neutral-800">2x Yield Multiplier</span>
+                                <span class="text-[10px] text-neutral-500 mt-0.5">Double your ad earnings permanently</span>
+                            </div>
+                            <button onclick="purchaseStoreItem('multiplier')" class="bg-neutral-900 text-white text-[10px] font-bold px-3 py-2 rounded-lg shrink-0">3,000 PTS</button>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -739,6 +912,50 @@
                 </button>
             </nav>
 
+    </div>
+
+    <!-- 🎯 BOUNTY SUBMISSION MODAL -->
+    <div id="bounty-modal" class="fixed inset-0 z-50 hidden flex-col justify-end bg-neutral-950/80 backdrop-blur-sm transition-opacity">
+        <div class="bg-white w-full max-w-md mx-auto rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="px-5 py-4 border-b border-neutral-100 flex justify-between items-center bg-indigo-50/30">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">🎯</span>
+                    <h3 class="font-black text-neutral-900 tracking-tight" id="bounty-modal-title">Complete Task</h3>
+                </div>
+                <button onclick="closeBountyModal()" class="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-500 font-bold active:scale-95">✕</button>
+            </div>
+            
+            <div class="p-5 overflow-y-auto flex-1 flex flex-col gap-4">
+                <div class="flex justify-between items-center p-3 bg-neutral-50 rounded-xl border border-neutral-200">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] uppercase font-bold text-neutral-400">Reward</span>
+                        <span id="bounty-modal-reward" class="text-sm font-black text-emerald-600 mono-text"></span>
+                    </div>
+                    <div class="flex flex-col text-right">
+                        <span class="text-[10px] uppercase font-bold text-neutral-400">Action</span>
+                        <span id="bounty-modal-action" class="text-xs font-bold text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100"></span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <span class="text-xs font-bold text-neutral-800">1. Open the target link</span>
+                    <button id="bounty-modal-link-btn" class="w-full bg-neutral-900 text-white font-bold text-xs py-3 rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                        Open Target Link ↗
+                    </button>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <span class="text-xs font-bold text-neutral-800">2. Submit Proof (Comment Link)</span>
+                    <input type="text" id="bounty-proof-input" placeholder="Paste link to your comment/reply here..." class="w-full px-4 py-3 bg-neutral-50 border border-neutral-300 rounded-xl text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all">
+                    <p class="text-[10px] text-neutral-500">Only submit the direct link to your reply. Fake or invalid links will result in a <strong class="text-rose-600">strike penalty</strong>.</p>
+                </div>
+            </div>
+
+            <div class="p-5 border-t border-neutral-100 bg-neutral-50">
+                <input type="hidden" id="bounty-modal-id">
+                <button onclick="submitBountyProof()" id="btn-submit-bounty" class="w-full bg-indigo-600 text-white font-bold text-sm py-3.5 rounded-xl shadow-md hover:bg-indigo-700 active:scale-[0.98] transition-all uppercase tracking-wider">Submit for Verification</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1560,7 +1777,7 @@
 
 
         // Promo task handler
-        async function triggerPromoTask(promoKey, targetUrl, rewardPts = 150) {
+        async function triggerPromoTask(promoKey, targetUrl, rewardPts = 150, isTelegram = false) {
             if (window.Telegram && window.Telegram.WebApp) {
                 window.Telegram.WebApp.HapticFeedback.selectionChanged();
             }
@@ -1571,7 +1788,7 @@
 
             btn.disabled = true;
             btn.innerText = "Verifying...";
-            btn.className = "bg-neutral-300 text-neutral-500 text-xs font-medium px-4 py-2 rounded-xl cursor-not-allowed";
+            btn.className = "bg-neutral-300 text-neutral-500 text-xs font-medium px-4 py-2.5 rounded-xl cursor-not-allowed";
 
             setTimeout(async () => {
                 try {
@@ -1596,11 +1813,11 @@
                             row.style.opacity = '0';
                             setTimeout(() => {
                                 row.remove();
-                                // Hide whole community container if empty
+                                // Hide whole container if empty
                                 const remainingRows = document.querySelectorAll('[id^="promo-row-"]');
                                 if (remainingRows.length === 0) {
-                                    const communityContainer = document.querySelector('.bg-white\\/70.border-amber-200\\/60');
-                                    if(communityContainer) communityContainer.classList.add('hidden');
+                                    const container = document.querySelector('.bg-gradient-to-br.from-amber-50');
+                                    if(container) container.classList.add('hidden');
                                 }
                             }, 300);
                         }
@@ -1632,17 +1849,85 @@
                             listActivity.insertAdjacentHTML('afterbegin', historyHtml);
                         }
                     } else {
-                        showToast("Complete the task first, then try again.", "⚠️");
+                        const errText = await response.text();
+                        showToast(errText || "Complete the task first, then try again.", "⚠️");
                         btn.disabled = false;
-                        btn.innerText = "Verify";
-                        btn.className = "bg-neutral-950 text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl active:scale-95 transition-transform";
+                        btn.innerText = "Start";
+                        btn.className = "bg-neutral-900 hover:bg-neutral-800 active:scale-[0.95] transition-all text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md border border-neutral-800";
                     }
                 } catch (err) {
                     showToast("Something went wrong. Try again.", "⚠️");
                     btn.disabled = false;
-                    btn.innerText = "Verify";
+                    btn.innerText = "Start";
+                    btn.className = "bg-neutral-900 hover:bg-neutral-800 active:scale-[0.95] transition-all text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md border border-neutral-800";
                 }
             }, 8000);
+        }
+
+        // ✅ BOUNTY MODAL & SUBMISSION LOGIC
+        function openBountyModal(id, title, platform, action, reward, url) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+            
+            document.getElementById('bounty-modal-id').value = id;
+            document.getElementById('bounty-modal-title').innerText = title;
+            document.getElementById('bounty-modal-reward').innerText = `+${reward} PTS`;
+            document.getElementById('bounty-modal-action').innerText = `${platform} ${action}`;
+            
+            const linkBtn = document.getElementById('bounty-modal-link-btn');
+            linkBtn.onclick = () => {
+                window.open(url, '_blank');
+            };
+            
+            document.getElementById('bounty-proof-input').value = '';
+            document.getElementById('bounty-modal').classList.remove('hidden');
+            document.getElementById('bounty-modal').classList.add('flex');
+        }
+
+        function closeBountyModal() {
+            document.getElementById('bounty-modal').classList.add('hidden');
+            document.getElementById('bounty-modal').classList.remove('flex');
+        }
+
+        async function submitBountyProof() {
+            const bountyId = document.getElementById('bounty-modal-id').value;
+            const proofUrl = document.getElementById('bounty-proof-input').value.trim();
+            const btn = document.getElementById('btn-submit-bounty');
+            
+            if (!proofUrl) return showToast("Please paste your proof link first.", "⚠️");
+            
+            btn.disabled = true;
+            btn.innerText = "Submitting...";
+            
+            try {
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                const response = await fetch('/portal/submit-bounty', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify({
+                        id: "<%= user.telegram_id %>",
+                        bounty_id: bountyId,
+                        proof_url: proofUrl
+                    })
+                });
+
+                if (response.ok) {
+                    showToast("Proof submitted! Waiting for admin approval.", "✅");
+                    closeBountyModal();
+                } else {
+                    const err = await response.text();
+                    showToast(err, "❌");
+                }
+            } catch (err) {
+                showToast("Connection error. Try again.", "❌");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "SUBMIT FOR VERIFICATION";
+            }
         }
 
         // ✅ PURCHASE STORE ITEM

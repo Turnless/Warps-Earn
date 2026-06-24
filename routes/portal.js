@@ -127,7 +127,10 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
         const questsStr = await redis.get('admin:dynamic_quests');
         const dynamicQuests = questsStr ? JSON.parse(questsStr) : {};
 
-        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests });
+        const Bounty = require('../models/Bounty');
+        const bounties = await Bounty.find({ status: 'active', expires_at: { $gt: new Date() } }).sort({ created_at: -1 }).lean();
+
+        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties });
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
@@ -428,6 +431,43 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         if (user.custom_promos.get(promoKey) === true) return res.status(400).send("Already verified.");
 
         const campaign = promoMap[promoKey];
+
+        // Tier Check
+        if (campaign.tier_required === 'Premium' && user.account_tier === 'Standard') return res.status(403).send("Requires Premium");
+        if (campaign.tier_required === 'Gold' && user.account_tier !== 'Gold') return res.status(403).send("Requires Gold");
+
+        // Geo Check
+        if (campaign.target_countries && campaign.target_countries.length > 0 && !campaign.target_countries.includes(user.country)) {
+            return res.status(403).send("Not available in your region.");
+        }
+
+        // Telegram API Authentication Check
+        if (campaign.is_telegram) {
+            let channelUsername = campaign.url;
+            if (channelUsername.includes('t.me/')) {
+                channelUsername = "@" + channelUsername.split('t.me/')[1].split('/')[0].split('?')[0];
+            } else if (!channelUsername.startsWith('@')) {
+                channelUsername = "@" + channelUsername;
+            }
+            
+            try {
+                const fetch = require('node-fetch');
+                const tgToken = process.env.BOT_TOKEN;
+                const tgUrl = `https://api.telegram.org/bot${tgToken}/getChatMember?chat_id=${channelUsername}&user_id=${userId}`;
+                const resp = await fetch(tgUrl);
+                const data = await resp.json();
+                
+                if (!data.ok || !['member', 'administrator', 'creator'].includes(data.result.status)) {
+                    return res.status(400).send("Please join the Telegram group/channel first.");
+                }
+            } catch (err) {
+                console.error("Telegram API verify error:", err);
+                // Fail-safe pass if Telegram API is down or if it's a private join link
+                // But ideally we strict block. Let's block for now to strictly authenticate.
+                return res.status(400).send("Authentication failed. Make sure you joined.");
+            }
+        }
+
         user.points_balance = (user.points_balance || 0) + campaign.pts;
         user.custom_promos.set(promoKey, true);
 
@@ -454,7 +494,10 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
 
     const items = {
         cooldown: { pts: 500, title: "Instant Cooldown Reset" },
-        multiplier: { pts: 3000, title: "2x Yield Multiplier" }
+        multiplier: { pts: 3000, title: "2x Yield Multiplier" },
+        premium_tier: { pts: 15000, title: "Premium Tier Upgrade" },
+        gold_tier_3m: { pts: 50000, title: "Gold Tier (3 Months)" },
+        gold_tier_6m: { pts: 90000, title: "Gold Tier (6 Months)" }
     };
 
     try {
@@ -475,6 +518,12 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             user.current_session_loop = 0;
         } else if (item === 'multiplier') {
             user.ad_multiplier = 2; // Hardcoded for simplicity right now
+        } else if (item === 'premium_tier') {
+            user.account_tier = 'Premium';
+        } else if (item === 'gold_tier_3m' || item === 'gold_tier_6m') {
+            user.account_tier = 'Gold';
+            user.x_blue_tick = true;
+            // A more comprehensive subscription expiry could be added here in the future.
         }
 
         if (!user.earnings_history) user.earnings_history = [];
@@ -711,6 +760,53 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
     } catch (err) {
         console.error("Financial router allocation engine failure:", err);
         return res.status(500).send("Internal accounting ledger fault.");
+    }
+});
+
+// --- 🎯 BOUNTY SUBMISSION ---
+router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppData, async (req, res) => {
+    const userId = String(req.body.id || "");
+    const bountyId = String(req.body.bounty_id || "");
+    const proofUrl = String(req.body.proof_url || "").trim();
+
+    try {
+        if (!userId || !bountyId || !proofUrl) return res.status(400).send("Invalid payload.");
+
+        const user = await User.findOne({ telegram_id: userId });
+        if (!user) return res.status(404).send("User not found.");
+
+        const Bounty = require('../models/Bounty');
+        const bounty = await Bounty.findById(bountyId);
+        if (!bounty || bounty.status !== 'active') return res.status(404).send("Bounty not available.");
+
+        // Check tier limits
+        if (bounty.tier_required === 'Premium' && user.account_tier === 'Standard') return res.status(403).send("Requires Premium tier.");
+        if (bounty.tier_required === 'Gold' && user.account_tier !== 'Gold') return res.status(403).send("Requires Gold tier.");
+
+        // Check geo
+        if (bounty.target_countries && bounty.target_countries.length > 0 && !bounty.target_countries.includes(user.country)) {
+            return res.status(403).send("Bounty not available in your region.");
+        }
+
+        const BountySubmission = require('../models/BountySubmission');
+        
+        // Prevent duplicate
+        const existing = await BountySubmission.findOne({ bounty_id: bountyId, telegram_id: userId });
+        if (existing) return res.status(400).send("You have already submitted proof for this task.");
+
+        const submission = new BountySubmission({
+            bounty_id: bountyId,
+            telegram_id: userId,
+            proof_link: proofUrl,
+            status: 'pending'
+        });
+
+        await submission.save();
+
+        res.status(200).json({ success: true });
+    } catch (e) {
+        console.error("Bounty submission error:", e);
+        res.status(500).send("Internal error processing submission.");
     }
 });
 

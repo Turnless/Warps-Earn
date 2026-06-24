@@ -130,8 +130,29 @@
         <!-- Live CAPTCHA code injected by server side rendering -->
         <div class="captcha-display"><%= captchaCode %></div>
         
-        <input type="text" id="captchaInput" class="input-field" placeholder="Enter the code" autocomplete="off" uppercase>
-        
+        <div class="input-group">
+            <select id="countrySelect" class="input-field">
+                <option value="" disabled selected>Select your Country</option>
+                <option value="NG">Nigeria</option>
+                <option value="IN">India</option>
+                <option value="PH">Philippines</option>
+                <option value="ID">Indonesia</option>
+                <option value="BD">Bangladesh</option>
+                <option value="PK">Pakistan</option>
+                <option value="US">United States</option>
+                <option value="UK">United Kingdom</option>
+                <!-- Add more as needed -->
+                <option value="OTHER">Other</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="xHandleInput" class="input-field" placeholder="Your X (Twitter) Handle (e.g. @username)" autocomplete="off">
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="captchaInput" class="input-field" placeholder="Enter the code above" autocomplete="off" uppercase>
+        </div>
         <button type="button" id="submitBtn" class="btn-submit" onclick="runVerification()">
             Verify
         </button>
@@ -165,14 +186,16 @@
             const btn = document.getElementById('submitBtn');
             const status = document.getElementById('feedback');
             const solutionValue = document.getElementById('captchaInput').value.trim();
+            const countryValue = document.getElementById('countrySelect').value;
+            const xHandleValue = document.getElementById('xHandleInput').value.trim();
             
             // Gather parameters directly from active URL query strings
             const urlParams = new URLSearchParams(window.location.search);
             const explicitId = urlParams.get('id') || (window.Telegram?.WebApp?.initDataUnsafe?.user?.id || '');
 
-            if (!solutionValue) {
+            if (!solutionValue || !countryValue || !xHandleValue) {
                 status.style.color = "red";
-                status.innerText = "Please enter the code first.";
+                status.innerText = "Please fill all fields.";
                 return;
             }
 
@@ -190,7 +213,9 @@
                         fingerprint: getDeviceFingerprint(), // Dynamically generated unique hardware tracking token
                         solution: solutionValue,
                         expectedCaptcha: "<%= captchaCode %>",
-                        upline: "<%= upline %>"
+                        upline: "<%= upline %>",
+                        country: countryValue,
+                        xHandle: xHandleValue
                     })
                 });
 
