@@ -111,8 +111,10 @@ async function watchAdRound(userId) {
         user.ad_multiplier = 1;
     }
 
-    // Apply Ad Multiplier to Base Reward (Base = 3 PTS)
-    const baseReward = 3;
+    // Fetch Base Reward Per Ad from Settings
+    const settingsStr = await redis.get('global_settings');
+    const settings = settingsStr ? JSON.parse(settingsStr) : {};
+    const baseReward = settings.reward_per_ad || 3;
     const finalReward = baseReward * user.ad_multiplier;
 
     user.points_balance = (user.points_balance || 0) + finalReward;
