@@ -3,796 +3,700 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Warps Admin Control Center</title>
+    <title>Warps Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-color: #050505;
+            --glass-bg: rgba(255, 255, 255, 0.02);
+            --glass-border: rgba(255, 255, 255, 0.05);
+            --glass-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            --accent-primary: #8b5cf6;
+            --accent-cyan: #06b6d4;
+        }
+
         body {
-            font-family: 'Space Grotesk', sans-serif;
-            background-color: #030303;
-            color: #f5f5f5;
-            background-image: radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 25%), radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.08), transparent 25%);
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: #e5e5e5;
+            background-image: 
+                radial-gradient(circle at 15% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 25%), 
+                radial-gradient(circle at 85% 100%, rgba(6, 182, 212, 0.1) 0%, transparent 25%);
             background-attachment: fixed;
+            min-height: 100vh;
+            overflow-x: hidden;
         }
-        .mono-text {
-            font-family: 'Geist Mono', monospace;
+
+        h1, h2, h3, .font-heading {
+            font-family: 'Outfit', sans-serif;
         }
-        .hide-section {
-            display: none !important;
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
         }
-        .sidebar-active {
-            background: linear-gradient(90deg, rgba(255,255,255,0.1) 0%, transparent 100%);
-            border-left: 2px solid #6366f1;
-            color: #ffffff;
+
+        /* Glassmorphism utilities */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-glow);
+            border-radius: 24px;
+            transition: all 0.3s ease;
         }
-        .sidebar-inactive {
-            color: #a3a3a3;
-            background-color: transparent;
-            border-left: 2px solid transparent;
+
+        .glass-panel:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.04);
+            transform: translateY(-2px);
         }
-        .sidebar-inactive:hover {
-            color: #ffffff;
-            background-color: rgba(255,255,255,0.03);
+
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(8px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        /* Custom Scrollbar for Dark Mode */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
+
+        .glass-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.02);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.05);
+        }
+
+        /* Animations */
+        @keyframes fadeSlideUp {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+        .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+        .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+        .stagger-4 { animation-delay: 0.4s; opacity: 0; }
+
+        /* Floating Sidebar */
+        .sidebar {
+            background: rgba(10, 10, 12, 0.8);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--glass-border);
+        }
+
+        .nav-item {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .nav-item::before {
+            content: '';
+            position: absolute;
+            left: -16px;
+            top: 50%;
+            transform: translateY(-50%) scaleY(0);
+            height: 60%;
+            width: 3px;
+            background: var(--accent-primary);
+            border-radius: 4px;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.active {
+            color: #fff;
+            background: rgba(139, 92, 246, 0.1);
+            box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.2);
+        }
+
+        .nav-item.active::before {
+            transform: translateY(-50%) scaleY(1);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        .hide-section { display: none !important; }
+        
+        /* Badges */
+        .badge-glow-amber { box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
+        .badge-glow-indigo { box-shadow: 0 0 10px rgba(99, 102, 241, 0.4); }
     </style>
 </head>
-<body class="min-h-screen flex selection:bg-indigo-500/30 selection:text-indigo-200">
+<body class="flex selection:bg-purple-500/30 selection:text-purple-200">
 
-    <!-- MOBILE TOP BAR -->
-    <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-neutral-950/80 backdrop-blur-xl border-b border-white/10 z-40 flex items-center justify-between px-4">
-        <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-sm shadow-[0_0_15px_rgba(99,102,241,0.2)]">🛡️</div>
-            <span class="font-bold text-white tracking-tight uppercase text-sm">Admin Hub</span>
-        </div>
-        <button onclick="toggleMobileMenu()" class="w-10 h-10 bg-neutral-900/5 rounded-xl flex items-center justify-center text-xl text-white shadow-sm border border-white/10 hover:bg-neutral-900/10 transition-colors">
-            ☰
-        </button>
-    </div>
-
-    <!-- SIDEBAR -->
-    <div id="mobile-overlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 hidden md:hidden"></div>
-    <aside id="sidebar" class="w-64 bg-neutral-950/90 md:bg-neutral-950/40 backdrop-blur-2xl border-r border-white/5 fixed h-screen flex flex-col justify-between py-6 px-4 z-50 overflow-y-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300 shadow-2xl">
-        <div class="flex flex-col gap-8">
-            <div class="flex items-center justify-between px-2">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-xl shadow-[0_0_20px_rgba(99,102,241,0.15)]">
-                        🛡️
-                    </div>
-                    <div class="flex flex-col">
-                        <h1 class="text-sm font-bold tracking-tight text-white leading-tight uppercase">Admin Hub</h1>
-                        <span class="text-[10px] text-indigo-400 font-medium mono-text">Command Center</span>
-                    </div>
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar w-64 fixed h-screen flex flex-col justify-between py-8 px-6 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-500">
+        <div class="flex flex-col gap-10">
+            <!-- Logo area -->
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white text-xl shadow-[0_0_20px_rgba(139,92,246,0.4)] relative">
+                    <div class="absolute inset-0 rounded-2xl bg-white/20 blur-sm"></div>
+                    <span class="relative z-10">⚡</span>
                 </div>
-                <button onclick="toggleMobileMenu()" class="md:hidden text-2xl text-neutral-400 hover:text-white transition-colors">×</button>
+                <div class="flex flex-col">
+                    <h1 class="text-xl font-heading font-black text-white tracking-tight leading-none">WARPS</h1>
+                    <span class="text-xs text-indigo-400 font-semibold tracking-widest uppercase mt-1">Control</span>
+                </div>
             </div>
 
-            <nav class="flex flex-col gap-2">
-                <button onclick="switchTab('tab-telemetry')" id="nav-telemetry" class="sidebar-active px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
-                    <span class="text-lg">📊</span> Analytics
+            <!-- Navigation Links -->
+            <nav class="flex flex-col gap-2 relative">
+                <button onclick="switchTab('tab-dashboard')" id="nav-dashboard" class="nav-item active px-4 py-3.5 rounded-xl flex items-center gap-4 text-sm font-semibold text-neutral-400 hover:text-white group">
+                    <span class="text-lg opacity-80 group-hover:opacity-100 transition-opacity">📈</span> Overview
                 </button>
-                <button onclick="switchTab('tab-payouts')" id="nav-payouts" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-all text-left group">
-                    <div class="flex items-center gap-3">
-                        <span class="text-lg">💸</span> Payouts
+                
+                <div class="mt-4 mb-2">
+                    <span class="text-[10px] font-bold text-neutral-600 uppercase tracking-widest px-4">Action Center</span>
+                </div>
+                
+                <button onclick="switchTab('tab-approvals')" id="nav-approvals" class="nav-item px-4 py-3.5 rounded-xl flex items-center justify-between text-sm font-semibold text-neutral-400 hover:text-white group">
+                    <div class="flex items-center gap-4">
+                        <span class="text-lg opacity-80 group-hover:opacity-100 transition-opacity">✅</span> Approvals
                     </div>
-                    <% if (stats.pending > 0) { %>
-                        <span class="bg-amber-500 text-white px-2 py-0.5 rounded-md text-[10px] mono-text group-hover:animate-pulse"><%= stats.pending %></span>
+                    <% const totalPending = stats.pending + (pendingBounties ? pendingBounties.length : 0) + (typeof pendingStoreOrders !== 'undefined' ? pendingStoreOrders.length : 0); %>
+                    <% if (totalPending > 0) { %>
+                        <span class="bg-amber-500/20 border border-amber-500/50 text-amber-400 px-2 py-0.5 rounded text-[10px] font-mono badge-glow-amber"><%= totalPending %></span>
                     <% } %>
                 </button>
-                <button onclick="switchTab('tab-bounties')" id="nav-bounties" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-all text-left group">
-                    <div class="flex items-center gap-3">
-                        <span class="text-lg">🎯</span> Bounties
-                    </div>
-                    <% if (pendingBounties && pendingBounties.length > 0) { %>
-                        <span class="bg-indigo-500 text-white px-2 py-0.5 rounded-md text-[10px] mono-text group-hover:animate-pulse"><%= pendingBounties.length %></span>
-                    <% } %>
+
+                <div class="mt-4 mb-2">
+                    <span class="text-[10px] font-bold text-neutral-600 uppercase tracking-widest px-4">Management</span>
+                </div>
+
+                <button onclick="switchTab('tab-users')" id="nav-users" class="nav-item px-4 py-3.5 rounded-xl flex items-center gap-4 text-sm font-semibold text-neutral-400 hover:text-white group">
+                    <span class="text-lg opacity-80 group-hover:opacity-100 transition-opacity">👥</span> Intelligence
                 </button>
-                <button onclick="switchTab('tab-orders')" id="nav-orders" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-all text-left group">
-                    <div class="flex items-center gap-3">
-                        <span class="text-lg">🛒</span> Store Orders
-                    </div>
-                    <% if (typeof pendingStoreOrders !== 'undefined' && pendingStoreOrders.length > 0) { %>
-                        <span class="bg-amber-500 text-white px-2 py-0.5 rounded-md text-[10px] mono-text group-hover:animate-pulse"><%= pendingStoreOrders.length %></span>
-                    <% } %>
+                <button onclick="switchTab('tab-ecosystem')" id="nav-ecosystem" class="nav-item px-4 py-3.5 rounded-xl flex items-center gap-4 text-sm font-semibold text-neutral-400 hover:text-white group">
+                    <span class="text-lg opacity-80 group-hover:opacity-100 transition-opacity">⚙️</span> Ecosystem
                 </button>
-                <button onclick="switchTab('tab-lookup')" id="nav-lookup" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
-                    <span class="text-lg">🔍</span> User Lookup
-                </button>
-                <a href="/admin/sybil-hunter?secret=<%= secret %>" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
-                    <span class="text-lg">🕵️</span> Sybil Hunter
-                </a>
-                <button onclick="switchTab('tab-leaderboard')" id="nav-leaderboard" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
-                    <span class="text-lg">🏆</span> Leaderboard
-                </button>
-                <button onclick="switchTab('tab-quests')" id="nav-quests" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
-                    <span class="text-lg">🎯</span> Quests
-                </button>
-                <button onclick="switchTab('tab-broadcast')" id="nav-broadcast" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
-                    <span class="text-lg">📢</span> Broadcast
-                </button>
-                <button onclick="switchTab('tab-controls')" id="nav-controls" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
-                    <span class="text-lg">⚙️</span> Ecosystem
-                </button>
-                <a href="/admin/queues?secret=<%= secret %>" class="sidebar-inactive px-4 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold uppercase tracking-wider transition-all text-left">
-                    <span class="text-lg">📈</span> Bull Queues ↗
-                </a>
             </nav>
         </div>
 
-        <div class="flex flex-col gap-3 mt-8">
-            <a href="/admin/logout" class="bg-neutral-900/10 text-neutral-600 hover:bg-neutral-300 w-full text-center py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all">
-                Logout
-            </a>
-        </div>
+        <a href="/admin/logout" class="glass-btn w-full text-center py-4 rounded-xl text-xs font-bold uppercase tracking-widest text-neutral-300 hover:text-white flex items-center justify-center gap-2">
+            <span>⏏</span> Disconnect
+        </a>
     </aside>
 
-    <!-- MAIN CONTENT -->
-    <main class="w-full md:ml-64 flex-1 p-4 md:p-8 h-screen overflow-y-auto pt-20 md:pt-8">
-        <div class="max-w-4xl mx-auto flex flex-col gap-6 pb-20">
+    <!-- MAIN CONTENT AREA -->
+    <main class="w-full lg:ml-64 flex-1 p-6 md:p-10 lg:p-12 min-h-screen relative z-10">
+        <div class="max-w-6xl mx-auto pb-20">
 
-            <!-- 1. TELEMETRY / METRICS -->
-            <section id="tab-telemetry" class="flex flex-col gap-6">
-                <div class="flex justify-between items-start md:items-end flex-col md:flex-row gap-4">
-                    <div>
-                        <h2 class="text-2xl font-bold tracking-tight text-white">Analytics</h2>
-                        <p class="text-sm text-neutral-400 font-medium">Real-time stats and metrics.</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <a href="/admin/export-users?secret=<%= secret %>" class="bg-neutral-900 border border-white/10 text-neutral-700 hover:bg-neutral-900/5 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm transition-all">📄 Export Users</a>
-                        <a href="/admin/export-withdrawals?secret=<%= secret %>" class="bg-neutral-900 border border-white/10 text-neutral-700 hover:bg-neutral-900/5 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm transition-all">📄 Export Payouts</a>
+            <!-- TAB: OVERVIEW (Analytics, Telemetry, Demographics) -->
+            <section id="tab-dashboard" class="flex flex-col gap-8">
+                <!-- Header -->
+                <div class="flex justify-between items-end animate-fade-in stagger-1">
+                    <div class="flex flex-col gap-1">
+                        <h2 class="text-4xl font-heading font-black text-white tracking-tight">Mission Control</h2>
+                        <p class="text-neutral-400 text-sm">Real-time valuation, network health, and macro metrics.</p>
                     </div>
                 </div>
 
-                <!-- Dark Hero Card -->
-                <div class="w-full bg-neutral-950 text-[#e6ddd0] rounded-3xl p-8 border border-neutral-900 relative overflow-hidden shadow-lg flex flex-col gap-6">
-                    <div class="absolute inset-0 opacity-5 pointer-events-none bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_24px]"></div>
+                <!-- Hero Valuation Card -->
+                <div class="glass-panel p-8 relative overflow-hidden animate-fade-in stagger-2 group">
+                    <div class="absolute -right-20 -top-20 w-64 h-64 bg-violet-600/20 blur-[80px] rounded-full group-hover:bg-violet-600/30 transition-all duration-700"></div>
+                    <div class="absolute -left-20 -bottom-20 w-64 h-64 bg-cyan-600/20 blur-[80px] rounded-full group-hover:bg-cyan-600/30 transition-all duration-700"></div>
                     
-                    <div class="relative z-10 flex justify-between items-center">
-                        <span class="text-xs uppercase tracking-wider text-neutral-400 font-medium mono-text">Total System Value (Circulating)</span>
-                        <span class="bg-emerald-950 text-emerald-400 border border-emerald-900 px-3 py-1 rounded-lg text-[10px] uppercase font-bold tracking-widest">LIVE</span>
-                    </div>
-
-                    <div class="relative z-10 flex items-baseline gap-2">
-                        <span class="text-5xl font-bold tracking-tight text-neutral-100"><%= stats.circulatingPts.toLocaleString() %></span>
-                        <span class="text-sm font-medium tracking-widest text-neutral-400 mono-text">PTS</span>
-                    </div>
-
-                    <div class="relative z-10 flex gap-8 pt-4 border-t border-neutral-800">
-                        <div class="flex flex-col gap-1">
-                            <span class="text-[10px] uppercase tracking-wider text-neutral-400 font-bold mono-text">Valuation</span>
-                            <span class="text-lg font-bold text-emerald-400">$<%= stats.circulatingUsd %> USD</span>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <span class="text-[10px] uppercase tracking-wider text-neutral-400 font-bold mono-text">Total Users</span>
-                            <span class="text-lg font-bold text-white"><%= stats.users.toLocaleString() %></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sub Metrics Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-neutral-900/5 backdrop-blur-md border border-white/10 rounded-3xl p-5 flex flex-col gap-2 shadow-sm">
-                        <div class="flex items-center justify-between pb-2 border-b border-white/10">
-                            <div class="flex items-center gap-2 text-xs text-neutral-400">
-                                <span class="text-lg">📺</span> <span class="font-bold uppercase tracking-wider">Ad Network Yield</span>
-                            </div>
-                        </div>
-                        <span class="text-2xl font-bold text-white mt-1"><%= stats.adEarnings.toLocaleString() %> <span class="text-[10px] text-neutral-400 mono-text">PTS</span></span>
-                        <span class="text-[10px] font-bold text-neutral-400 mono-text">Across <%= stats.adsWatched.toLocaleString() %> watched ads</span>
-                    </div>
-
-                    <div class="bg-neutral-900/5 backdrop-blur-md border border-white/10 rounded-3xl p-5 flex flex-col gap-2 shadow-sm">
-                        <div class="flex items-center justify-between pb-2 border-b border-white/10">
-                            <div class="flex items-center gap-2 text-xs text-neutral-400">
-                                <span class="text-lg">🎯</span> <span class="font-bold uppercase tracking-wider">Task Yield</span>
-                            </div>
-                        </div>
-                        <span class="text-2xl font-bold text-white mt-1"><%= stats.taskEarnings.toLocaleString() %> <span class="text-[10px] text-neutral-400 mono-text">PTS</span></span>
-                        <span class="text-[10px] font-bold text-neutral-400 mono-text">From quests and promos</span>
-                    </div>
-
-                    <div class="bg-neutral-900/5 backdrop-blur-md border border-white/10 rounded-3xl p-5 flex flex-col gap-2 shadow-sm">
-                        <div class="flex items-center justify-between pb-2 border-b border-white/10">
-                            <div class="flex items-center gap-2 text-xs text-neutral-400">
-                                <span class="text-lg">🤝</span> <span class="font-bold uppercase tracking-wider">Campaign Referrals</span>
-                            </div>
-                        </div>
-                        <span class="text-2xl font-bold text-white mt-1"><%= stats.referralEarnings.toLocaleString() %> <span class="text-[10px] text-neutral-400 mono-text">PTS</span></span>
-                        <span class="text-[10px] font-bold text-neutral-400 mono-text">From referral milestones</span>
-                    </div>
-
-                    <div class="bg-neutral-900/5 backdrop-blur-md border border-white/10 rounded-3xl p-5 flex flex-col gap-2 shadow-sm">
-                        <div class="flex items-center gap-2 text-xs text-neutral-400 pb-2 border-b border-white/10">
-                            <span class="text-lg">💸</span> <span class="font-bold uppercase tracking-wider">Total Paid Out</span>
-                        </div>
-                        <span class="text-2xl font-bold text-white mt-1"><%= stats.paidOutPts.toLocaleString() %> <span class="text-[10px] text-neutral-400 mono-text">PTS</span></span>
-                        <span class="text-xs font-bold text-emerald-600 mono-text">≈ $<%= stats.paidOutUsd %> USD</span>
-                    </div>
-                </div>
-
-                <!-- PTS CALCULATOR -->
-                <div class="bg-indigo-950 text-indigo-100 rounded-3xl p-6 border border-indigo-900 shadow-md flex flex-col gap-4 relative overflow-hidden mt-4">
-                    <div class="absolute -right-4 -top-4 text-7xl opacity-10">🧮</div>
-                    <div class="flex items-center gap-2 pb-2 border-b border-indigo-900 relative z-10">
-                        <span class="text-xl">🧮</span>
-                        <h3 class="font-bold text-sm uppercase tracking-wider text-indigo-300 mono-text">Quick Converter (PTS ↔ USD)</h3>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                    <div class="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
                         <div class="flex flex-col gap-2">
-                            <label class="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Points (PTS)</label>
-                            <input type="number" id="calc-pts" placeholder="Enter PTS..." class="w-full bg-indigo-900/50 border border-indigo-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500" oninput="calcToUsd()">
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs uppercase tracking-widest text-neutral-400 font-bold">Circulating Supply</span>
+                                <span class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded text-[9px] uppercase font-bold tracking-widest flex items-center gap-2"><span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span> LIVE</span>
+                            </div>
+                            <div class="flex items-baseline gap-3">
+                                <span class="text-6xl font-heading font-black text-white tracking-tighter"><%= stats.circulatingPts.toLocaleString() %></span>
+                                <span class="text-xl font-bold text-violet-400 font-mono">PTS</span>
+                            </div>
+                            <span class="text-2xl font-semibold text-emerald-400 font-mono mt-2">≈ $<%= stats.circulatingUsd %></span>
                         </div>
-                        <div class="flex flex-col gap-2">
-                            <label class="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Dollars (USD)</label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300 font-bold">$</span>
-                                <input type="number" id="calc-usd" placeholder="Enter USD..." class="w-full bg-indigo-900/50 border border-indigo-800 rounded-xl pl-8 pr-4 py-3 text-white focus:outline-none focus:border-indigo-500" oninput="calcToPts()">
+
+                        <div class="flex gap-4">
+                            <div class="glass-panel !rounded-2xl p-6 flex flex-col items-center justify-center min-w-[140px] bg-white/5">
+                                <span class="text-3xl font-heading font-black text-white"><%= stats.users.toLocaleString() %></span>
+                                <span class="text-[10px] text-neutral-400 uppercase tracking-widest font-bold mt-1">Total Users</span>
+                            </div>
+                            <div class="glass-panel !rounded-2xl p-6 flex flex-col items-center justify-center min-w-[140px] bg-white/5">
+                                <span class="text-3xl font-heading font-black text-white"><%= stats.paidOutPts.toLocaleString() %></span>
+                                <span class="text-[10px] text-neutral-400 uppercase tracking-widest font-bold mt-1">PTS Paid Out</span>
                             </div>
                         </div>
                     </div>
-                    <script>
-                        function calcToUsd() {
-                            const pts = parseFloat(document.getElementById('calc-pts').value) || 0;
-                            const usd = pts * 0.0008;
-                            document.getElementById('calc-usd').value = usd > 0 ? usd.toFixed(2) : "";
-                        }
-                        function calcToPts() {
-                            const usd = parseFloat(document.getElementById('calc-usd').value) || 0;
-                            const pts = usd / 0.0008;
-                            document.getElementById('calc-pts').value = pts > 0 ? Math.round(pts) : "";
-                        }
-                    </script>
                 </div>
 
-                <!-- AD NETWORK TELEMETRY -->
-                <div class="mt-4 flex flex-col gap-4">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xl">📡</span>
-                        <h3 class="font-bold tracking-tight uppercase text-white">Network Health & Telemetry</h3>
+                <!-- Sub-Metrics Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in stagger-3">
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-xl">📺</div>
+                            <span class="font-bold text-neutral-300">Ad Yield</span>
+                        </div>
+                        <div>
+                            <span class="text-3xl font-heading font-bold text-white"><%= stats.adEarnings.toLocaleString() %></span> <span class="text-sm font-mono text-neutral-500">PTS</span>
+                        </div>
+                        <span class="text-xs text-neutral-500"><%= stats.adsWatched.toLocaleString() %> impressions</span>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <% const networkNames = Object.keys(telemetry || {}); %>
-                        <% if (networkNames.length > 0) { %>
-                            <% networkNames.forEach(net => { %>
-                                <div class="bg-neutral-900/5 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-sm flex flex-col gap-2 relative">
-                                    <% const stats = telemetry[net]; %>
-                                    <% const total = stats.success + stats.fail; %>
-                                    <% const winRate = total > 0 ? Math.round((stats.success / total) * 100) : 0; %>
-                                    
-                                    <div class="flex justify-between items-center border-b border-white/10 pb-2">
-                                        <span class="text-xs font-bold uppercase tracking-widest text-neutral-200"><%= net %></span>
-                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-md mono-text <%= winRate > 50 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800' %>">
-                                            <%= winRate %>% WIN
-                                        </span>
-                                    </div>
-                                    <div class="flex justify-between mt-1 text-xs mono-text">
-                                        <span class="text-emerald-600 font-bold">Success: <%= stats.success %></span>
-                                        <span class="text-rose-600 font-bold">Failed: <%= stats.fail %></span>
-                                    </div>
-                                    <% if (stats.lastError) { %>
-                                        <div class="mt-2 bg-rose-50 text-rose-800 text-[9px] p-2 rounded-lg mono-text truncate" title="<%= stats.lastError %>">
-                                            ⚠️ <%= stats.lastError %>
-                                        </div>
-                                    <% } else { %>
-                                        <div class="mt-2 bg-emerald-50 text-emerald-800 text-[9px] p-2 rounded-lg mono-text">
-                                            ✅ Operational
-                                        </div>
-                                    <% } %>
-                                </div>
-                            <% }) %>
-                        <% } else { %>
-                            <div class="col-span-full text-center text-xs text-neutral-400 py-6 border border-dashed border-white/10 rounded-2xl">
-                                No telemetry data captured yet. Network tracking initiates automatically on first ad rotation.
-                            </div>
-                        <% } %>
+
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-xl">🎯</div>
+                            <span class="font-bold text-neutral-300">Task Yield</span>
+                        </div>
+                        <div>
+                            <span class="text-3xl font-heading font-bold text-white"><%= stats.taskEarnings.toLocaleString() %></span> <span class="text-sm font-mono text-neutral-500">PTS</span>
+                        </div>
+                        <span class="text-xs text-neutral-500">Quests & Promos</span>
+                    </div>
+
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-xl">🤝</div>
+                            <span class="font-bold text-neutral-300">Referral Yield</span>
+                        </div>
+                        <div>
+                            <span class="text-3xl font-heading font-bold text-white"><%= stats.referralEarnings.toLocaleString() %></span> <span class="text-sm font-mono text-neutral-500">PTS</span>
+                        </div>
+                        <span class="text-xs text-neutral-500">Network milestones</span>
                     </div>
                 </div>
 
-                <!-- COUNTRY BREAKDOWN -->
-                <div class="mt-4 flex flex-col gap-4">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xl">🌎</span>
-                        <h3 class="font-bold tracking-tight uppercase text-white">Demographic Distribution</h3>
-                    </div>
-                    <div class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 shadow-sm flex flex-col gap-2">
-                        <% if (countryStats && countryStats.length > 0) { %>
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                <% countryStats.forEach((c, index) => { %>
-                                    <div class="flex items-center justify-between bg-neutral-900/5 p-3 rounded-xl border border-white/5 hover:border-indigo-500/50 transition-colors">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs font-bold text-neutral-400 mono-text">#<%= index + 1 %></span>
-                                            <span class="text-sm font-bold text-white"><%= c.country %></span>
-                                        </div>
-                                        <span class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-lg mono-text"><%= c.count.toLocaleString() %> Users</span>
-                                    </div>
-                                <% }) %>
-                            </div>
-                        <% } else { %>
-                            <div class="text-center text-xs text-neutral-400 py-6 border border-dashed border-white/10 rounded-2xl">
-                                No demographics data available yet.
-                            </div>
-                        <% } %>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 2. PENDING PAYOUTS -->
-            <section id="tab-payouts" class="hide-section flex flex-col gap-6">
-                <div class="flex justify-between items-end">
-                    <div>
-                        <h2 class="text-2xl font-bold tracking-tight text-white">Pending Payouts</h2>
-                        <p class="text-sm text-neutral-400 font-medium">Review and process withdrawal requests.</p>
-                    </div>
-                </div>
-
-                <div class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 shadow-sm flex flex-col gap-4">
-                    <% if (pendingList && pendingList.length > 0) { %>
+                <!-- Telemetry & Demographics -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in stagger-4">
+                    <!-- Network Telemetry -->
+                    <div class="glass-panel p-6 flex flex-col gap-6">
+                        <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">📡 Ad Network Telemetry</h3>
                         <div class="flex flex-col gap-3">
-                            <% pendingList.forEach(p => { %>
-                                <div class="flex items-center justify-between bg-neutral-900/5 p-4 rounded-2xl border border-white/10">
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-10 h-10 rounded-full bg-neutral-900/10 flex items-center justify-center text-lg shadow-inner">
-                                            <%= (p.username || 'A').charAt(0).toUpperCase() %>
+                            <% const networkNames = Object.keys(telemetry || {}); %>
+                            <% if (networkNames.length > 0) { %>
+                                <% networkNames.forEach(net => { %>
+                                    <% const stat = telemetry[net]; const total = stat.success + stat.fail; const winRate = total > 0 ? Math.round((stat.success / total) * 100) : 0; %>
+                                    <div class="bg-black/20 rounded-xl p-4 border border-white/5 flex flex-col gap-3 hover:border-white/10 transition-colors">
+                                        <div class="flex justify-between items-center">
+                                            <span class="font-bold text-neutral-200"><%= net %></span>
+                                            <span class="px-2 py-1 rounded-md text-[10px] font-mono font-bold <%= winRate > 50 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20' %>"><%= winRate %>% WIN</span>
                                         </div>
-                                        <div class="flex flex-col gap-0.5">
-                                            <span class="text-sm font-bold text-white">@<%= p.username || 'Anonymous' %></span>
-                                            <span class="text-[10px] text-neutral-400 mono-text">ID: <%= p.telegram_id %></span>
-                                            <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md w-max mt-1"><%= p.asset %>: <%= p.amount_points %> PTS</span>
+                                        <div class="flex justify-between text-xs font-mono">
+                                            <span class="text-emerald-500">Succ: <%= stat.success %></span>
+                                            <span class="text-rose-500">Fail: <%= stat.fail %></span>
                                         </div>
-                                    </div>
-                                    
-                                    <div class="flex flex-col items-end gap-2 text-right">
-                                        <span class="text-[10px] bg-neutral-900 border border-white/10 px-2 py-1 rounded-md text-neutral-600 mono-text max-w-[200px] truncate"><%= p.destination_details %></span>
-                                        <div class="flex gap-2">
-                                            <a href="/admin/payout?txId=<%= p.id %>&action=reject" class="px-4 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-[10px] font-bold uppercase transition-all">Reject</a>
-                                            <a href="/admin/payout?txId=<%= p.id %>&action=approve" class="px-4 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-[#e6ddd0] rounded-lg text-[10px] font-bold uppercase transition-all shadow-sm">Approve</a>
-                                        </div>
-                                    </div>
-                                </div>
-                            <% }) %>
-                        </div>
-                    <% } else { %>
-                        <div class="text-center py-12 flex flex-col items-center gap-3 opacity-50">
-                            <span class="text-4xl">📭</span>
-                            <span class="text-sm font-bold text-neutral-400 uppercase tracking-widest">Inbox Zero</span>
-                        </div>
-                    <% } %>
-                </div>
-            </section>
-
-            <!-- 2.5 BOUNTIES REVIEW -->
-            <section id="tab-bounties" class="hide-section flex flex-col gap-6">
-                <div class="flex justify-between items-end">
-                    <div>
-                        <h2 class="text-2xl font-bold tracking-tight text-white">Bounty Approvals</h2>
-                        <p class="text-sm text-neutral-400 font-medium">Review submitted proof links and approve/reject social tasks.</p>
-                    </div>
-                </div>
-
-                <div class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 shadow-sm flex flex-col gap-4">
-                    <% if (pendingBounties && pendingBounties.length > 0) { %>
-                        <div class="flex flex-col gap-3">
-                            <% pendingBounties.forEach(sub => { %>
-                                <div class="flex items-center justify-between bg-neutral-900/5 p-4 rounded-2xl border border-white/10 flex-wrap gap-4">
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-lg shadow-inner border border-indigo-200">🎯</div>
-                                        <div class="flex flex-col gap-0.5">
-                                            <span class="text-sm font-bold text-white"><%= sub.bounty.title || 'Unknown Bounty' %></span>
-                                            <span class="text-[10px] text-neutral-400 font-medium">Sub by: @<%= sub.user.username || sub.user.telegram_id || 'Anonymous' %> (Tier: <%= sub.user.account_tier || 'Standard' %>)</span>
-                                            <div class="flex gap-2 mt-1">
-                                                <a href="<%= sub.proof_link %>" target="_blank" class="text-[10px] font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 px-2 py-0.5 rounded-md w-max transition-colors flex items-center gap-1">View Proof ↗</a>
-                                                <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md w-max">Reward: +<%= sub.bounty.reward_pts || 0 %> PTS</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="flex flex-col items-end gap-2 text-right">
-                                        <div class="flex gap-2">
-                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=reject" class="px-4 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-[10px] font-bold uppercase transition-all whitespace-nowrap">Reject (+1 Strike)</a>
-                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=approve" class="px-4 py-1.5 bg-neutral-950 hover:bg-neutral-800 text-[#e6ddd0] rounded-lg text-[10px] font-bold uppercase transition-all shadow-sm">Approve</a>
-                                        </div>
-                                    </div>
-                                </div>
-                            <% }) %>
-                        </div>
-                    <% } else { %>
-                        <div class="text-center py-12 flex flex-col items-center gap-3 opacity-50">
-                            <span class="text-4xl">📭</span>
-                            <span class="text-sm font-bold text-neutral-400 uppercase tracking-widest">No Pending Bounties</span>
-                        </div>
-                    <% } %>
-                </div>
-            </section>
-
-            <!-- 2.5 STORE ORDERS -->
-            <section id="tab-orders" class="hide-section flex flex-col gap-6">
-                <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-white">Pending Store Orders</h2>
-                    <p class="text-sm text-neutral-400 font-medium">Verify Blue Tick upgrades via your partner and approve to grant Gold status.</p>
-                </div>
-
-                <div class="flex flex-col gap-4">
-                    <% if (typeof pendingStoreOrders !== 'undefined' && pendingStoreOrders.length > 0) { %>
-                        <% pendingStoreOrders.forEach(order => { %>
-                            <div class="bg-neutral-900/5 backdrop-blur-md rounded-3xl p-6 border border-amber-300/80 shadow-sm flex flex-col gap-4">
-                                <div class="flex justify-between items-start">
-                                    <div class="flex flex-col">
-                                        <div class="flex items-center gap-2">
-                                            <h3 class="font-bold text-lg text-white"><%= order.item_title %></h3>
-                                            <span class="bg-amber-100 text-amber-800 text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded">Pending</span>
-                                        </div>
-                                        <span class="text-xs text-neutral-400 mono-text">User: @<%= order.user.username || order.telegram_id %></span>
-                                    </div>
-                                    <span class="text-xl font-bold text-rose-600 mono-text"><%= order.cost.toLocaleString() %> PTS</span>
-                                </div>
-                                <div class="flex gap-2">
-                                    <form action="/admin/store-orders/action" method="POST" class="flex-1">
-                                        <input type="hidden" name="order_id" value="<%= order._id %>">
-                                        <input type="hidden" name="action" value="approve">
-                                        <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-xl uppercase tracking-widest transition-all">Approve (Upgrade Tier)</button>
-                                    </form>
-                                    <form action="/admin/store-orders/action" method="POST" class="flex-1">
-                                        <input type="hidden" name="order_id" value="<%= order._id %>">
-                                        <input type="hidden" name="action" value="reject">
-                                        <button class="w-full bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold py-3 rounded-xl uppercase tracking-widest transition-all">Reject (Refund PTS)</button>
-                                    </form>
-                                </div>
-                            </div>
-                        <% }) %>
-                    <% } else { %>
-                        <div class="text-center py-12 bg-neutral-900/5 backdrop-blur-md rounded-3xl border border-dashed border-white/10">
-                            <span class="text-4xl opacity-50 mb-4 block">🛒</span>
-                            <h3 class="text-neutral-400 font-bold uppercase tracking-widest text-sm">No Pending Orders</h3>
-                        </div>
-                    <% } %>
-                </div>
-            </section>
-
-            <!-- 3. USER LOOKUP -->
-            <section id="tab-lookup" class="hide-section flex flex-col gap-6">
-                <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-white">User Intelligence</h2>
-                    <p class="text-sm text-neutral-400 font-medium">Search the database and execute bans.</p>
-                </div>
-
-                <div class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-8 border border-white/10 shadow-sm flex flex-col gap-4">
-                    <form action="/admin/user-lookup" method="GET" class="flex flex-col gap-3">
-                        <label class="text-xs font-bold text-neutral-700 uppercase tracking-widest mono-text">Search Identifier</label>
-                        <div class="flex gap-3">
-                            <input type="text" name="q" placeholder="Enter Telegram ID or @username..." class="flex-1 px-5 py-4 rounded-2xl border border-white/10 bg-neutral-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-200 shadow-inner">
-                            <button type="submit" class="bg-neutral-950 hover:bg-neutral-900 text-[#e6ddd0] text-sm font-bold px-8 py-4 rounded-2xl shadow-sm tracking-widest uppercase transition-all">
-                                Search
-                            </button>
-                        </div>
-                        <p class="text-[10px] text-neutral-400">Searching by @username correctly strips the @ symbol automatically.</p>
-                    </form>
-                </div>
-            </section>
-
-            <!-- 4. LEADERBOARD -->
-            <section id="tab-leaderboard" class="hide-section flex flex-col gap-6">
-                <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-white">Wealth Leaderboard</h2>
-                    <p class="text-sm text-neutral-400 font-medium">Top 10 highest balance accounts. Monitor for abuse.</p>
-                </div>
-
-                <div class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-4 md:p-6 border border-white/10 shadow-sm flex flex-col gap-2">
-                    <div class="grid grid-cols-12 px-2 md:px-4 py-2 text-[10px] uppercase font-bold text-neutral-400 tracking-widest mono-text border-b border-white/10">
-                        <div class="col-span-2 md:col-span-1">Rnk</div>
-                        <div class="col-span-6 md:col-span-5">User</div>
-                        <div class="col-span-4 md:col-span-3 text-right hidden md:block">Balance</div>
-                        <div class="col-span-4 md:col-span-3 text-right">Action</div>
-                    </div>
-                    <% topUsers.forEach((u, index) => { %>
-                        <div class="grid grid-cols-12 px-2 md:px-4 py-3 items-center bg-neutral-900/5 rounded-xl border border-neutral-100 hover:border-white/10 transition-all gap-1">
-                            <div class="col-span-2 md:col-span-1 text-sm font-bold <%= index < 3 ? 'text-amber-500' : 'text-neutral-400' %>">#<%= index + 1 %></div>
-                            <div class="col-span-6 md:col-span-5 flex flex-col truncate">
-                                <span class="text-sm font-bold text-white truncate">@<%= u.username || 'Anon' %></span>
-                                <span class="text-[9px] text-neutral-400 mono-text"><%= u.telegram_id %></span>
-                            </div>
-                            <div class="col-span-4 md:col-span-3 text-right font-bold text-emerald-700 mono-text hidden md:block">
-                                <%= u.points_balance.toLocaleString() %> PTS
-                            </div>
-                            <div class="col-span-4 md:col-span-3 text-right flex flex-col md:block items-end gap-1">
-                                <span class="md:hidden text-[10px] font-bold text-emerald-700 mono-text"><%= u.points_balance.toLocaleString() %> PTS</span>
-                                <a href="/admin/user-lookup?q=<%= u.telegram_id %>" class="text-[10px] font-bold text-neutral-950 bg-neutral-900/10 hover:bg-neutral-300 px-3 py-1.5 rounded-lg uppercase transition-all whitespace-nowrap">Inspect</a>
-                            </div>
-                        </div>
-                    <% }) %>
-                </div>
-            </section>
-
-            <!-- 5. BROADCAST ENGINE -->
-            <section id="tab-broadcast" class="hide-section flex flex-col gap-6">
-                <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-white">Broadcast Engine</h2>
-                    <p class="text-sm text-neutral-400 font-medium">Push a direct Telegram message to every registered user via Bull Queues.</p>
-                </div>
-
-                <div class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-8 border border-white/10 shadow-sm flex flex-col gap-4 relative overflow-hidden">
-                    <div class="absolute right-[-20px] top-[-20px] text-8xl opacity-5 select-none pointer-events-none">📢</div>
-                    <form action="/admin/broadcast" method="POST" class="flex flex-col gap-4 relative z-10 border-b border-white/10 pb-6">
-                        <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-neutral-700 uppercase tracking-widest mono-text">Message Payload</label>
-                            <textarea name="message_text" rows="5" placeholder="Enter your HTML formatted message here... (e.g. <b>Hello</b>)" class="w-full px-5 py-4 rounded-2xl border border-white/10 bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-200 shadow-inner resize-none"></textarea>
-                        </div>
-                        <button type="submit" onclick="return confirm('WARNING: This will instantly queue a message to <%= stats.users %> users. Are you absolutely sure?')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-8 py-4 rounded-2xl shadow-md tracking-widest uppercase transition-all self-end">
-                            Deploy Broadcast
-                        </button>
-                    </form>
-
-                    <form action="/admin/wakeup-push" method="POST" class="flex items-center justify-between mt-2">
-                        <div class="flex flex-col">
-                            <span class="text-sm font-bold text-white">Automated Wake-up Call</span>
-                            <span class="text-[10px] text-neutral-400 uppercase tracking-widest mono-text">Ping inactive users who haven't logged in for 48 hrs</span>
-                        </div>
-                        <button type="submit" onclick="return confirm('This will ping all inactive users with a reminder. Proceed?')" class="bg-amber-100 hover:bg-amber-200 text-amber-700 text-[10px] font-bold px-4 py-2 rounded-xl uppercase transition-all">
-                            Send Wake-up Pings
-                        </button>
-                    </form>
-                </div>
-            </section>
-
-            <!-- 6. ECOSYSTEM CONTROLS -->
-            <section id="tab-controls" class="hide-section flex flex-col gap-6">
-                <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-white">Ecosystem Controls</h2>
-                    <p class="text-sm text-neutral-400 font-medium">Global toggles affecting all users live on the network.</p>
-                </div>
-
-                <form action="/admin/settings" method="POST" class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-8 border border-white/10 shadow-sm flex flex-col gap-6">
-                    
-                    <div class="flex justify-between items-center bg-neutral-900/5 p-5 rounded-2xl border border-white/10">
-                        <div class="flex flex-col">
-                            <label class="text-sm font-bold text-white">Global Maintenance Mode</label>
-                            <span class="text-[10px] text-neutral-400 uppercase tracking-widest mono-text mt-0.5">Blocks all UI access</span>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" name="maintenance" class="sr-only peer" <%= settings.maintenance ? 'checked' : '' %>>
-                            <div class="w-14 h-7 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-900 after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-500"></div>
-                        </label>
-                    </div>
-
-                    <div class="flex justify-between items-center bg-neutral-900/5 p-5 rounded-2xl border border-white/10">
-                        <div class="flex flex-col">
-                            <label class="text-sm font-bold text-white">Allow Withdrawals</label>
-                            <span class="text-[10px] text-neutral-400 uppercase tracking-widest mono-text mt-0.5">Toggle payouts on/off</span>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" name="withdrawals" class="sr-only peer" <%= settings.withdrawals ? 'checked' : '' %>>
-                            <div class="w-14 h-7 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-900 after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500"></div>
-                        </label>
-                    </div>
-                    
-                    <div class="flex flex-col gap-2">
-                        <label class="text-xs font-bold text-neutral-700 uppercase tracking-widest mono-text">Reward Yield Per Loop</label>
-                        <input type="number" name="reward_per_ad" value="<%= settings.reward_per_ad || 3 %>" class="w-full px-5 py-4 rounded-2xl border border-white/10 bg-neutral-900 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-200 shadow-inner">
-                    </div>
-
-                    <div class="flex flex-col gap-2">
-                        <label class="text-xs font-bold text-neutral-700 uppercase tracking-widest mono-text">7-Day Login Streak Reward</label>
-                        <input type="number" name="streak_reward" value="<%= settings.streak_reward || 500 %>" class="w-full px-5 py-4 rounded-2xl border border-white/10 bg-neutral-900 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-200 shadow-inner">
-                    </div>
-
-                    <button type="submit" class="bg-neutral-950 hover:bg-neutral-900 text-[#e6ddd0] text-sm font-bold px-8 py-4 rounded-2xl shadow-sm tracking-widest uppercase transition-all mt-2">
-                        Commit Global Settings
-                    </button>
-                </form>
-
-                <form action="/admin/store-config" method="POST" class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-8 border border-white/10 shadow-sm flex flex-col gap-6 mt-4">
-                    <div class="flex items-center gap-2 pb-2 border-b border-white/10">
-                        <span class="text-xl">🛒</span>
-                        <h3 class="font-bold text-sm uppercase tracking-wider text-white">Store Pricing Configuration</h3>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="flex flex-col gap-2">
-                            <div class="flex items-center justify-between">
-                                <label class="text-xs font-bold text-neutral-700 uppercase">Cooldown Reset (PTS)</label>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" name="enable_cooldown" class="sr-only peer" <%= storeConfig.enable_cooldown !== false ? 'checked' : '' %>>
-                                    <div class="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-900 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
-                                </label>
-                            </div>
-                            <input type="number" name="cooldown" value="<%= storeConfig.cooldown %>" required class="w-full px-4 py-3 rounded-xl border border-white/10 bg-neutral-900 focus:ring-2 focus:ring-neutral-900 shadow-inner">
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <div class="flex items-center justify-between">
-                                <label class="text-xs font-bold text-neutral-700 uppercase">2x Multiplier 1 Month (PTS)</label>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" name="enable_multiplier" class="sr-only peer" <%= storeConfig.enable_multiplier !== false ? 'checked' : '' %>>
-                                    <div class="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-900 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
-                                </label>
-                            </div>
-                            <input type="number" name="multiplier" value="<%= storeConfig.multiplier %>" required class="w-full px-4 py-3 rounded-xl border border-white/10 bg-neutral-900 focus:ring-2 focus:ring-neutral-900 shadow-inner">
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <div class="flex items-center justify-between">
-                                <label class="text-xs font-bold text-violet-700 uppercase">Premium Tier Upgrade (PTS)</label>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" name="enable_premium" class="sr-only peer" <%= storeConfig.enable_premium !== false ? 'checked' : '' %>>
-                                    <div class="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-900 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
-                                </label>
-                            </div>
-                            <input type="number" name="premium_tier" value="<%= storeConfig.premium_tier %>" required class="w-full px-4 py-3 rounded-xl border border-violet-200 bg-violet-50 focus:ring-2 focus:ring-violet-500 shadow-inner">
-                        </div>
-                        <div class="flex items-center justify-between col-span-1 md:col-span-2 mt-4 pt-4 border-t border-white/10">
-                            <label class="text-sm font-bold text-amber-700 uppercase tracking-widest">Enable Gold Tier Packages</label>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" name="enable_gold" class="sr-only peer" <%= storeConfig.enable_gold !== false ? 'checked' : '' %>>
-                                <div class="w-11 h-6 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-900 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                            </label>
-                        </div>
-                        
-                        <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-amber-700 uppercase">Gold Tier 3 Months (PTS)</label>
-                            <input type="number" name="gold_tier_3m" value="<%= storeConfig.gold_tier_3m %>" required class="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 focus:ring-2 focus:ring-amber-500 shadow-inner">
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-amber-700 uppercase">Gold Tier 6 Months (PTS)</label>
-                            <input type="number" name="gold_tier_6m" value="<%= storeConfig.gold_tier_6m %>" required class="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 focus:ring-2 focus:ring-amber-500 shadow-inner">
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-amber-700 uppercase">Gold 3M + Blue Tick (PTS)</label>
-                            <input type="number" name="gold_tier_3m_blue" value="<%= storeConfig.gold_tier_3m_blue %>" required class="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 focus:ring-2 focus:ring-amber-500 shadow-inner">
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <label class="text-xs font-bold text-amber-700 uppercase">Gold 6M + Blue Tick (PTS)</label>
-                            <input type="number" name="gold_tier_6m_blue" value="<%= storeConfig.gold_tier_6m_blue %>" required class="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 focus:ring-2 focus:ring-amber-500 shadow-inner">
-                        </div>
-                    </div>
-
-                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-8 py-4 rounded-2xl shadow-sm tracking-widest uppercase transition-all mt-2 self-end">
-                        Update Pricing
-                    </button>
-                </form>
-
-                <div class="w-full bg-rose-50 border border-rose-200 rounded-3xl p-6 mt-4 flex flex-col gap-4">
-                    <div class="flex items-center gap-2 text-rose-800">
-                        <span class="text-xl">🧨</span>
-                        <h3 class="font-bold tracking-tight uppercase">Nuclear Option</h3>
-                    </div>
-                    <button onclick="wipeAll()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 rounded-2xl shadow-md tracking-widest uppercase transition-all text-xs">
-                        Wipe Entire Production Database
-                    </button>
-                </div>
-            </section>
-
-            <!-- QUESTS & PROMOS ENGINE -->
-            <section id="tab-quests" class="hide-section flex flex-col gap-6">
-                <div>
-                    <h2 class="text-2xl font-bold tracking-tight text-white">Dynamic Quests Engine</h2>
-                    <p class="text-sm text-neutral-400 font-medium">Build, deploy, and manage on-chain custom promotional tasks.</p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 shadow-sm flex flex-col gap-4">
-                        <h3 class="font-bold uppercase tracking-wider text-sm">Create New Quest</h3>
-                        <form action="/admin/quests?secret=<%= secret %>" method="POST" class="flex flex-col gap-4">
-                            <input type="hidden" name="action" value="create">
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs font-bold text-neutral-400 uppercase">Quest Key (No spaces)</label>
-                                <input type="text" name="key" placeholder="e.g., promo2" required class="px-4 py-3 rounded-xl border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs font-bold text-neutral-400 uppercase">Display Title</label>
-                                <input type="text" name="title" placeholder="e.g., Retweet latest post" required class="px-4 py-3 rounded-xl border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs font-bold text-neutral-400 uppercase">Target URL</label>
-                                <input type="url" name="url" placeholder="https://..." required class="px-4 py-3 rounded-xl border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-xs font-bold text-neutral-400 uppercase">Reward (PTS)</label>
-                                    <input type="number" name="pts" placeholder="150" required class="px-4 py-3 rounded-xl border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
-                                </div>
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-xs font-bold text-neutral-400 uppercase">Emoji Icon</label>
-                                    <input type="text" name="icon" placeholder="🔥" value="🔥" required class="px-4 py-3 rounded-xl border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
-                                </div>
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs font-bold text-neutral-400 uppercase">Tier Required</label>
-                                <select name="tier_required" class="px-4 py-3 rounded-xl border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-neutral-900">
-                                    <option value="Any">Any Tier (Standard)</option>
-                                    <option value="Premium">Premium & Above</option>
-                                    <option value="Gold">Gold Only</option>
-                                </select>
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs font-bold text-neutral-400 uppercase">Target Countries (Comma separated, empty for Global)</label>
-                                <input type="text" name="target_countries" placeholder="e.g., NG,US,UK" class="px-4 py-3 rounded-xl border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900">
-                            </div>
-                            <div class="flex items-center gap-2 mt-1">
-                                <input type="checkbox" name="is_telegram" id="is_telegram" class="w-4 h-4 text-indigo-600 bg-neutral-900/5 border-white/10 rounded focus:ring-indigo-500">
-                                <label for="is_telegram" class="text-xs font-bold text-neutral-700">Require Telegram API Join Verification (Group/Channel)</label>
-                            </div>
-                            <button type="submit" class="bg-neutral-950 text-white font-bold py-3 rounded-xl uppercase tracking-widest text-xs mt-2 hover:bg-neutral-800">Deploy Quest</button>
-                        </form>
-                    </div>
-
-                    <div class="w-full bg-neutral-900/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 shadow-sm flex flex-col gap-4">
-                        <h3 class="font-bold uppercase tracking-wider text-sm">Active Quests</h3>
-                        <div class="flex flex-col gap-3">
-                            <% 
-                                let activeQuests = {};
-                                try { activeQuests = JSON.parse(settings.dynamicQuests || '{}'); } catch(e) {}
-                                const questKeys = Object.keys(activeQuests);
-                            %>
-                            <% if (questKeys.length > 0) { %>
-                                <% questKeys.forEach(k => { %>
-                                    <div class="flex items-center justify-between bg-neutral-900/5 border border-white/10 p-3 rounded-xl">
-                                        <div class="flex flex-col">
-                                            <span class="text-sm font-bold"><%= activeQuests[k].icon %> <%= activeQuests[k].title %></span>
-                                            <span class="text-[10px] text-neutral-400 mono-text">Key: <%= k %> | Reward: <%= activeQuests[k].pts %> PTS</span>
-                                        </div>
-                                        <form action="/admin/quests?secret=<%= secret %>" method="POST">
-                                            <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="key" value="<%= k %>">
-                                            <button type="submit" class="bg-rose-100 text-rose-700 hover:bg-rose-200 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all">Remove</button>
-                                        </form>
+                                        <% if (stat.lastError) { %>
+                                            <span class="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-1 rounded truncate border border-rose-500/20 font-mono"><%= stat.lastError %></span>
+                                        <% } else { %>
+                                            <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 font-mono w-max">Operational</span>
+                                        <% } %>
                                     </div>
                                 <% }) %>
                             <% } else { %>
-                                <div class="text-center text-neutral-400 text-xs py-4 border border-dashed border-white/10 rounded-xl">No dynamic quests deployed.</div>
+                                <p class="text-xs text-neutral-500 italic">No telemetry data yet.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- Demographics -->
+                    <div class="glass-panel p-6 flex flex-col gap-6">
+                        <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">🌎 Demographics</h3>
+                        <div class="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-2">
+                            <% if (countryStats && countryStats.length > 0) { %>
+                                <% countryStats.forEach((c, index) => { %>
+                                    <div class="flex items-center justify-between bg-black/20 p-3.5 rounded-xl border border-white/5 hover:border-white/10 transition-all">
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-[10px] font-mono text-neutral-500">#<%= index + 1 %></span>
+                                            <span class="font-bold text-neutral-200 text-sm"><%= c.country %></span>
+                                        </div>
+                                        <span class="text-xs font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-md border border-cyan-500/20"><%= c.count.toLocaleString() %> Users</span>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic">No demographics data yet.</p>
                             <% } %>
                         </div>
                     </div>
                 </div>
             </section>
+
+            <!-- TAB: APPROVALS (Payouts, Bounties, Orders) -->
+            <section id="tab-approvals" class="hide-section flex flex-col gap-10">
+                <div class="flex flex-col gap-1 animate-fade-in">
+                    <h2 class="text-4xl font-heading font-black text-white tracking-tight">Action Center</h2>
+                    <p class="text-neutral-400 text-sm">Process pending payouts, review social bounties, and fulfill store orders.</p>
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-fade-in stagger-2">
+                    
+                    <!-- COLUMN 1: PAYOUTS -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-white/5 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">💸 Payouts</h3>
+                            <span class="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded text-[10px] font-mono"><%= pendingList ? pendingList.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            <% if (pendingList && pendingList.length > 0) { %>
+                                <% pendingList.forEach(p => { %>
+                                    <div class="bg-black/30 rounded-xl p-4 border border-white/5 flex flex-col gap-3 hover:border-white/10 transition-colors">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex flex-col gap-1">
+                                                <span class="font-bold text-sm text-white">@<%= p.username || 'Anon' %></span>
+                                                <span class="text-[10px] text-neutral-500 font-mono"><%= p.telegram_id %></span>
+                                            </div>
+                                            <span class="text-xs font-bold text-emerald-400 font-mono"><%= p.amount_points %> PTS</span>
+                                        </div>
+                                        <div class="text-[10px] text-neutral-400 bg-black/50 p-2 rounded truncate font-mono border border-white/5"><%= p.asset %>: <%= p.destination_details %></div>
+                                        <div class="grid grid-cols-2 gap-2 mt-1">
+                                            <a href="/admin/payout?txId=<%= p.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
+                                            <a href="/admin/payout?txId=<%= p.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve</a>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">Inbox Zero.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 2: BOUNTIES -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-white/5 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">🎯 Bounties</h3>
+                            <span class="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded text-[10px] font-mono"><%= pendingBounties ? pendingBounties.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            <% if (pendingBounties && pendingBounties.length > 0) { %>
+                                <% pendingBounties.forEach(sub => { %>
+                                    <div class="bg-black/30 rounded-xl p-4 border border-white/5 flex flex-col gap-3 hover:border-white/10 transition-colors">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex flex-col gap-1">
+                                                <span class="font-bold text-sm text-white"><%= sub.bounty.title || 'Task' %></span>
+                                                <span class="text-[10px] text-neutral-400">@<%= sub.user.username || sub.user.telegram_id %></span>
+                                            </div>
+                                            <span class="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded border border-indigo-500/20 font-bold">+<%= sub.bounty.reward_pts || 0 %> PTS</span>
+                                        </div>
+                                        <a href="<%= sub.proof_link %>" target="_blank" class="text-[10px] text-cyan-400 bg-cyan-500/5 hover:bg-cyan-500/10 p-2 rounded truncate border border-cyan-500/20 w-max transition-colors">View Proof ↗</a>
+                                        <div class="grid grid-cols-2 gap-2 mt-1">
+                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10">Reject</a>
+                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10">Approve</a>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending tasks.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 3: STORE ORDERS -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-white/5 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">🛒 Orders</h3>
+                            <span class="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof pendingStoreOrders !== 'undefined' ? pendingStoreOrders.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            <% if (typeof pendingStoreOrders !== 'undefined' && pendingStoreOrders.length > 0) { %>
+                                <% pendingStoreOrders.forEach(order => { %>
+                                    <div class="bg-black/30 rounded-xl p-4 border border-white/5 flex flex-col gap-3 hover:border-white/10 transition-colors">
+                                        <div class="flex flex-col gap-1">
+                                            <span class="font-bold text-sm text-amber-400"><%= order.item_title %></span>
+                                            <span class="text-[10px] text-neutral-400">User: @<%= order.user.username || order.telegram_id %></span>
+                                        </div>
+                                        <span class="text-xs font-bold text-rose-400 font-mono"><%= order.cost.toLocaleString() %> PTS</span>
+                                        
+                                        <div class="grid grid-cols-1 gap-2 mt-1">
+                                            <form action="/admin/store-orders/action" method="POST" class="w-full">
+                                                <input type="hidden" name="order_id" value="<%= order._id %>">
+                                                <input type="hidden" name="action" value="approve">
+                                                <button class="w-full glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 border-emerald-500/30">Approve (Upgrade)</button>
+                                            </form>
+                                            <form action="/admin/store-orders/action" method="POST" class="w-full">
+                                                <input type="hidden" name="order_id" value="<%= order._id %>">
+                                                <input type="hidden" name="action" value="reject">
+                                                <button class="w-full glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 border-rose-500/30">Reject (Refund)</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending upgrades.</p>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: INTELLIGENCE (User Lookup, Leaderboard) -->
+            <section id="tab-users" class="hide-section flex flex-col gap-10">
+                <div class="flex flex-col gap-1 animate-fade-in">
+                    <h2 class="text-4xl font-heading font-black text-white tracking-tight">Intelligence</h2>
+                    <p class="text-neutral-400 text-sm">Database search, wealth leaderboard, and Sybil protection.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in stagger-2">
+                    <!-- User Search -->
+                    <div class="glass-panel p-8 flex flex-col gap-6">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-heading font-bold text-xl text-white">Database Lookup</h3>
+                            <a href="/admin/sybil-hunter?secret=<%= secret %>" class="glass-btn text-violet-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:bg-violet-500/10">🕵️ Sybil Hunter</a>
+                        </div>
+                        <form action="/admin/user-lookup" method="GET" class="flex flex-col gap-4">
+                            <input type="text" name="q" placeholder="Enter Telegram ID or @username..." class="w-full bg-black/40 border border-white/10 rounded-xl px-5 py-4 text-white focus:outline-none focus:border-violet-500 transition-colors shadow-inner font-mono text-sm">
+                            <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all uppercase tracking-widest text-sm">Execute Search</button>
+                        </form>
+                    </div>
+
+                    <!-- PTS Calculator -->
+                    <div class="glass-panel p-8 flex flex-col gap-6 relative overflow-hidden group">
+                        <div class="absolute -right-10 -bottom-10 text-8xl opacity-5 group-hover:scale-110 transition-transform duration-500">🧮</div>
+                        <h3 class="font-heading font-bold text-xl text-white">Value Converter</h3>
+                        <div class="grid grid-cols-2 gap-4 relative z-10">
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Points (PTS)</label>
+                                <input type="number" id="calc-pts" placeholder="PTS" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500 font-mono" oninput="calcToUsd()">
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Dollars (USD)</label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500 font-bold">$</span>
+                                    <input type="number" id="calc-usd" placeholder="USD" class="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-white focus:outline-none focus:border-cyan-500 font-mono" oninput="calcToPts()">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Leaderboard -->
+                <div class="glass-panel p-8 animate-fade-in stagger-3">
+                    <h3 class="font-heading font-bold text-xl text-white mb-6">Wealth Distribution (Top 10)</h3>
+                    <div class="flex flex-col gap-2">
+                        <% topUsers.forEach((u, index) => { %>
+                            <div class="flex items-center justify-between bg-black/20 p-4 rounded-xl border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-sm font-heading font-black <%= index < 3 ? 'text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]' : 'text-neutral-500' %> w-6">#<%= index + 1 %></span>
+                                    <div class="flex flex-col">
+                                        <span class="font-bold text-white text-sm">@<%= u.username || 'Anon' %></span>
+                                        <span class="text-[10px] text-neutral-500 font-mono"><%= u.telegram_id %></span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <span class="font-mono font-bold text-emerald-400 hidden md:block"><%= u.points_balance.toLocaleString() %> PTS</span>
+                                    <a href="/admin/user-lookup?q=<%= u.telegram_id %>" class="glass-btn px-3 py-1.5 rounded-lg text-[10px] font-bold text-white uppercase hover:text-cyan-400">Inspect</a>
+                                </div>
+                            </div>
+                        <% }) %>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: ECOSYSTEM (Config, Store, Quests, Broadcast) -->
+            <section id="tab-ecosystem" class="hide-section flex flex-col gap-10">
+                <div class="flex flex-col gap-1 animate-fade-in">
+                    <h2 class="text-4xl font-heading font-black text-white tracking-tight">Ecosystem</h2>
+                    <p class="text-neutral-400 text-sm">Global variables, dynamic store pricing, quests builder, and broadcasts.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in stagger-2">
+                    
+                    <!-- Global Settings -->
+                    <form action="/admin/settings" method="POST" class="glass-panel p-8 flex flex-col gap-6">
+                        <h3 class="font-heading font-bold text-xl text-white">Global State</h3>
+                        
+                        <div class="flex justify-between items-center bg-black/20 p-4 rounded-xl border border-white/5">
+                            <div class="flex flex-col">
+                                <label class="text-sm font-bold text-white">Maintenance Mode</label>
+                                <span class="text-[10px] text-neutral-400">Blocks all client access</span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="maintenance" class="sr-only peer" <%= settings.maintenance ? 'checked' : '' %>>
+                                <div class="w-12 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                            </label>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-black/20 p-4 rounded-xl border border-white/5">
+                            <div class="flex flex-col">
+                                <label class="text-sm font-bold text-white">Allow Withdrawals</label>
+                                <span class="text-[10px] text-neutral-400">Toggle payout engine</span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="withdrawals" class="sr-only peer" <%= settings.withdrawals ? 'checked' : '' %>>
+                                <div class="w-12 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                            </label>
+                        </div>
+                        
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-neutral-400 uppercase tracking-widest">Base Reward Per Ad (PTS)</label>
+                            <input type="number" name="reward_per_ad" value="<%= settings.reward_per_ad || 3 %>" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-violet-500 font-mono">
+                        </div>
+                        
+                        <button type="submit" class="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all uppercase tracking-widest text-xs mt-2">Commit State</button>
+                    </form>
+
+                    <!-- Store Pricing -->
+                    <form action="/admin/store-config" method="POST" class="glass-panel p-8 flex flex-col gap-6">
+                        <h3 class="font-heading font-bold text-xl text-white">Store Config</h3>
+                        <div class="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-2">
+                            <% const storeItems = [
+                                { id: 'cooldown', label: 'Cooldown Reset', val: storeConfig.cooldown, enabled: storeConfig.enable_cooldown },
+                                { id: 'multiplier', label: '2x Multiplier', val: storeConfig.multiplier, enabled: storeConfig.enable_multiplier },
+                                { id: 'premium_tier', label: 'Premium Tier', val: storeConfig.premium_tier, enabled: storeConfig.enable_premium }
+                            ]; %>
+                            <% storeItems.forEach(item => { %>
+                            <div class="flex flex-col gap-2 bg-black/20 p-4 rounded-xl border border-white/5">
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs font-bold text-neutral-300 uppercase"><%= item.label %></label>
+                                    <input type="checkbox" name="enable_<%= item.id %>" class="w-4 h-4 accent-violet-500" <%= item.enabled !== false ? 'checked' : '' %>>
+                                </div>
+                                <input type="number" name="<%= item.id %>" value="<%= item.val %>" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white font-mono text-sm focus:border-violet-500 focus:outline-none">
+                            </div>
+                            <% }) %>
+
+                            <div class="border-t border-white/10 pt-4 mt-2">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h4 class="text-xs font-bold text-amber-400 uppercase tracking-widest">Gold Tier Packages</h4>
+                                    <input type="checkbox" name="enable_gold" class="w-4 h-4 accent-amber-500" <%= storeConfig.enable_gold !== false ? 'checked' : '' %>>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-400">3 Month</label>
+                                        <input type="number" name="gold_tier_3m" value="<%= storeConfig.gold_tier_3m %>" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white font-mono text-sm">
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-400">3 Month + X</label>
+                                        <input type="number" name="gold_tier_3m_blue" value="<%= storeConfig.gold_tier_3m_blue %>" class="w-full bg-black/50 border border-amber-500/30 rounded-lg px-3 py-2 text-white font-mono text-sm">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-white text-black hover:bg-neutral-200 font-bold py-3.5 rounded-xl transition-all uppercase tracking-widest text-xs mt-2">Update Pricing</button>
+                    </form>
+                </div>
+
+                <!-- Dynamic Quests Builder -->
+                <div class="glass-panel p-8 animate-fade-in stagger-3">
+                    <h3 class="font-heading font-bold text-xl text-white mb-6">Dynamic Quests Engine</h3>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Create Form -->
+                        <form action="/admin/quests" method="POST" class="flex flex-col gap-4">
+                            <input type="hidden" name="action" value="create">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Quest Key (No spaces)</label>
+                                    <input type="text" name="key" required placeholder="e.g. follow_twitter" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-cyan-500 font-mono text-xs">
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Icon Emoji</label>
+                                    <input type="text" name="icon" required placeholder="🐦" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-cyan-500 text-xs text-center">
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Quest Title</label>
+                                <input type="text" name="title" required placeholder="Follow us on Twitter" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-cyan-500 text-xs">
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Target URL</label>
+                                <input type="url" name="url" required placeholder="https://..." class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-cyan-500 font-mono text-xs">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Reward PTS</label>
+                                    <input type="number" name="pts" required placeholder="500" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-cyan-500 font-mono text-xs">
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tier Requirement</label>
+                                    <select name="tier_required" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-cyan-500 text-xs appearance-none">
+                                        <option value="Any">Any Tier</option>
+                                        <option value="Premium">Premium + Gold</option>
+                                        <option value="Gold">Gold Only</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Target Countries (Comma separated, empty for global)</label>
+                                <input type="text" name="target_countries" placeholder="US, UK, NG" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-cyan-500 font-mono text-xs uppercase">
+                            </div>
+                            <label class="flex items-center gap-3 mt-2 bg-black/20 p-3 rounded-xl border border-white/5 cursor-pointer hover:border-cyan-500/50 transition-colors">
+                                <input type="checkbox" name="is_telegram" class="w-4 h-4 accent-cyan-500">
+                                <span class="text-xs font-bold text-white">This is a Telegram joining task</span>
+                            </label>
+                            
+                            <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition-all uppercase tracking-widest text-xs mt-2 shadow-[0_0_15px_rgba(6,182,212,0.3)]">Deploy Quest</button>
+                        </form>
+
+                        <!-- Active Quests List -->
+                        <div class="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-2">
+                            <% const qObj = typeof dynamicQuests !== 'undefined' && typeof dynamicQuests === 'string' ? JSON.parse(dynamicQuests) : {}; %>
+                            <% const qKeys = Object.keys(qObj); %>
+                            <% if (qKeys.length > 0) { %>
+                                <% qKeys.forEach(k => { const q = qObj[k]; %>
+                                    <div class="bg-black/30 p-4 rounded-xl border border-white/5 flex flex-col gap-3 relative overflow-hidden">
+                                        <% if (q.is_telegram) { %><div class="absolute right-0 top-0 w-16 h-16 bg-blue-500/20 blur-[20px] rounded-full pointer-events-none"></div><% } %>
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-2xl"><%= q.icon %></span>
+                                                <div class="flex flex-col">
+                                                    <h4 class="font-bold text-white text-sm"><%= q.title %></h4>
+                                                    <span class="text-[10px] text-cyan-400 font-mono">+<%= q.pts %> PTS | Tier: <%= q.tier_required %></span>
+                                                </div>
+                                            </div>
+                                            <form action="/admin/quests" method="POST">
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="key" value="<%= k %>">
+                                                <button type="submit" class="text-rose-400 hover:text-rose-300 bg-rose-500/10 px-2 py-1 rounded text-[10px] font-bold border border-rose-500/20">Delete</button>
+                                            </form>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 text-[9px] font-mono text-neutral-500 uppercase">
+                                            <span>Key: <%= k %></span>
+                                            <% if (q.target_countries && q.target_countries.length > 0) { %>
+                                                <span class="text-amber-400 border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 rounded"><%= q.target_countries.join(', ') %></span>
+                                            <% } else { %>
+                                                <span class="text-emerald-400 border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 rounded">Global</span>
+                                            <% } %>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic flex items-center justify-center h-full border border-dashed border-white/10 rounded-xl bg-black/10">No active dynamic quests.</p>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Broadcast Engine -->
+                <div class="glass-panel p-8 animate-fade-in stagger-4 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 w-64 h-64 bg-rose-600/10 blur-[60px] rounded-full pointer-events-none"></div>
+                    <h3 class="font-heading font-bold text-xl text-white mb-6">Broadcast Engine</h3>
+                    <form action="/admin/broadcast" method="POST" class="flex flex-col gap-4 relative z-10">
+                        <textarea name="message_text" rows="4" placeholder="Enter HTML message payload here... (Sends to all <%= stats.users %> users)" class="w-full bg-black/40 border border-white/10 rounded-xl px-5 py-4 text-white focus:outline-none focus:border-rose-500 transition-colors font-mono text-sm resize-none"></textarea>
+                        <div class="flex justify-end gap-4">
+                            <form action="/admin/wakeup-push" method="POST">
+                                <button type="submit" onclick="return confirm('Send wake-up pings to inactive users?')" class="glass-btn text-amber-400 font-bold px-6 py-3 rounded-xl uppercase tracking-widest text-xs">Ping Inactive</button>
+                            </form>
+                            <button type="submit" onclick="return confirm('WARNING: Pushing broadcast to ALL users. Execute?')" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-8 py-3 rounded-xl shadow-[0_0_20px_rgba(225,29,72,0.4)] transition-all uppercase tracking-widest text-xs">Execute Broadcast</button>
+                        </div>
+                    </form>
+                </div>
+
+            </section>
         </div>
     </main>
 
     <script>
-        const secretKey = "<%= secret %>";
-
-        function toggleMobileMenu() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('mobile-overlay');
-            if (sidebar.classList.contains('-translate-x-full')) {
-                sidebar.classList.remove('-translate-x-full');
-                overlay.classList.remove('hidden');
-            } else {
-                sidebar.classList.add('-translate-x-full');
-                overlay.classList.add('hidden');
-            }
-        }
-
         function switchTab(tabId) {
-            const tabs = ['tab-telemetry', 'tab-payouts', 'tab-bounties', 'tab-orders', 'tab-lookup', 'tab-leaderboard', 'tab-quests', 'tab-broadcast', 'tab-controls'];
-            tabs.forEach(t => {
-                const el = document.getElementById(t);
-                if(el) el.classList.add('hide-section');
-                const navBtn = document.getElementById('nav-' + t.replace('tab-', ''));
-                if (navBtn) {
-                    navBtn.className = "sidebar-inactive px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-all text-left group";
-                }
+            document.querySelectorAll('section').forEach(el => {
+                el.classList.add('hide-section');
+                el.classList.remove('animate-fade-in');
             });
-            const activeSection = document.getElementById(tabId);
-            if(activeSection) activeSection.classList.remove('hide-section');
-            const activeNav = document.getElementById('nav-' + tabId.replace('tab-', ''));
-            if (activeNav) {
-                activeNav.className = "sidebar-active px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-all text-left group";
-            }
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            
+            const target = document.getElementById(tabId);
+            target.classList.remove('hide-section');
+            // Retrigger animation
+            void target.offsetWidth;
+            target.classList.add('animate-fade-in');
 
-            // Close mobile menu if open
-            const sidebar = document.getElementById('sidebar');
-            if (!sidebar.classList.contains('-translate-x-full') && window.innerWidth < 768) {
-                toggleMobileMenu();
-            }
-        }
-
-        function wipeAll() {
-            if (confirm("CRITICAL WARNING: This will permanently destroy ALL users and sessions from the production database. This cannot be undone! Are you absolutely sure?")) {
-                if (confirm("FINAL CONFIRMATION: Type OK to proceed with global wipe.")) {
-                    window.location.href = `/admin/delete-user?id=all`;
-                }
-            }
+            document.getElementById('nav-' + tabId.split('-')[1]).classList.add('active');
         }
     </script>
 </body>
