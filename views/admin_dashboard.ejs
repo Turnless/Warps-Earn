@@ -4,20 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Warps Control Center</title>
-    <script src="https://cdn.tailwindcss.com">
-        function toggleMobileSidebar() {
-            const sb = document.getElementById('sidebar');
-            const ov = document.getElementById('mobile-overlay');
-            if (sb.classList.contains('-translate-x-full')) {
-                sb.classList.remove('-translate-x-full');
-                ov.classList.remove('hidden');
-            } else {
-                sb.classList.add('-translate-x-full');
-                ov.classList.add('hidden');
-            }
-        }
-    </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@500;700;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <style>
         :root {
             --bg-color: #e6ddd0;
@@ -216,7 +205,7 @@
     </aside>
 
     <!-- MAIN CONTENT AREA -->
-    <main class="w-full lg:ml-64 flex-1 p-6 md:p-10 lg:p-12 min-h-screen relative z-10">
+    <main class="w-full lg:ml-64 flex-1 p-6 pt-20 lg:pt-12 md:p-10 lg:p-12 min-h-screen relative z-10">
         <div class="max-w-6xl mx-auto pb-20">
 
             <!-- TAB: OVERVIEW (Analytics, Telemetry, Demographics) -->
@@ -714,20 +703,50 @@
 
     <script>
         function switchTab(tabId) {
-            document.querySelectorAll('section').forEach(el => {
+            // Hide all sections
+            document.querySelectorAll('section[id^="tab-"]').forEach(el => {
                 el.classList.add('hide-section');
                 el.classList.remove('animate-fade-in');
             });
+            // Deactivate all nav items
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             
+            // Show the target section
             const target = document.getElementById(tabId);
-            target.classList.remove('hide-section');
-            // Retrigger animation
-            void target.offsetWidth;
-            target.classList.add('animate-fade-in');
+            if (target) {
+                target.classList.remove('hide-section');
+                void target.offsetWidth; // Retrigger animation
+                target.classList.add('animate-fade-in');
+            }
 
-            document.getElementById('nav-' + tabId.split('-')[1]).classList.add('active');
+            // Activate the nav item
+            const navId = 'nav-' + tabId.split('-')[1];
+            const navItem = document.getElementById(navId);
+            if (navItem) navItem.classList.add('active');
+
+            // Close mobile sidebar after clicking
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            if (sidebar && !sidebar.classList.contains('-translate-x-full') && window.innerWidth < 1024) {
+                sidebar.classList.add('-translate-x-full');
+                if (overlay) overlay.classList.add('hidden');
+            }
+        }
+
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            if (!sidebar) return;
+            
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                if (overlay) overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                if (overlay) overlay.classList.add('hidden');
+            }
         }
     </script>
 </body>
 </html>
+
