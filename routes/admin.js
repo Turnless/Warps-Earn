@@ -130,20 +130,30 @@ router.get('/', checkAdminAuth, async (req, res) => {
         // Fetch top 10 whales (Leaderboard feature)
         const topUsers = await User.find({}).sort({ points_balance: -1 }).limit(10).lean();
 
-        // Fetch Global Settings from Redis
-        let globalSettingsStr = await redis.get('global_settings');
-        let globalSettings = globalSettingsStr ? JSON.parse(globalSettingsStr) : {
+        // 📊 NEW: Aggregate Country Stats
+        const countryStatsRaw = await User.aggregate([
+            { $group: { _id: "$country", count: { $sum: 1 } } },
+            { $sort: { count: -1 } }
+        ]);
+        const countryStats = countryStatsRaw.map(c => ({
+            country: c._id || 'Unknown',
+            count: c.count
+        }));
+
+        const settingsStr = await redis.get('global_settings');
+        const settings = settingsStr ? JSON.parse(settingsStr) : {
             maintenance: false,
             withdrawals: true,
-            reward_per_ad: 3
+            reward_per_ad: 3,
+            streak_reward: 500
         };
 
         const questsStr = await redis.get('admin:dynamic_quests');
-        globalSettings.dynamicQuests = questsStr || '{}';
+        const dynamicQuests = questsStr || '{}';
 
         // Fetch Ad Telemetry Data
         const telemetryStr = await redis.get('admin:ad_telemetry');
-        const telemetryData = telemetryStr ? JSON.parse(telemetryStr) : {};
+        const telemetry = telemetryStr ? JSON.parse(telemetryStr) : {};
 
         // Fetch pending bounty submissions
         const BountySubmission = require('../models/BountySubmission');
@@ -170,7 +180,11 @@ router.get('/', checkAdminAuth, async (req, res) => {
             gold_tier_3m: 50000,
             gold_tier_6m: 90000,
             gold_tier_3m_blue: 80000,
-            gold_tier_6m_blue: 150000
+            gold_tier_6m_blue: 150000,
+            enable_cooldown: true,
+            enable_multiplier: true,
+            enable_premium: true,
+            enable_gold: true
         };
 
         res.render('admin_dashboard', { 
@@ -191,9 +205,11 @@ router.get('/', checkAdminAuth, async (req, res) => {
             pendingBounties: pendingBounties,
             pendingStoreOrders: pendingStoreOrders,
             topUsers: topUsers,
-            settings: globalSettings,
-            telemetry: telemetryData,
-            storeConfig: storeConfig
+            countryStats: countryStats,
+            settings: settings,
+            telemetry: telemetry,
+            storeConfig: storeConfig,
+            dynamicQuests: dynamicQuests
         });
     } catch (e) {
         console.error(e);
@@ -221,7 +237,7 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
 // --- 🛒 STORE CONFIG CONTROLLER ---
 router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { cooldown, multiplier, premium_tier, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue } = req.body;
+        const { cooldown, multiplier, premium_tier, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue, enable_cooldown, enable_multiplier, enable_premium, enable_gold } = req.body;
         const newConfig = {
             cooldown: parseInt(cooldown) || 500,
             multiplier: parseInt(multiplier) || 3000,
@@ -229,7 +245,11 @@ router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true
             gold_tier_3m: parseInt(gold_tier_3m) || 50000,
             gold_tier_6m: parseInt(gold_tier_6m) || 90000,
             gold_tier_3m_blue: parseInt(gold_tier_3m_blue) || 80000,
-            gold_tier_6m_blue: parseInt(gold_tier_6m_blue) || 150000
+            gold_tier_6m_blue: parseInt(gold_tier_6m_blue) || 150000,
+            enable_cooldown: enable_cooldown === 'on',
+            enable_multiplier: enable_multiplier === 'on',
+            enable_premium: enable_premium === 'on',
+            enable_gold: enable_gold === 'on'
         };
         await redis.set('admin:store_config', JSON.stringify(newConfig));
         res.redirect('/admin');

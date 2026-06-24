@@ -41,6 +41,10 @@
                     <span class="font-bold text-lg text-neutral-900"><%= user.first_name %></span>
                     <span class="text-xs font-medium text-neutral-500 mono-text">@<%= user.username || 'N/A' %></span>
                     <span class="text-[10px] bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded mt-1 w-max mono-text"><%= user.telegram_id %></span>
+                    <div class="flex gap-2 mt-2">
+                        <span class="text-[9px] font-bold bg-indigo-100 text-indigo-800 uppercase px-2 py-0.5 rounded"><%= user.account_tier || 'Standard' %> Tier</span>
+                        <span class="text-[9px] font-bold bg-amber-100 text-amber-800 uppercase px-2 py-0.5 rounded"><%= user.country || 'Unknown' %></span>
+                    </div>
                 </div>
             </div>
 
