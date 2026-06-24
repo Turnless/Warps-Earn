@@ -496,6 +496,8 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         console.error("Custom Promo Error:", e);
         res.status(500).send("Internal error.");
     }
+});
+
 const Bounty = require('../models/Bounty');
 const StoreOrder = require('../models/StoreOrder');
 
