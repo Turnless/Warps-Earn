@@ -149,10 +149,10 @@
     </div>
 
     <!-- MOBILE OVERLAY -->
-    <div id="mobile-overlay" onclick="toggleMobileSidebar()" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-40 hidden lg:hidden transition-opacity"></div>
+    <div id="mobile-overlay" onclick="toggleMobileSidebar()" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-[60] hidden lg:hidden transition-opacity"></div>
 
     <!-- SIDEBAR NAVIGATION -->
-    <aside id="sidebar" class="sidebar w-64 fixed h-screen flex flex-col justify-between py-8 px-6 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 top-0 left-0">
+    <aside id="sidebar" class="sidebar w-64 fixed h-screen flex flex-col justify-between py-8 px-6 z-[70] transform -translate-x-full lg:translate-x-0 transition-transform duration-300 top-0 left-0">
         <div class="flex flex-col gap-10">
             <!-- Logo area -->
             <div class="flex items-center gap-4">
@@ -555,11 +555,10 @@
                     <!-- Store Pricing -->
                     <form action="/admin/store-config" method="POST" class="glass-panel p-8 flex flex-col gap-6">
                         <h3 class="font-heading font-bold text-xl text-neutral-900">Store Config</h3>
-                        <div class="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-2">
+                        <div class="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-2">
                             <% const storeItems = [
                                 { id: 'cooldown', label: 'Cooldown Reset', val: storeConfig.cooldown, enabled: storeConfig.enable_cooldown },
-                                { id: 'multiplier', label: '2x Multiplier', val: storeConfig.multiplier, enabled: storeConfig.enable_multiplier },
-                                { id: 'premium_tier', label: 'Premium Tier', val: storeConfig.premium_tier, enabled: storeConfig.enable_premium }
+                                { id: 'multiplier', label: '2x Multiplier', val: storeConfig.multiplier, enabled: storeConfig.enable_multiplier }
                             ]; %>
                             <% storeItems.forEach(item => { %>
                             <div class="flex flex-col gap-2 bg-white/60 p-4 rounded-xl border border-neutral-200">
@@ -571,24 +570,63 @@
                             </div>
                             <% }) %>
 
+                            <!-- Premium Tier Packages -->
                             <div class="border-t border-neutral-300 pt-4 mt-2">
                                 <div class="flex justify-between items-center mb-4">
-                                    <h4 class="text-xs font-bold text-amber-400 uppercase tracking-widest">Gold Tier Packages</h4>
-                                    <input type="checkbox" name="enable_gold" class="w-4 h-4 accent-amber-500" <%= storeConfig.enable_gold !== false ? 'checked' : '' %>>
+                                    <h4 class="text-xs font-bold text-violet-500 uppercase tracking-widest">Premium Tier Packages</h4>
+                                    <input type="checkbox" name="enable_premium" class="w-4 h-4 accent-violet-500" <%= storeConfig.enable_premium !== false ? 'checked' : '' %>>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 mb-3">
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">3 Month</label>
+                                        <input type="number" name="premium_tier_3m" value="<%= storeConfig.premium_tier_3m || 15000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">3 Month + X Blue Tick</label>
+                                        <input type="number" name="premium_tier_3m_blue" value="<%= storeConfig.premium_tier_3m_blue || 45000 %>" class="w-full bg-white/90 border border-violet-500/30 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
+                                    </div>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">6 Month</label>
+                                        <input type="number" name="premium_tier_6m" value="<%= storeConfig.premium_tier_6m || 28000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">6 Month + X Blue Tick</label>
+                                        <input type="number" name="premium_tier_6m_blue" value="<%= storeConfig.premium_tier_6m_blue || 85000 %>" class="w-full bg-white/90 border border-violet-500/30 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Gold Tier Packages -->
+                            <div class="border-t border-neutral-300 pt-4 mt-2">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h4 class="text-xs font-bold text-amber-500 uppercase tracking-widest">Gold Tier Packages</h4>
+                                    <input type="checkbox" name="enable_gold" class="w-4 h-4 accent-amber-500" <%= storeConfig.enable_gold !== false ? 'checked' : '' %>>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 mb-3">
                                     <div class="flex flex-col gap-1">
                                         <label class="text-[10px] text-neutral-500">3 Month</label>
                                         <input type="number" name="gold_tier_3m" value="<%= storeConfig.gold_tier_3m %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
                                     </div>
                                     <div class="flex flex-col gap-1">
-                                        <label class="text-[10px] text-neutral-500">3 Month + X</label>
+                                        <label class="text-[10px] text-neutral-500">3 Month + X Blue Tick</label>
                                         <input type="number" name="gold_tier_3m_blue" value="<%= storeConfig.gold_tier_3m_blue %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">6 Month</label>
+                                        <input type="number" name="gold_tier_6m" value="<%= storeConfig.gold_tier_6m %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">6 Month + X Blue Tick</label>
+                                        <input type="number" name="gold_tier_6m_blue" value="<%= storeConfig.gold_tier_6m_blue %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <button type="submit" class="w-full bg-white text-black hover:bg-neutral-200 font-bold py-3.5 rounded-xl transition-all uppercase tracking-widest text-xs mt-2">Update Pricing</button>
+                        <button type="submit" class="w-full bg-white text-black hover:bg-neutral-200 font-bold py-3.5 rounded-xl shadow-sm transition-all uppercase tracking-widest text-xs mt-2">Update Pricing</button>
                     </form>
                 </div>
 
@@ -744,6 +782,28 @@
             } else {
                 sidebar.classList.add('-translate-x-full');
                 if (overlay) overlay.classList.add('hidden');
+            }
+        }
+
+        const CONVERSION_RATE = 0.0008;
+
+        function calcToUsd() {
+            const ptsInput = document.getElementById('calc-pts').value;
+            const usdInput = document.getElementById('calc-usd');
+            if(ptsInput) {
+                usdInput.value = (parseFloat(ptsInput) * CONVERSION_RATE).toFixed(4);
+            } else {
+                usdInput.value = '';
+            }
+        }
+
+        function calcToPts() {
+            const usdInput = document.getElementById('calc-usd').value;
+            const ptsInput = document.getElementById('calc-pts');
+            if(usdInput) {
+                ptsInput.value = Math.floor(parseFloat(usdInput) / CONVERSION_RATE);
+            } else {
+                ptsInput.value = '';
             }
         }
     </script>
