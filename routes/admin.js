@@ -160,7 +160,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
         };
 
         const questsStr = await redis.get('admin:dynamic_quests');
-        const dynamicQuests = questsStr || '{}';
+        const dynamicQuests = questsStr ? JSON.parse(questsStr) : {};
 
         // Fetch Ad Telemetry Data
         const telemetryStr = await redis.get('admin:ad_telemetry');
@@ -201,14 +201,10 @@ router.get('/', checkAdminAuth, async (req, res) => {
             enable_gold: true
         };
 
-        const telemetryStr = await redis.get('admin:telemetry');
-        const telemetry = telemetryStr ? JSON.parse(telemetryStr) : { adAttempts: 0, adSuccess: 0, activeNetworks: {} };
+        const globalTelemetryStr = await redis.get('admin:telemetry');
+        const globalTelemetry = globalTelemetryStr ? JSON.parse(globalTelemetryStr) : { adAttempts: 0, adSuccess: 0, activeNetworks: {} };
 
-        const storeConfigStr = await redis.get('admin:store_config');
-        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {};
 
-        const questsStr = await redis.get('admin:dynamic_quests');
-        const dynamicQuests = questsStr ? JSON.parse(questsStr) : {};
 
         // Fetch recent quest submissions
         const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, 49);
