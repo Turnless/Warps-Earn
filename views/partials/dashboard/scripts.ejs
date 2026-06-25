@@ -1,0 +1,1299 @@
+<script>
+        const STORE_CONFIG = <%- JSON.stringify(locals.storeConfig || {
+            cooldown: 500, multiplier: 3000,
+            premium_tier_3m: 15000, premium_tier_6m: 28000,
+            premium_tier_3m_blue: 45000, premium_tier_6m_blue: 85000,
+            gold_tier_3m: 50000, gold_tier_6m: 90000,
+            gold_tier_3m_blue: 80000, gold_tier_6m_blue: 150000
+        }) %>;
+
+        function updateGoldPrices() {
+            const hasBlueTick = document.getElementById('store-bluetick-toggle').checked;
+            document.getElementById('price-gold-3m').innerText = (hasBlueTick ? STORE_CONFIG.gold_tier_3m_blue : STORE_CONFIG.gold_tier_3m).toLocaleString() + ' PTS';
+            document.getElementById('price-gold-6m').innerText = (hasBlueTick ? STORE_CONFIG.gold_tier_6m_blue : STORE_CONFIG.gold_tier_6m).toLocaleString() + ' PTS';
+        }
+
+        function updatePremiumPrices() {
+            const hasBlueTick = document.getElementById('store-premium-bluetick-toggle').checked;
+            document.getElementById('price-premium-3m').innerText = (hasBlueTick ? (STORE_CONFIG.premium_tier_3m_blue || 45000) : (STORE_CONFIG.premium_tier_3m || 15000)).toLocaleString() + ' PTS';
+            document.getElementById('price-premium-6m').innerText = (hasBlueTick ? (STORE_CONFIG.premium_tier_6m_blue || 85000) : (STORE_CONFIG.premium_tier_6m || 28000)).toLocaleString() + ' PTS';
+        }
+
+        let currentStoreItem = null;
+        let currentStoreCost = 0;
+
+        function promptStorePurchase(itemKey) {
+            currentStoreItem = itemKey;
+            
+            // Determine blue tick state based on which tier
+            let hasBlueTick = false;
+            if (itemKey.startsWith('premium_tier_')) {
+                const premToggle = document.getElementById('store-premium-bluetick-toggle');
+                hasBlueTick = premToggle ? premToggle.checked : false;
+            } else {
+                const goldToggle = document.getElementById('store-bluetick-toggle');
+                hasBlueTick = goldToggle ? goldToggle.checked : false;
+            }
+            
+            let itemName = "";
+            let desc = "";
+            
+            if (itemKey === 'gold_tier_3m') {
+                itemName = hasBlueTick ? "Gold Tier (3 Months) + X Blue Tick ✓" : "Gold Tier (3 Months)";
+                currentStoreCost = hasBlueTick ? STORE_CONFIG.gold_tier_3m_blue : STORE_CONFIG.gold_tier_3m;
+                desc = hasBlueTick ? "You will upgrade to Gold Tier for 3 months and we will verify your X account with a blue tick via our partner. Your order will be pending until verification is complete." : "You will upgrade to Gold Tier for 3 months.";
+            } else if (itemKey === 'gold_tier_6m') {
+                itemName = hasBlueTick ? "Gold Tier (6 Months) + X Blue Tick ✓" : "Gold Tier (6 Months)";
+                currentStoreCost = hasBlueTick ? STORE_CONFIG.gold_tier_6m_blue : STORE_CONFIG.gold_tier_6m;
+                desc = hasBlueTick ? "You will upgrade to Gold Tier for 6 months and we will verify your X account with a blue tick via our partner. Your order will be pending until verification is complete." : "You will upgrade to Gold Tier for 6 months.";
+            } else if (itemKey === 'premium_tier_3m') {
+                itemName = hasBlueTick ? "Premium Tier (3 Months) + X Blue Tick ✓" : "Premium Tier (3 Months)";
+                currentStoreCost = hasBlueTick ? (STORE_CONFIG.premium_tier_3m_blue || 45000) : (STORE_CONFIG.premium_tier_3m || 15000);
+                desc = hasBlueTick ? "Upgrade to Premium Tier for 3 months and get verified with a blue tick via our partner. Your order will be pending." : "Unlock premium tasks and faster withdrawals for 3 months.";
+            } else if (itemKey === 'premium_tier_6m') {
+                itemName = hasBlueTick ? "Premium Tier (6 Months) + X Blue Tick ✓" : "Premium Tier (6 Months)";
+                currentStoreCost = hasBlueTick ? (STORE_CONFIG.premium_tier_6m_blue || 85000) : (STORE_CONFIG.premium_tier_6m || 28000);
+                desc = hasBlueTick ? "Upgrade to Premium Tier for 6 months and get verified with a blue tick via our partner. Your order will be pending." : "Unlock premium tasks and faster withdrawals for 6 months.";
+            } else if (itemKey === 'multiplier') {
+                itemName = "2x Yield Multiplier (1 Month)";
+                currentStoreCost = STORE_CONFIG.multiplier;
+                desc = "Double your points from ad views for 30 days.";
+            } else if (itemKey === 'cooldown') {
+                itemName = "Instant Cooldown Reset";
+                currentStoreCost = STORE_CONFIG.cooldown;
+                desc = "Skip the 45s wait between ad blocks.";
+            }
+
+            document.getElementById('store-modal-item').innerText = itemName;
+            document.getElementById('store-modal-cost').innerText = currentStoreCost.toLocaleString() + " PTS";
+            document.getElementById('store-modal-desc').innerText = desc;
+            
+            document.getElementById('btn-store-confirm').onclick = () => {
+                closeStoreModal();
+                purchaseStoreItem(itemKey, hasBlueTick);
+            };
+
+            document.getElementById('store-confirm-modal').classList.remove('hidden');
+        }
+
+        function closeStoreModal() {
+            document.getElementById('store-confirm-modal').classList.add('hidden');
+        }
+
+        async function purchaseWithStars(itemKey, amount) {
+            showToast("Generating invoice...", "⏳");
+            try {
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                const response = await fetch('/portal/generate-invoice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify({
+                        id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "<%= user.telegram_id %>",
+                        item: itemKey,
+                        amount: amount
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.invoiceUrl) {
+                        window.Telegram.WebApp.openInvoice(data.invoiceUrl, (status) => {
+                            if (status === 'paid') {
+                                showToast("Payment successful! Processing upgrade...", "🎉");
+                                // Realistically the backend bot would handle the pre_checkout_query and successful_payment webhook
+                                // and upgrade the user. For immediate frontend feedback, we can reload.
+                                setTimeout(() => window.location.reload(), 2000);
+                            } else {
+                                showToast("Payment " + status, "ℹ️");
+                            }
+                        });
+                    } else {
+                        showToast(data.error || "Failed to generate invoice", "❌");
+                    }
+                } else {
+                    const err = await response.text();
+                    showToast(err, "❌");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Connection error", "❌");
+            }
+        }
+
+        async function purchaseStoreItem(itemKey, hasBlueTick = false) {
+            showToast("Processing purchase...", "⚡");
+            
+            try {
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                
+                const response = await fetch('/portal/purchase-store-item', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify({
+                        id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "<%= user.telegram_id %>",
+                        item: itemKey,
+                        blue_tick: hasBlueTick
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast(data.isPending ? "Purchase Pending Verification!" : "Purchase Successful!", "🎉");
+                    
+                    const userBalanceEl = document.getElementById('user-balance');
+                    const storeBalanceEl = document.getElementById('store-balance');
+                    const walletBalanceEl = document.getElementById('wallet-balance');
+                    
+                    if(userBalanceEl) userBalanceEl.innerText = data.newBalance.toLocaleString();
+                    if(storeBalanceEl) storeBalanceEl.innerText = data.newBalance.toLocaleString();
+                    if(walletBalanceEl) walletBalanceEl.innerText = data.newBalance.toLocaleString();
+                    
+                    // Dynamically update activity history
+                    const activityList = document.getElementById('list-activity');
+                    if (activityList) {
+                        const emptyMsg = document.getElementById('empty-history');
+                        if (emptyMsg) emptyMsg.remove();
+                        
+                        const title = document.getElementById('store-modal-item') ? document.getElementById('store-modal-item').innerText : itemKey;
+                        const costText = document.getElementById('store-modal-cost') ? document.getElementById('store-modal-cost').innerText.replace(' PTS', '') : '';
+                        
+                        const newEntry = document.createElement('div');
+                        newEntry.className = 'flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0';
+                        newEntry.innerHTML = `
+                            <div class="flex flex-col">
+                                <span class="text-xs font-bold text-neutral-800">${data.isPending ? '[PENDING] Store Purchase: ' : '[COMPLETED] Store Purchase: '}${title}</span>
+                                <span class="text-[9px] text-neutral-400 mono-text">${new Date().toLocaleString()}</span>
+                            </div>
+                            <span class="text-xs font-bold text-rose-700 mono-text">-${costText.replace(/,/g, '')}</span>
+                        `;
+                        activityList.prepend(newEntry);
+                    }
+                    
+                    setTimeout(() => window.location.reload(), 2500);
+                } else {
+                    const errMsg = await response.text();
+                    showToast(errMsg || "Insufficient balance.", "❌");
+                }
+            } catch (err) {
+                showToast("Connection error.", "⚠️");
+            }
+        }
+
+        function showToast(message, icon, duration = 3000) {
+            const toast = document.getElementById('custom-toast');
+            const toastIcon = document.getElementById('toast-icon');
+            const toastMessage = document.getElementById('toast-message');
+
+            toastIcon.innerText = icon;
+            toastMessage.innerText = message;
+
+            toast.classList.remove('-translate-y-24', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-24', 'opacity-0');
+            }, duration);
+        }
+
+        function switchHistory(type) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+
+            document.getElementById('list-activity').classList.toggle('hidden', type !== 'activity');
+            document.getElementById('list-withdrawals').classList.toggle('hidden', type !== 'withdrawals');
+
+            document.getElementById('tab-activity').className = type === 'activity'
+                ? 'flex-1 py-2 text-[10px] font-bold rounded-lg transition-all bg-white shadow-sm text-neutral-900 uppercase tracking-widest'
+                : 'flex-1 py-2 text-[10px] font-bold rounded-lg transition-all text-neutral-500 uppercase tracking-widest';
+
+            document.getElementById('tab-withdrawals').className = type === 'withdrawals'
+                ? 'flex-1 py-2 text-[10px] font-bold rounded-lg transition-all bg-white shadow-sm text-neutral-900 uppercase tracking-widest'
+                : 'flex-1 py-2 text-[10px] font-bold rounded-lg transition-all text-neutral-500 uppercase tracking-widest';
+        }
+
+        function switchTab(tabId) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+
+            const tabs = ['home', 'tasks', 'store', 'invite', 'wallet'];
+            tabs.forEach(t => {
+                const buttonElement = document.getElementById(`tab-${t}`);
+                const viewElement = document.getElementById(`view-${t}`);
+
+                if (t === tabId) {
+                    if (buttonElement) buttonElement.className = "active-tab py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all shadow-sm relative";
+                    if (viewElement) viewElement.classList.remove('hidden');
+                } else {
+                    if (buttonElement) buttonElement.className = "text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all relative";
+                    if (viewElement) viewElement.classList.add('hidden');
+                }
+            });
+        }
+
+        async function verifyTask(questKey, targetUrl) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+            window.open(targetUrl, '_blank');
+
+            const btn = document.getElementById(`btn-quest-${questKey}`);
+            if (!btn) return;
+
+            btn.disabled = true;
+            btn.innerText = "Checking...";
+            btn.className = "bg-neutral-400 text-neutral-100 text-xs font-medium px-3 py-2 rounded-xl cursor-not-allowed shadow-none";
+
+            setTimeout(async () => {
+                try {
+                    const telegramInitData = window.Telegram?.WebApp?.initData || "";
+
+                    const response = await fetch('/portal/verify-quest', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `WebApp ${telegramInitData}`
+                        },
+                        body: JSON.stringify({
+                            id: "<%= user.telegram_id %>",
+                            quest: questKey
+                        })
+                    });
+
+                    if (response.ok) {
+                        showToast("Task done! +100 PTS", "🎉");
+
+                        const rowId = `quest-row-${questKey}`;
+                        const row = document.getElementById(rowId);
+                        if (row) {
+                            row.style.opacity = '0';
+                            setTimeout(() => {
+                                row.remove();
+                                // Check if mandatory quests are all done visually
+                                const container = document.getElementById('quest-row-channel')?.parentElement;
+                                if (container && !container.querySelector('[id^="quest-row-"]')) {
+                                    container.insertAdjacentHTML('beforeend', '<div class="text-center text-xs text-neutral-400 py-4 mono-text">All done ✓</div>');
+                                }
+                            }, 300);
+                        }
+
+                        // Add to activity history instantly
+                        const listActivity = document.getElementById('list-activity');
+                        if (listActivity) {
+                            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const historyHtml = `
+                                <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-neutral-800">Task: ${questKey}</span>
+                                        <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
+                                    </div>
+                                    <span class="text-xs font-bold text-emerald-700 mono-text">+100</span>
+                                </div>`;
+                            listActivity.insertAdjacentHTML('afterbegin', historyHtml);
+                        }
+
+                        const userBalanceEl = document.getElementById('user-balance');
+                        const walletBalanceEl = document.getElementById('wallet-balance');
+
+                        const currentBalance = parseInt(userBalanceEl.innerText.replace(/,/g, '')) || 0;
+                        const newBalance = currentBalance + 100;
+
+                        userBalanceEl.innerText = newBalance.toLocaleString();
+                        if (walletBalanceEl) {
+                            walletBalanceEl.innerText = newBalance.toLocaleString();
+                        }
+
+                        const newUsdVal = newBalance * 0.0008;
+                        const userValEl = document.getElementById('user-value');
+                        const walletValEl = document.getElementById('wallet-valuation');
+
+                        if (userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                        if (walletValEl) walletValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+
+                        const taskBadge = document.getElementById('task-nav-badge');
+                        if (taskBadge) {
+                            let currentBadgeCount = parseInt(taskBadge.innerText) || 0;
+                            currentBadgeCount--;
+                            if (currentBadgeCount > 0) {
+                                taskBadge.innerText = currentBadgeCount;
+                            } else {
+                                taskBadge.remove();
+                            }
+                        }
+
+                        const activityList = document.getElementById('list-activity');
+                        const emptyPlaceholder = document.getElementById('empty-history');
+                        if (emptyPlaceholder) {
+                            emptyPlaceholder.remove();
+                        }
+
+                        let questLabel = "X Follow";
+                        if (questKey === 'channel') questLabel = "Warps Channel";
+                        if (questKey === 'group') questLabel = "Warps Group";
+                        if (questKey === 'payout_channel') questLabel = "WarpsEarn Payouts";
+
+                        const optionsDate = { month: 'short', day: 'numeric', year: 'numeric' };
+                        const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: true };
+                        const dateStr = new Date().toLocaleDateString('en-US', optionsDate);
+                        const timeStr = new Date().toLocaleTimeString('en-US', optionsTime);
+                        const currentFormattedTimestamp = `${dateStr} • ${timeStr}`;
+
+                        const newRow = document.createElement('div');
+                        newRow.className = "flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0";
+                        newRow.innerHTML = `
+                        <div class="flex flex-col">
+                            <span class="text-xs font-bold text-neutral-800">${questLabel} Quest</span>
+                            <span class="text-[9px] text-neutral-400 mono-text">${currentFormattedTimestamp}</span>
+                        </div>
+                        <span class="text-xs font-bold text-emerald-700 mono-text">+100</span>
+                        `;
+
+                        activityList.insertBefore(newRow, activityList.firstChild);
+
+                        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+                            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                        }
+                    } else {
+                        showToast("Please join the channel/group first.", "⚠️");
+                        btn.disabled = false;
+                        btn.innerText = "Start";
+                        btn.className = "bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm";
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast("Something went wrong. Try again.", "⚠️");
+                    btn.disabled = false;
+                    btn.innerText = "Start";
+                    btn.className = "bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm";
+                }
+            }, 10000);
+        }
+
+        function copyRefLink(linkText) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+            }
+
+            navigator.clipboard.writeText(linkText).then(() => {
+                const btn = document.getElementById('btn-copy-link');
+                btn.innerText = "COPIED";
+                btn.className = "bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider px-3 py-2 rounded-lg shrink-0";
+                setTimeout(() => {
+                    btn.innerText = "COPY";
+                    btn.className = "bg-neutral-950 text-[#e6ddd0] font-bold text-[10px] uppercase tracking-wider px-3 py-2 rounded-lg shrink-0";
+                }, 2000);
+            }).catch(err => {
+                showToast("Couldn't copy. Long-press the link to copy manually.", "⚠️");
+            });
+        }
+
+        let activeAsset = '';
+        let activeCountryContext = '';
+
+        function getBankProviderValue() {
+            const selectEl = document.getElementById('select-bank-provider');
+            return selectEl ? selectEl.value : null;
+        }
+
+        function openWithdrawalFlow() {
+            document.getElementById('withdrawal-flow').classList.remove('hidden');
+            resetFlowToCountry();
+            document.getElementById('withdrawal-flow').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function closeWithdrawalFlow() {
+            document.getElementById('withdrawal-flow').classList.add('hidden');
+        }
+
+        function resetFlowToCountry() {
+            activeAsset = '';
+            activeCountryContext = '';
+
+            document.getElementById('step-country').classList.remove('hidden');
+            document.getElementById('wrapper-currency').classList.add('hidden');
+            document.getElementById('wrapper-details').classList.add('hidden');
+            document.getElementById('bank-select-dropdown').classList.add('hidden');
+            document.getElementById('wrapper-fiat-calc').classList.add('hidden');
+            document.getElementById('input-destination').value = '';
+            if (document.getElementById('input-amount-pts')) {
+                document.getElementById('input-amount-pts').value = '';
+            }
+        }
+
+        function setCountry(countryCode) {
+            activeCountryContext = countryCode;
+            document.getElementById('step-country').classList.add('hidden');
+
+            const currencyWrapper = document.getElementById('wrapper-currency');
+            const currencyContainer = document.getElementById('container-currency');
+            currencyWrapper.classList.remove('hidden');
+
+            if (countryCode === 'NG') {
+                currencyContainer.innerHTML = `
+                <button type="button" onclick="setAsset('NAIRA')" class="border border-neutral-300 bg-white px-3 py-3 rounded-xl font-bold text-xs text-neutral-800 shadow-sm active:scale-95 transition-all">🇳🇬 Local Naira</button>
+                <button type="button" onclick="renderCryptoOptions()" class="border border-neutral-300 bg-white px-3 py-3 rounded-xl font-bold text-xs text-neutral-800 shadow-sm active:scale-95 transition-all">⚡ Crypto Options</button>
+            `;
+            } else {
+                renderCryptoOptions();
+            }
+        }
+
+        function renderCryptoOptions() {
+            const currencyContainer = document.getElementById('container-currency');
+            currencyContainer.innerHTML = `
+            <button type="button" onclick="setAsset('USDT_BEP20')" class="border border-neutral-300 bg-white px-2 py-2.5 rounded-xl font-bold text-[11px] text-neutral-700 truncate shadow-sm active:scale-95 transition-all">USDT (BEP20)</button>
+            <button type="button" onclick="setAsset('TON')" class="border border-neutral-300 bg-white px-2 py-2.5 rounded-xl font-bold text-[11px] text-neutral-700 truncate shadow-sm active:scale-95 transition-all">TON Native</button>
+            <button type="button" onclick="setAsset('STARS')" class="border border-neutral-300 bg-white px-2 py-2.5 rounded-xl font-bold text-[11px] text-neutral-700 truncate shadow-sm active:scale-95 transition-all">TG Stars</button>
+            <button type="button" onclick="setAsset('SOL')" class="border border-neutral-300 bg-white px-2 py-2.5 rounded-xl font-bold text-[11px] text-neutral-700 truncate shadow-sm active:scale-95 transition-all">Solana Network</button>
+        `;
+        }
+
+        function setAsset(assetType) {
+            activeAsset = assetType;
+
+            const detailsWrapper = document.getElementById('wrapper-details');
+            const bankDropdown = document.getElementById('bank-select-dropdown');
+            const addressLabel = document.getElementById('label-input-address');
+            const addressInput = document.getElementById('input-destination');
+            const fiatCalc = document.getElementById('wrapper-fiat-calc');
+
+            detailsWrapper.classList.remove('hidden');
+            fiatCalc.classList.remove('hidden');
+
+            if (assetType === 'NAIRA') {
+                bankDropdown.classList.remove('hidden');
+                addressLabel.innerText = "3. Your Account Number";
+                addressInput.placeholder = "Enter your 10-digit account number...";
+            } else {
+                bankDropdown.classList.add('hidden');
+
+                if (assetType === 'STARS') {
+                    addressLabel.innerText = "3. Your Telegram Username";
+                    addressInput.placeholder = "@your_telegram_username";
+                } else {
+                    addressLabel.innerText = `3. Your ${assetType.split('_')[0]} Wallet Address`;
+                    addressInput.placeholder = `Paste your ${assetType.split('_')[0]} address...`;
+                }
+            }
+            calculateDynamicYield();
+        }
+
+        function calculateDynamicYield() {
+            const ptsInput = document.getElementById('input-amount-pts');
+            const ptsVal = parseFloat(ptsInput.value) || 0;
+            const yieldDisplay = document.getElementById('display-yield-value');
+
+            const usdVal = ptsVal * 0.0008;
+
+            if (activeCountryContext === 'NG') {
+                const nairaVal = usdVal * 1600;
+                yieldDisplay.innerHTML = `
+                <span class="text-neutral-900 font-bold">$${usdVal.toFixed(2)} USD</span>
+                <span class="text-neutral-400 font-medium px-1">•</span>
+                <span class="text-emerald-700 font-bold">₦${nairaVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} NGN</span>
+            `;
+            } else {
+                yieldDisplay.innerHTML = `<span class="text-neutral-900 font-bold">$${usdVal.toFixed(2)} USD</span>`;
+            }
+        }
+
+        function openConfirmModal() {
+            const inputVal = document.getElementById('input-destination').value.trim();
+            const inputAmountVal = parseInt(document.getElementById('input-amount-pts').value) || 0;
+
+            if (!activeAsset) return showToast("Pick a payment method first.", "⚠️");
+            if (inputAmountVal <= 0) return showToast("Enter a valid amount.", "⚠️");
+
+            if (activeAsset === 'NAIRA' && !/^\d{10}$/.test(inputVal)) {
+                return showToast("Account number must be exactly 10 digits.", "⚠️");
+            }
+
+            if (!inputVal) return showToast("Enter your account details.", "⚠️");
+
+            document.getElementById('confirm-display-asset').innerText = activeAsset.replace('_', ' ');
+            document.getElementById('confirm-display-pts').innerText = `${inputAmountVal.toLocaleString()} PTS`;
+            document.getElementById('confirm-display-destination').innerText = inputVal;
+
+            const usdVal = inputAmountVal * 0.0008;
+            if (activeCountryContext === 'NG') {
+                const nairaVal = usdVal * 1600;
+                document.getElementById('confirm-display-conversion').innerHTML = `$${usdVal.toFixed(2)} USD • ₦${nairaVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+            } else {
+                document.getElementById('confirm-display-conversion').innerText = `$${usdVal.toFixed(2)} USD`;
+            }
+
+            const confirmBtn = document.getElementById('btn-modal-action-confirm');
+            confirmBtn.onclick = () => {
+                closeConfirmModal();
+                fireWithdrawalPayload();
+            };
+
+            document.getElementById('custom-confirm-modal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('custom-confirm-modal').classList.add('hidden');
+        }
+
+        async function fireWithdrawalPayload() {
+            const inputVal = document.getElementById('input-destination').value.trim();
+            const inputAmountVal = parseInt(document.getElementById('input-amount-pts').value) || 0;
+            const bankVal = getBankProviderValue();
+
+            const requestPayload = {
+                telegram_id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "<%= user.telegram_id %>",
+                points_to_withdraw: inputAmountVal,
+                country_context: activeCountryContext,
+                payment_provider: activeAsset === 'NAIRA' ? (bankVal || 'OPAY') : activeAsset,
+                destination_account: inputVal,
+                id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "<%= user.telegram_id %>",
+                amount: inputAmountVal,
+                destination: inputVal,
+                asset: activeAsset,
+                bank: activeAsset === 'NAIRA' ? (bankVal || 'OPAY') : null
+            };
+
+            showToast("Submitting withdrawal...", "⚡");
+
+            try {
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+
+                let response = await fetch('/portal/request-payout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify(requestPayload)
+                });
+
+                if (response.status === 404) {
+                    console.log("⚠️ Portal router returned 404. Falling back to root /request-payout route...");
+                    response = await fetch('/request-payout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `WebApp ${telegramInitData}`
+                        },
+                        body: JSON.stringify(requestPayload)
+                    });
+                }
+
+                if (response.ok) {
+                    showToast("Withdrawal submitted!", "✅");
+
+                    closeWithdrawalFlow();
+
+                    const userBalanceEl = document.getElementById('user-balance');
+                    const walletBalanceEl = document.getElementById('wallet-balance');
+
+                    const oldBalance = parseInt(userBalanceEl.innerText.replace(/,/g, '')) || 0;
+                    const newBalance = Math.max(0, oldBalance - inputAmountVal);
+
+                    userBalanceEl.innerText = newBalance.toLocaleString();
+                    if (walletBalanceEl) {
+                        walletBalanceEl.innerText = newBalance.toLocaleString();
+                    }
+
+                    const newUsdVal = newBalance * 0.0008;
+                    const userValEl = document.getElementById('user-value');
+                    const walletValEl = document.getElementById('wallet-valuation');
+
+                    if (userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                    if (walletValEl) walletValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+
+                    const listWithdrawals = document.getElementById('list-withdrawals');
+                    const emptyPlaceholder = listWithdrawals.querySelector('.text-center');
+                    if (emptyPlaceholder) {
+                        emptyPlaceholder.remove();
+                    }
+
+                    const optionsDate = { month: 'short', day: 'numeric', year: 'numeric' };
+                    const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: true };
+                    const dateStr = new Date().toLocaleDateString('en-US', optionsDate);
+                    const timeStr = new Date().toLocaleTimeString('en-US', optionsTime);
+                    const currentFormattedTimestamp = `${dateStr} • ${timeStr}`;
+
+                    const newTxRow = document.createElement('div');
+                    newTxRow.className = "flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0";
+                    newTxRow.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="text-xs font-bold text-neutral-800">Withdrawal (${activeAsset.replace('_', ' ')})</span>
+                        <span class="text-[9px] text-neutral-400 mono-text">${currentFormattedTimestamp}</span>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-xs font-bold text-blue-700 mono-text">-$${(inputAmountVal * 0.0008).toFixed(2)} USD</span>
+                        <span class="text-[9px] uppercase tracking-wider font-extrabold text-amber-500 animate-pulse mono-text">Pending</span>
+                    </div>
+                `;
+
+                    listWithdrawals.insertBefore(newTxRow, listWithdrawals.firstChild);
+
+                    document.getElementById('input-destination').value = '';
+                    if (document.getElementById('input-amount-pts')) {
+                        document.getElementById('input-amount-pts').value = '';
+                    }
+
+                    switchHistory('withdrawals');
+
+                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+                        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                    }
+                } else {
+                    const errMsg = await response.text();
+                    showToast(`Withdrawal failed: ${errMsg}`, "❌");
+                }
+            } catch (err) {
+                showToast("Connection error. Try again.", "❌");
+            }
+        }
+
+        // --- Ad Network Config ---
+        const AdConfiguration = {
+            // Video / Rewarded Video Only
+            adsgram: { enabled: true, blockId: "35947" },
+            // OnClickA Rewarded Video Spots
+            onclicka: { enabled: true, spotIds: ["445824", "445825", "445825"] },
+            // Monetag Smartlink (Direct Link) to prevent external browser popouts
+            monetag: { enabled: true, adUrl: "https://omg10.com/4/11188717" },
+            // Direct Smartlinks (Banner/Video pages only, no interstitial scripts)
+            adsonar: { enabled: true, adUrl: "https://adsonar.placeholder/smartlink" },
+            // Telega.io SDK Integration
+            telegaio: { enabled: true, blockId: "b891be85-b4fe-4e4c-8c40-50b885bc5852" }
+        };
+
+        // ✅ FIXED: Only using standard Rewarded Video controller. 
+        // AdsgramTaskController is safely omitted since we use <adsgram-task> HTML directly.
+        let AdsgramController = null;
+        let OnClickAShowAd1 = null;
+        let OnClickAShowAd2 = null;
+        let OnClickAShowAd3 = null;
+
+        function initAdsgram() {
+            if (window.Adsgram) {
+                AdsgramController = window.Adsgram.init({
+                    blockId: AdConfiguration.adsgram.blockId,
+                    debug: true
+                });
+            }
+        }
+
+        function initOnClickA() {
+            if (window.initCdTma) {
+                if (AdConfiguration.onclicka.spotIds[0] !== "SPOT_ID_1_HERE") {
+                    window.initCdTma({ id: AdConfiguration.onclicka.spotIds[0] }).then(show => OnClickAShowAd1 = show).catch(e => {
+                        console.warn("OnClickA 1 Error:", e);
+                        showToast(`OnClickA Error: ${e.message || e}`, "⚠️");
+                    });
+                }
+                if (AdConfiguration.onclicka.spotIds[1] !== "SPOT_ID_2_HERE") {
+                    window.initCdTma({ id: AdConfiguration.onclicka.spotIds[1] }).then(show => OnClickAShowAd2 = show).catch(e => console.warn("OnClickA 2 Error:", e));
+                }
+                if (AdConfiguration.onclicka.spotIds[2] !== "SPOT_ID_3_HERE") {
+                    window.initCdTma({ id: AdConfiguration.onclicka.spotIds[2] }).then(show => OnClickAShowAd3 = show).catch(e => console.warn("OnClickA 3 Error:", e));
+                }
+            } else {
+                showToast("OnClickA SDK failed to load completely.", "⚠️");
+            }
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        async function triggerAdNetworkSequence() {
+            const playBtn = document.getElementById('adsgram-play-btn');
+            const btnIcon = document.getElementById('ad-btn-icon');
+            const btnTitle = document.getElementById('ad-btn-title');
+            const btnSubtitle = document.getElementById('ad-btn-subtitle');
+            const btnArrow = document.getElementById('ad-btn-arrow');
+
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+            }
+
+            playBtn.disabled = true;
+            playBtn.classList.add('opacity-70', 'cursor-not-allowed');
+
+            const totalChainSteps = 3;
+            let adsCompletedCount = 0;
+
+            for (let i = 1; i <= totalChainSteps; i++) {
+                if (i > 1) {
+                    let secondsLeft = 3;
+                    while (secondsLeft > 0) {
+                        btnIcon.innerText = "⏳";
+                        btnTitle.innerText = `Waiting ${secondsLeft}s...`;
+                        btnSubtitle.innerText = "Re-establishing secure ad stream connection...";
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        secondsLeft--;
+                    }
+                }
+
+                btnIcon.innerText = "⏳";
+                btnTitle.innerText = `Loading Ad ${i} of ${totalChainSteps}...`;
+                btnSubtitle.innerText = "Routing decentralized network connection...";
+                btnArrow.innerText = "•";
+
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                
+                async function reportAdTelemetry(network, status, errorMsg = null) {
+                    try {
+                        fetch('/portal/ad-telemetry', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `WebApp ${telegramInitData}` },
+                            body: JSON.stringify({ network, status, errorMsg: errorMsg ? errorMsg.toString() : null })
+                        });
+                    } catch(e) {}
+                }
+
+                const activePool = shuffleArray(['adsgram', 'monetag', 'telegaio']);
+                let adLoadedSuccessfully = false;
+
+                for (let network of activePool) {
+                    if (adLoadedSuccessfully) break;
+
+                    console.log(`📡 AdEngine attempting delivery on node: ${network.toUpperCase()}`);
+
+                    try {
+                        if (network === 'adsgram' && AdsgramController) {
+                            const result = await AdsgramController.show();
+                            if (result && (result.done || result.state === 'completed')) {
+                                adsCompletedCount++;
+                                adLoadedSuccessfully = true;
+                                reportAdTelemetry('adsgram', 'success');
+                                showToast(`Ad ${i}/${totalChainSteps} (Adsgram) completed!`, "✓", 1500);
+                            }
+                        }
+                        else if (network === 'monetag' && AdConfiguration.monetag.enabled) {
+                            // Open in Telegram web browser externally
+                            if (window.Telegram && window.Telegram.WebApp) {
+                                window.Telegram.WebApp.openLink(AdConfiguration.monetag.adUrl);
+                            } else {
+                                window.open(AdConfiguration.monetag.adUrl, '_blank');
+                            }
+
+                            // Show a waiting modal to claim the reward
+                            const completed = await new Promise((resolve) => {
+                                const modal = document.getElementById('fallback-player-modal');
+                                const closeBtn = document.getElementById('fallback-close-btn');
+                                const iframe = document.getElementById('fallback-ad-iframe');
+                                const spinner = document.getElementById('fallback-loading-spinner');
+                                const countdownText = document.getElementById('fallback-countdown-text');
+                                const progressBar = document.getElementById('fallback-progress-bar');
+
+                                modal.classList.remove('hidden');
+                                spinner.classList.add('hidden');
+                                iframe.classList.add('hidden');
+
+                                countdownText.innerText = "Please view the ad in the browser. You can claim your reward in 15 seconds.";
+
+                                closeBtn.disabled = true;
+                                closeBtn.innerText = "Wait 15s";
+                                closeBtn.className = "bg-neutral-800 text-neutral-500 font-bold text-[11px] px-3 py-1.5 rounded-xl uppercase tracking-wider transition-all cursor-not-allowed shadow-none";
+
+                                progressBar.style.transition = "width 15s linear";
+                                void progressBar.offsetWidth;
+                                progressBar.style.width = "0%";
+
+                                let secondsLeft = 15;
+                                const timer = setInterval(() => {
+                                    secondsLeft--;
+                                    closeBtn.innerText = `Wait ${secondsLeft}s`;
+
+                                    if (secondsLeft <= 0) {
+                                        clearInterval(timer);
+                                        closeBtn.disabled = false;
+                                        closeBtn.innerText = "Claim Reward ✓";
+                                        closeBtn.className = "bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-[#e6ddd0] font-bold text-[11px] px-4 py-1.5 rounded-xl uppercase tracking-wider transition-all shadow-md";
+                                        countdownText.innerText = "Ad complete! Tap below to claim your points.";
+                                    }
+                                }, 1000);
+
+                                closeBtn.onclick = () => {
+                                    clearInterval(timer);
+                                    modal.classList.add('hidden');
+                                    resolve(true); 
+                                };
+                            });
+
+                            if (completed) {
+                                adsCompletedCount++;
+                                adLoadedSuccessfully = true;
+                                reportAdTelemetry('monetag', 'success');
+                                showToast(`Ad ${i}/${totalChainSteps} (Monetag) completed!`, "✓", 1500);
+                            }
+                        }
+                        else if (network === 'telegaio' && AdConfiguration.telegaio.enabled) {
+                            if (!window.TelegaAdsController) throw new Error("Telega SDK not initialized.");
+                            
+                            // Using the correct method from Telega documentation
+                            await window.TelegaAdsController.ad_show({
+                                adBlockUuid: AdConfiguration.telegaio.blockId
+                            });
+
+                            adsCompletedCount++;
+                            adLoadedSuccessfully = true;
+                            reportAdTelemetry('telegaio', 'success');
+                            showToast(`Ad ${i}/${totalChainSteps} (Telega.io) completed!`, "✓", 1500);
+                        }
+                    } catch (e) {
+                        console.warn(`⚠️ Delivery node failed: ${network.toUpperCase()}. Executing next pool fallback...`);
+                        reportAdTelemetry(network, 'fail', e.message || e);
+                    }
+                }
+
+                if (!adLoadedSuccessfully) {
+                    showToast("No ads available right now. Try again shortly.", "⚠️");
+                    resetAdButton();
+                    return;
+                }
+            }
+
+            if (adsCompletedCount === totalChainSteps) {
+                btnIcon.innerText = "🔄";
+                btnTitle.innerText = "Verifying...";
+                btnSubtitle.innerText = "Adding points to your balance...";
+
+                try {
+                    const telegramInitData = window.Telegram?.WebApp?.initData || "";
+
+                    const response = await fetch('/portal/claim-ad-reward', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `WebApp ${telegramInitData}`
+                        },
+                        body: JSON.stringify({ id: "<%= user.telegram_id %>" })
+                    });
+
+                    if (response.ok) {
+                        const updatedData = await response.json();
+
+                        if (window.Telegram && window.Telegram.WebApp) {
+                            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                        }
+
+                        showToast("+<%= ((locals.globalSettings?.reward_per_ad || 3) * 3) * (user.ad_multiplier || 1) %> PTS earned!", "🪙");
+
+                        const currentBalance = parseInt(document.getElementById('user-balance').innerText.replace(/,/g, ''));
+                        const newBalance = currentBalance + <%= ((locals.globalSettings?.reward_per_ad || 3) * 3) * (user.ad_multiplier || 1) %>;
+
+                        document.getElementById('user-balance').innerText = newBalance.toLocaleString();
+                        document.getElementById('user-value').innerText = `$${(newBalance * 0.0008).toFixed(2)} USD`;
+
+                        const walletBal = document.getElementById('wallet-balance');
+                        if (walletBal) walletBal.innerText = newBalance.toLocaleString();
+                        const walletVal = document.getElementById('wallet-valuation');
+                        if (walletVal) walletVal.innerText = `$${(newBalance * 0.0008).toFixed(2)} USD`;
+
+                        const adsCountElement = document.getElementById('total-ads-watched');
+                        if (adsCountElement) {
+                            const currentAdsCount = parseInt(adsCountElement.innerText);
+                            adsCountElement.innerText = (currentAdsCount + 3).toString();
+                        }
+
+                        // Auto-sync Activity History
+                        const listActivity = document.getElementById('list-activity');
+                        if (listActivity) {
+                            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const loopDisplay = updatedData.loopIndex === 0 ? 3 : updatedData.loopIndex;
+                            const historyHtml = `
+                                <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-neutral-800">Ad Reward #${loopDisplay}</span>
+                                        <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
+                                    </div>
+                                    <span class="text-xs font-bold text-emerald-700 mono-text">+3</span>
+                                </div>`;
+                            listActivity.insertAdjacentHTML('afterbegin', historyHtml);
+                        }
+
+                        resetAdButton();
+                    } else {
+                        const errorMsg = await response.text();
+                        showToast(`Error: ${errorMsg}`, "❌");
+                        resetAdButton();
+                    }
+                } catch (networkErr) {
+                    showToast("Points will update when you reopen the app.", "⚠️");
+                    resetAdButton();
+                }
+            }
+
+            function resetAdButton() {
+                playBtn.disabled = false;
+                playBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                btnIcon.innerText = "⚡";
+                btnTitle.innerText = "Watch Ad";
+                btnSubtitle.innerText = "Watch 3 short ads (+<%= ((locals.globalSettings?.reward_per_ad || 3) * 3) * (user.ad_multiplier || 1) %> PTS)";
+                btnArrow.innerText = "→";
+            }
+        }
+
+        function triggerFallbackOverlay(destinationUrl) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('fallback-player-modal');
+                const closeBtn = document.getElementById('fallback-close-btn');
+                const iframe = document.getElementById('fallback-ad-iframe');
+                const spinner = document.getElementById('fallback-loading-spinner');
+                const countdownText = document.getElementById('fallback-countdown-text');
+                const progressBar = document.getElementById('fallback-progress-bar');
+
+                modal.classList.remove('hidden');
+                spinner.classList.remove('hidden');
+                iframe.classList.add('hidden');
+
+                closeBtn.disabled = true;
+                closeBtn.innerText = "Wait 15s";
+                closeBtn.className = "bg-neutral-800 text-neutral-500 font-bold text-[11px] px-3 py-1.5 rounded-xl uppercase tracking-wider transition-all cursor-not-allowed shadow-none";
+
+                progressBar.style.width = "100%";
+
+                iframe.src = destinationUrl;
+
+                iframe.onload = () => {
+                    spinner.classList.add('hidden');
+                    iframe.classList.remove('hidden');
+
+                    let secondsLeft = 15;
+                    progressBar.style.transition = "width 15s linear";
+                    void progressBar.offsetWidth;
+                    progressBar.style.width = "0%";
+
+                    const timer = setInterval(() => {
+                        secondsLeft--;
+                        closeBtn.innerText = `Wait ${secondsLeft}s`;
+
+                        if (secondsLeft <= 0) {
+                            clearInterval(timer);
+                            closeBtn.disabled = false;
+                            closeBtn.innerText = "Claim Reward ✓";
+                            closeBtn.className = "bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-[#e6ddd0] font-bold text-[11px] px-4 py-1.5 rounded-xl uppercase tracking-wider transition-all shadow-md";
+                            countdownText.innerText = "Ad complete! Tap below to claim your points.";
+                        }
+                    }, 1000);
+
+                    closeBtn.onclick = () => {
+                        clearInterval(timer);
+                        modal.classList.add('hidden');
+                        iframe.src = ""; 
+                        resolve(true); 
+                    };
+                };
+
+                setTimeout(() => {
+                    if (!spinner.classList.contains('hidden')) {
+                        console.warn("⚠️ Fallback iframe loading timeout. Resolving true to bypass.");
+                        spinner.classList.add('hidden');
+                        modal.classList.add('hidden');
+                        iframe.src = "";
+                        resolve(true);
+                    }
+                }, 8000);
+            });
+        }
+
+
+
+        // Promo task handler
+        async function triggerPromoTask(promoKey, targetUrl, rewardPts = 150, isTelegram = false, timer = 8, requiresCommentLink = false) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+            window.open(targetUrl, '_blank');
+
+            const btn = document.getElementById(`promo-btn-${promoKey}`); 
+            if (!btn) return;
+
+            let commentLink = null;
+            if (requiresCommentLink) {
+                // Wait a bit before prompting so they actually switch tabs and come back
+                await new Promise(r => setTimeout(r, 2000));
+                commentLink = window.prompt("Please paste the link to your X comment/retweet to verify this task:");
+                if (!commentLink || commentLink.trim() === "") {
+                    showToast("Task verification cancelled. Valid link required.", "⚠️");
+                    return;
+                }
+            }
+
+            btn.disabled = true;
+            btn.innerText = "Verifying...";
+            btn.className = "bg-neutral-300 text-neutral-500 text-xs font-medium px-4 py-2.5 rounded-xl cursor-not-allowed";
+
+            setTimeout(async () => {
+                try {
+                    const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                    const response = await fetch('/portal/verify-custom-promo', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `WebApp ${telegramInitData}`
+                        },
+                        body: JSON.stringify({
+                            id: "<%= user.telegram_id %>",
+                            promoKey: promoKey,
+                            commentLink: commentLink
+                        })
+                    });
+
+                    if (response.ok) {
+                        showToast(`Task done! +${rewardPts} PTS`, "🎉");
+                        
+                        const row = document.getElementById(`promo-row-${promoKey}`);
+                        if (row) {
+                            row.style.opacity = '0';
+                            setTimeout(() => {
+                                row.remove();
+                                // Hide whole container if empty
+                                const remainingRows = document.querySelectorAll('[id^="promo-row-"]');
+                                if (remainingRows.length === 0) {
+                                    const container = document.querySelector('.bg-gradient-to-br.from-amber-50');
+                                    if(container) container.classList.add('hidden');
+                                }
+                            }, 300);
+                        }
+                        
+                        const userBalanceEl = document.getElementById('user-balance');
+                        const walletBalanceEl = document.getElementById('wallet-balance');
+                        const currentVal = parseInt(userBalanceEl.innerText.replace(/,/g, '')) || 0;
+                        
+                        userBalanceEl.innerText = (currentVal + rewardPts).toLocaleString();
+                        if (walletBalanceEl) walletBalanceEl.innerText = (currentVal + rewardPts).toLocaleString();
+                        
+                        // Sync UI valuation
+                        const newUsdVal = (currentVal + rewardPts) * 0.0008;
+                        const userValEl = document.getElementById('user-value');
+                        if(userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                        
+                        // Add to activity history instantly
+                        const listActivity = document.getElementById('list-activity');
+                        if (listActivity) {
+                            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const historyHtml = `
+                                <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-neutral-800">Bonus Task: ${promoKey}</span>
+                                        <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
+                                    </div>
+                                    <span class="text-xs font-bold text-emerald-700 mono-text">+${rewardPts}</span>
+                                </div>`;
+                            listActivity.insertAdjacentHTML('afterbegin', historyHtml);
+                        }
+                    } else {
+                        const errText = await response.text();
+                        showToast(errText || "Complete the task first, then try again.", "⚠️");
+                        btn.disabled = false;
+                        btn.innerText = "Start";
+                        btn.className = "bg-neutral-900 hover:bg-neutral-800 active:scale-[0.95] transition-all text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md border border-neutral-800";
+                    }
+                } catch (err) {
+                    showToast("Something went wrong. Try again.", "⚠️");
+                    btn.disabled = false;
+                    btn.innerText = "Start";
+                    btn.className = "bg-neutral-900 hover:bg-neutral-800 active:scale-[0.95] transition-all text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md border border-neutral-800";
+                }
+            }, timer * 1000);
+        }
+
+        // ✅ BOUNTY MODAL & SUBMISSION LOGIC
+        function openBountyModal(id, title, platform, action, reward, url) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+            
+            document.getElementById('bounty-modal-id').value = id;
+            document.getElementById('bounty-modal-title').innerText = title;
+            document.getElementById('bounty-modal-reward').innerText = `+${reward} PTS`;
+            document.getElementById('bounty-modal-action').innerText = `${platform} ${action}`;
+            
+            const linkBtn = document.getElementById('bounty-modal-link-btn');
+            linkBtn.onclick = () => {
+                window.open(url, '_blank');
+            };
+            
+            document.getElementById('bounty-proof-input').value = '';
+            document.getElementById('bounty-modal').classList.remove('hidden');
+            document.getElementById('bounty-modal').classList.add('flex');
+        }
+
+        function closeBountyModal() {
+            document.getElementById('bounty-modal').classList.add('hidden');
+            document.getElementById('bounty-modal').classList.remove('flex');
+        }
+
+        async function submitBountyProof() {
+            const bountyId = document.getElementById('bounty-modal-id').value;
+            const proofUrl = document.getElementById('bounty-proof-input').value.trim();
+            const btn = document.getElementById('btn-submit-bounty');
+            
+            if (!proofUrl) return showToast("Please paste your proof link first.", "⚠️");
+            
+            btn.disabled = true;
+            btn.innerText = "Submitting...";
+            
+            try {
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                const response = await fetch('/portal/submit-bounty', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify({
+                        id: "<%= user.telegram_id %>",
+                        bounty_id: bountyId,
+                        proof_url: proofUrl
+                    })
+                });
+
+                if (response.ok) {
+                    showToast("Proof submitted! Waiting for admin approval.", "✅");
+                    closeBountyModal();
+                } else {
+                    const err = await response.text();
+                    showToast(err, "❌");
+                }
+            } catch (err) {
+                showToast("Connection error. Try again.", "❌");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "SUBMIT FOR VERIFICATION";
+            }
+        }
+
+        // ✅ PURCHASE STORE ITEM
+        async function purchaseStoreItem(itemKey) {
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+
+            const telegramInitData = window.Telegram?.WebApp?.initData || "";
+            try {
+                showToast("Processing purchase...", "⏳");
+                const response = await fetch('/portal/purchase-store-item', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify({
+                        id: "<%= user.telegram_id %>",
+                        item: itemKey
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast("Upgrade purchased successfully!", "🎉");
+                    
+                    const newBalanceStr = data.newBalance.toLocaleString();
+                    document.getElementById('user-balance').innerText = newBalanceStr;
+                    document.getElementById('store-balance').innerText = newBalanceStr;
+                    if (document.getElementById('wallet-balance')) document.getElementById('wallet-balance').innerText = newBalanceStr;
+
+                    const newUsdVal = data.newBalance * 0.0008;
+                    document.getElementById('user-value').innerText = `$${newUsdVal.toFixed(2)} USD`;
+                    if (document.getElementById('wallet-valuation')) document.getElementById('wallet-valuation').innerText = `$${newUsdVal.toFixed(2)} USD`;
+                } else {
+                    const errMsg = await response.text();
+                    showToast(`Purchase failed: ${errMsg}`, "⚠️");
+                }
+            } catch (err) {
+                showToast("Connection timeout. Try again.", "⚠️");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initAdsgram(); 
+            initOnClickA();
+
+            // ✅ FIXED: Safely binds listener exclusively to the auto-loading Adsgram HTML web component
+            const taskAdElement = document.getElementById('adsgram-task-element');
+            const taskAdWrapper = document.getElementById('adsgram-task-wrapper');
+            const ecoContainer = document.getElementById('ecosystem-container');
+
+            if (taskAdElement && taskAdWrapper) {
+                if (ecoContainer) {
+                    ecoContainer.classList.remove('hidden');
+                    ecoContainer.classList.add('flex');
+                }
+                taskAdWrapper.classList.remove('hidden');
+                taskAdWrapper.classList.add('flex');
+
+                taskAdElement.addEventListener('onBannerNotFound', () => {
+                    console.log("📡 Adsgram Task Ad: No active campaign matched. Hiding wrapper card.");
+                    if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
+                    taskAdWrapper.classList.remove('flex');
+                    taskAdWrapper.classList.add('hidden');
+                });
+
+                taskAdElement.addEventListener('onError', () => {
+                    console.warn("⚠️ Adsgram Task Ad: Execution failed or empty. Hiding wrapper card.");
+                    if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
+                    taskAdWrapper.classList.remove('flex');
+                    taskAdWrapper.classList.add('hidden');
+                });
+
+                taskAdElement.addEventListener('reward', async () => {
+                    showToast("Sponsored task completed! +50 PTS Added.", "🎉");
+                    try {
+                        const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                        const response = await fetch('/portal/claim-adsgram-reward', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `WebApp ${telegramInitData}`
+                            },
+                            body: JSON.stringify({
+                                id: "<%= user.telegram_id %>"
+                            })
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            const userBalanceEl = document.getElementById('user-balance');
+                            const walletBalanceEl = document.getElementById('wallet-balance');
+                            if (userBalanceEl) userBalanceEl.innerText = data.newBalance.toLocaleString();
+                            if (walletBalanceEl) walletBalanceEl.innerText = data.newBalance.toLocaleString();
+                            
+                            const newUsdVal = data.newBalance * 0.0008;
+                            const userValEl = document.getElementById('user-value');
+                            const walletValEl = document.getElementById('wallet-valuation');
+                            if (userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                            if (walletValEl) walletValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                        }
+                    } catch (err) {
+                        console.error("Adsgram secure claim failed:", err);
+                    }
+                    if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
+                    taskAdWrapper.classList.add('hidden'); 
+                });
+            }
+        });
+    </script>
+
+    <!-- Telega.io In-App Ad SDK -->
+    <script src="https://inapp.telega.io/sdk/v1/sdk.js"></script>
+    <script>
+        window.TelegaAdsController = null;
+        try {
+            window.TelegaAdsController = window.TelegaIn.AdsController.create_miniapp({
+                token: 'f398aaf9-5f9b-4980-93bf-a92d8cce57aa'
+            });
+        } catch (e) {
+            console.warn("Telega.io SDK Init Error:", e);
+        }
+    </script>

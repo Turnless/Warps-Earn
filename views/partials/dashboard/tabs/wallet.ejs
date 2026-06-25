@@ -1,0 +1,150 @@
+<div id="view-wallet" class="hidden flex flex-col gap-4 w-full">
+                    <% var personalThreshold=firstWithdrawalDone ? 1250 : 1500; var isUplinePromoter=(qualifiedRefs>=10);
+                        var globalClearedStatus = (user.points_balance >= personalThreshold || isUplinePromoter);
+                    %>
+
+                        <div class="w-full bg-neutral-950 text-[#e6ddd0] rounded-3xl p-5 shadow-md flex flex-col gap-4 relative overflow-hidden">
+                            <div class="absolute right-[-10px] top-[-10px] text-6xl opacity-10 select-none">💳</div>
+
+                            <div class="flex flex-col gap-1">
+                                <span class="text-[10px] tracking-widest uppercase font-bold text-neutral-400 mono-text">Your Balance</span>
+                                <div class="flex items-baseline gap-1.5">
+                                    <span id="wallet-balance" class="text-3xl font-extrabold tracking-tight text-white">
+                                        <%= (user.points_balance || 0).toLocaleString() %>
+                                    </span>
+                                    <span class="text-xs font-bold text-neutral-400 mono-text">PTS</span>
+                                </div>
+                            </div>
+
+                            <div class="p-3 bg-neutral-900 border border-neutral-800/80 rounded-xl flex items-start gap-2 text-[11px] text-neutral-400 leading-normal">
+                                <span class="text-xs mt-0.5">ℹ️</span>
+                                <span>
+                                    <% if (user.account_tier === 'Gold') { %>
+                                        <b class="text-amber-400">Gold Tier</b> — Min withdrawal: <b class="text-white mono-text">1,000 PTS ($0.80)</b>.
+                                        Up to <b class="text-emerald-400 mono-text">3 withdrawals/day</b>. Instant processing. No limits.
+                                    <% } else if (user.account_tier === 'Premium') { %>
+                                        <b class="text-violet-400">Premium Tier</b> — First withdrawal: <b class="text-white mono-text">1,500 PTS ($1.20)</b>.
+                                        After that, min drops to <b class="text-emerald-400 mono-text">1,250 PTS ($1.00)</b>. Up to 2/day. 1h processing.
+                                    <% } else { %>
+                                        <b class="text-neutral-200">Standard Tier</b> — First withdrawal: <b class="text-white mono-text">1,500 PTS ($1.20)</b>.
+                                        After that, min drops to <b class="text-emerald-400 mono-text">1,250 PTS ($1.00)</b>. Max 1/day. 24h processing.
+                                    <% } %>
+                                </span>
+                            </div>
+
+                            <button onclick="openWithdrawalFlow()" class="w-full bg-white text-neutral-950 font-bold text-xs py-3 rounded-xl uppercase tracking-wider active:scale-[0.98] transition-all shadow-sm">Withdraw</button>
+
+                            <div class="text-[11px] text-neutral-400 flex items-center gap-1.5 mt-1 border-t border-neutral-800 pt-2">
+                                <span>Value:</span>
+                                <span id="wallet-valuation" class="text-emerald-400 font-bold mono-text">$<%= ((user.points_balance || 0) * 0.0008).toFixed(2) %> USD</span>
+                                <span>•</span>
+                                <span>Min:</span>
+                                <span class="font-bold underline text-neutral-300"><%= personalThreshold %> PTS</span>
+                            </div>
+                        </div>
+
+
+
+                        <div id="withdrawal-flow" class="hidden w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-4">
+                            <div class="flex justify-between items-center border-b border-neutral-200/60 pb-2">
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Withdraw</span>
+                                <button onclick="closeWithdrawalFlow()" class="text-xs font-bold text-neutral-400 hover:text-neutral-600 transition-all">✕ Close</button>
+                            </div>
+
+                            <div id="step-country" class="flex flex-col gap-2">
+                                <label class="text-xs font-bold text-neutral-700">1. Select your region:</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button type="button" onclick="setCountry('NG')" class="border border-neutral-300 bg-white hover:bg-neutral-50 px-4 py-3 rounded-xl font-bold text-xs text-neutral-800 transition-all text-center shadow-sm">🇳🇬 Nigeria</button>
+                                    <button type="button" onclick="setCountry('INTL')" class="border border-neutral-300 bg-white hover:bg-neutral-50 px-4 py-3 rounded-xl font-bold text-xs text-neutral-800 transition-all text-center shadow-sm">🌐 Other Countries</button>
+                                </div>
+                            </div>
+
+                            <div id="wrapper-currency" class="hidden flex flex-col gap-2">
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs font-bold text-neutral-700">2. Choose payment method:</label>
+                                    <button type="button" onclick="resetFlowToCountry()" class="text-[10px] font-bold text-neutral-400 uppercase tracking-tight">← Back</button>
+                                </div>
+                                <div id="container-currency" class="grid grid-cols-2 gap-2"></div>
+                            </div>
+
+                            <div id="wrapper-details" class="hidden flex flex-col gap-3 pt-2 border-t border-neutral-200/60">
+                                <div id="bank-select-dropdown" class="hidden flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-neutral-700">Select Bank</label>
+                                    <select id="select-bank-provider" class="w-full px-3 py-2.5 rounded-xl border border-neutral-300 bg-white text-xs font-bold text-neutral-800 focus:outline-none">
+                                        <option value="OPAY">OPay Digital Bank</option>
+                                        <option value="PALMPAY">PalmPay Limited</option>
+                                    </select>
+                                </div>
+
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-neutral-700">Withdrawal Amount (PTS)</label>
+                                    <input type="number" id="input-amount-pts" placeholder="Min. <%= personalThreshold %> PTS" oninput="calculateDynamicYield()" class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-800 shadow-inner">
+                                </div>
+
+                                <div class="flex flex-col gap-1">
+                                    <label id="label-input-address" class="text-xs font-bold text-neutral-700">Account Details</label>
+                                    <input type="text" id="input-destination" placeholder="Enter your account number or address..." class="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-neutral-950 text-neutral-800 shadow-inner">
+                                </div>
+
+                                <div id="wrapper-fiat-calc" class="hidden p-3 bg-neutral-100 rounded-xl border border-neutral-200 text-[11px] text-neutral-600 flex flex-col gap-1 mono-text">
+                                    <div class="flex justify-between items-center w-full">
+                                        <span>You'll receive:</span>
+                                        <span id="display-yield-value" class="font-bold text-neutral-900">$0.00 USD</span>
+                                    </div>
+                                </div>
+
+                                <button id="btn-submit-payout" onclick="openConfirmModal()" <% if(!globalClearedStatus){ %> disabled <% } %> class="w-full mt-1 font-bold text-xs py-3 rounded-xl tracking-wide uppercase transition-all shadow-sm <%= globalClearedStatus ? 'bg-neutral-950 text-[#e6ddd0] hover:bg-neutral-900 active:scale-[0.98]' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed' %>">
+                                    <%= globalClearedStatus ? 'Submit Withdrawal' : `Need ${personalThreshold} PTS to withdraw` %>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- History Tabs -->
+                        <div class="flex bg-neutral-100 p-1 rounded-xl w-full" id="history-tabs">
+                            <button onclick="switchHistory('activity')" id="tab-activity" class="flex-1 py-2 text-[10px] font-bold rounded-lg transition-all bg-white shadow-sm text-neutral-900 uppercase tracking-widest">Earnings</button>
+                            <button onclick="switchHistory('withdrawals')" id="tab-withdrawals" class="flex-1 py-2 text-[10px] font-bold rounded-lg transition-all text-neutral-500 uppercase tracking-widest">Withdrawals</button>
+                        </div>
+
+                        <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-3">
+                            <div id="list-activity" class="flex flex-col gap-2.5 max-h-48 overflow-y-auto pr-1">
+                                <% if (user.earnings_history && user.earnings_history.length> 0) { %>
+                                    <% user.earnings_history.forEach(log=> { %>
+                                        <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                            <div class="flex flex-col">
+                                                <span class="text-xs font-bold text-neutral-800"><%= log.type %></span>
+                                                <span class="text-[9px] text-neutral-400 mono-text"><%= log.timestamp %></span>
+                                            </div>
+                                            <span class="text-xs font-bold <%= log.amount >= 0 ? 'text-emerald-700' : 'text-rose-700' %> mono-text">
+                                                <%= log.amount>= 0 ? '+' : '' %><%= log.amount %>
+                                            </span>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <div id="empty-history" class="text-center py-6 text-xs text-neutral-400">No earnings yet. Start watching ads!</div>
+                                <% } %>
+                            </div>
+
+                            <div id="list-withdrawals" class="hidden flex flex-col gap-2.5 max-h-48 overflow-y-auto pr-1">
+                                <% if (user.transactions && user.transactions.length> 0) { %>
+                                    <% user.transactions.forEach(tx=> { %>
+                                        <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                            <div class="flex flex-col">
+                                                <span class="text-xs font-bold text-neutral-800"><%= tx.type || 'Withdrawal' %></span>
+                                                <span class="text-[9px] text-neutral-400 mono-text"><%= tx.date %></span>
+                                            </div>
+                                            <div class="flex flex-col items-end">
+                                                <span class="text-xs font-bold text-blue-700 mono-text">-$<%= (tx.amount * 0.0008).toFixed(2) %> USD</span>
+                                                <span class="text-[9px] uppercase tracking-wider font-extrabold <%= tx.status === 'Successful' ? 'text-emerald-600' : (tx.status === 'Rejected' ? 'text-rose-600' : 'text-amber-500') %> mono-text">
+                                                    <%= tx.status || 'Pending' %>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <div class="text-center py-6 text-xs text-neutral-400">No withdrawals yet.</div>
+                                <% } %>
+                            </div>
+                        </div>
+                </div>
+
+                <!-- 📋 TASKS VIEW -->

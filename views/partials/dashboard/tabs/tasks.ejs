@@ -1,0 +1,250 @@
+<div id="view-tasks" class="hidden flex flex-col gap-3 w-full">
+                    <div class="px-1">
+                        <h2 class="text-lg font-bold text-neutral-900 tracking-tight">Tasks</h2>
+                        <p class="text-xs text-neutral-500 mt-0.5">Complete tasks to earn bonus points.</p>
+                    </div>
+
+                    <!-- 🎯 BOUNTY HUB FEED -->
+                    <div class="w-full bg-gradient-to-b from-indigo-50/50 to-white/80 backdrop-blur-md border border-indigo-100/80 rounded-3xl p-5 shadow-sm flex flex-col gap-3">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mono-text">Social Bounties</span>
+                            <span class="text-[10px] font-bold text-neutral-500 bg-white px-2 py-0.5 rounded shadow-sm border border-neutral-200">Tier: <%= user.account_tier || 'Standard' %></span>
+                        </div>
+
+                        <% const hasBounties = (typeof bounties !== 'undefined' && bounties.length > 0); %>
+                        <% const hasDynamicQuests = (typeof dynamicQuests !== 'undefined' && Object.keys(dynamicQuests).length > 0); %>
+                        <% if (hasBounties || hasDynamicQuests) { %>
+                            <div class="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-1">
+                            <% if (hasBounties) { bounties.forEach(bounty => { 
+                                let isEligible = true;
+                                let eligibilityMsg = '';
+                                if (bounty.tier_required === 'Premium' && user.account_tier === 'Standard') {
+                                    isEligible = false;
+                                    eligibilityMsg = 'Requires Premium Tier';
+                                } else if (bounty.tier_required === 'Gold' && user.account_tier !== 'Gold') {
+                                    isEligible = false;
+                                    eligibilityMsg = 'Requires Gold Tier';
+                                }
+                                
+                                if (bounty.target_countries && bounty.target_countries.length > 0 && !bounty.target_countries.includes(user.country)) {
+                                    return; // Completely hide if not in region
+                                }
+                            %>
+                                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-neutral-200 relative overflow-hidden group">
+                                    <% if (!isEligible) { %>
+                                        <div class="absolute inset-0 bg-neutral-100/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                                            <span class="bg-white/90 text-rose-600 font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-rose-100 shadow-sm"><%= eligibilityMsg %></span>
+                                        </div>
+                                    <% } %>
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex flex-col">
+                                            <div class="flex items-center gap-1.5 mb-1">
+                                                <span class="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded uppercase border border-indigo-100"><%= bounty.platform %></span>
+                                                <span class="text-[9px] font-bold text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded uppercase border border-neutral-200"><%= bounty.action_type %></span>
+                                            </div>
+                                            <h4 class="font-bold text-xs text-neutral-900 leading-tight"><%= bounty.title %></h4>
+                                        </div>
+                                        <span class="font-black text-emerald-600 text-sm mono-text shrink-0">+<%= bounty.reward_pts %></span>
+                                    </div>
+                                    <p class="text-[10px] text-neutral-500 mt-1.5 line-clamp-2"><%= bounty.description %></p>
+                                    
+                                    <div class="mt-2.5 flex justify-between items-center border-t border-neutral-100 pt-2.5">
+                                        <div class="flex items-center gap-1.5">
+                                            <div class="w-full h-1 bg-neutral-100 rounded-full w-16 overflow-hidden">
+                                                <div class="h-full bg-indigo-400 rounded-full" style="width: <%= Math.min((bounty.completions / bounty.max_completions) * 100, 100) %>%"></div>
+                                            </div>
+                                            <span class="text-[9px] text-neutral-400 font-medium mono-text"><%= bounty.completions %>/<%= bounty.max_completions %></span>
+                                        </div>
+                                        <button onclick="openBountyModal('<%= bounty._id %>', '<%= bounty.title %>', '<%= bounty.platform %>', '<%= bounty.action_type %>', '<%= bounty.reward_pts %>', '<%= bounty.target_url %>')" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
+                                    </div>
+                                </div>
+                            <% })} %>
+
+                            <% if (hasDynamicQuests) { Object.keys(dynamicQuests).forEach(qKey => { 
+                                const q = dynamicQuests[qKey];
+                                const isDone = user.custom_promos && user.custom_promos[qKey];
+                                
+                                let isEligible = true;
+                                let eligibilityMsg = '';
+                                if (q.tier_required === 'Premium' && user.account_tier === 'Standard') {
+                                    isEligible = false;
+                                    eligibilityMsg = 'Requires Premium';
+                                } else if (q.tier_required === 'Gold' && user.account_tier !== 'Gold') {
+                                    isEligible = false;
+                                    eligibilityMsg = 'Requires Gold';
+                                }
+                                
+                                if (q.target_countries && q.target_countries.length > 0 && !q.target_countries.includes(user.country)) {
+                                    return; // Completely hide if not in region
+                                }
+                                
+                                if (!isDone) {
+                            %>
+                                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-neutral-200 relative overflow-hidden group" id="promo-row-<%= qKey %>">
+                                    <% if (!isEligible) { %>
+                                        <div class="absolute inset-0 bg-neutral-100/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                                            <span class="bg-white/90 text-rose-600 font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-rose-100 shadow-sm"><%= eligibilityMsg %></span>
+                                        </div>
+                                    <% } %>
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex flex-col">
+                                            <div class="flex items-center gap-1.5 mb-1">
+                                                <span class="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded uppercase border border-indigo-100">Dynamic</span>
+                                                <span class="text-[9px] font-bold text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded uppercase border border-neutral-200"><%= q.icon || '🔥' %> Task</span>
+                                            </div>
+                                            <h4 class="font-bold text-xs text-neutral-900 leading-tight"><%= q.title %></h4>
+                                        </div>
+                                        <span class="font-black text-emerald-600 text-sm mono-text shrink-0">+<%= q.pts || 150 %></span>
+                                    </div>
+                                    <p class="text-[10px] text-neutral-500 mt-1.5 line-clamp-2">Complete this exclusive task to earn rewards.</p>
+                                    
+                                    <div class="mt-2.5 flex justify-between items-center border-t border-neutral-100 pt-2.5">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-[9px] text-emerald-600 font-bold uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">Active</span>
+                                        </div>
+                                        <div class="relative z-0">
+                                            <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>', <%= q.pts || 150 %>, <%= q.is_telegram || false %>, <%= q.timer || 8 %>, <%= q.requires_comment_link || false %>)" id="promo-btn-<%= qKey %>" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            <% }})} %>
+
+                            </div>
+                        <% } else { %>
+                            <div class="text-center py-8 text-neutral-400 flex flex-col items-center justify-center border-2 border-dashed border-indigo-100/50 rounded-2xl bg-white/50">
+                                <span class="text-3xl mb-2 opacity-50">📭</span>
+                                <span class="text-xs font-medium">No bounties available right now.</span>
+                                <span class="text-[10px]">Check back later!</span>
+                            </div>
+                        <% } %>
+                    </div>
+
+                    <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-3">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Required</span>
+
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">🛡️</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">Verify Account</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div>
+                                <% if (user.onboarding_passed) { %>
+                                    <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">✓ Unlocked</span>
+                                <% } else { %>
+                                    <span class="bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">🔒 Locked</span>
+                                <% } %>
+                            </div>
+                        </div>
+
+                        <% let hasMandatory = false; %>
+
+                        <!-- SOCIAL PROTOCOL TASKS -->
+                        <% if (!user.quests || !user.quests.channel) { hasMandatory = true; %>
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60" id="quest-row-channel">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">📢</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">Warps Channel</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div>
+                                <button onclick="verifyTask('channel', 'https://t.me/Warpsgit')" id="btn-quest-channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                            </div>
+                        </div>
+                        <% } %>
+
+                        <% if (!user.quests || !user.quests.group) { hasMandatory = true; %>
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60" id="quest-row-group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">💬</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">Warps Group</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div>
+                                <button onclick="verifyTask('group', 'https://t.me/warpscommunity')" id="btn-quest-group" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                            </div>
+                        </div>
+                        <% } %>
+
+                        <% if (!user.quests || !user.quests.payout_channel) { hasMandatory = true; %>
+                        <div class="flex justify-between items-center pb-3 border-b border-neutral-200/60" id="quest-row-payout_channel">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">💳</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">Follow Warp on X</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="verifyTask('payout_channel', 'https://x.com/warp_HQ')" id="btn-quest-payout_channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                            </div>
+                        </div>
+                        <% } %>
+
+                        <% if (!user.quests || !user.quests.x_account) { hasMandatory = true; %>
+                        <div class="flex justify-between items-center" id="quest-row-x_account">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">🐦</div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-neutral-800">Follow WarpsEarn on X</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="verifyTask('x_account', 'https://x.com/WarpsEarn')" id="btn-quest-x_account" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                            </div>
+                        </div>
+                        <% } %>
+                        
+                        <% if (!hasMandatory) { %>
+                            <div class="text-center text-xs text-neutral-400 py-4 mono-text">All done ✓</div>
+                        <% } %>
+                    </div>
+
+
+                    <!-- 💎 ECOSYSTEM GROWTH CAMPAIGNS (DYNAMICALLY REVEALED) -->
+                    <div id="ecosystem-container" class="hidden relative w-full overflow-hidden bg-gradient-to-br from-indigo-50/90 to-white/90 backdrop-blur-xl border border-indigo-200/60 rounded-[28px] p-5 shadow-[0_4px_20px_-4px_rgba(79,70,229,0.1)] flex-col gap-3">
+                        <!-- Decorative Background Glow -->
+                        <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-400/20 blur-3xl rounded-full pointer-events-none"></div>
+                        <div class="absolute -bottom-8 -left-8 w-24 h-24 bg-emerald-400/10 blur-2xl rounded-full pointer-events-none"></div>
+
+                        <span class="text-[10px] font-extrabold uppercase tracking-widest text-indigo-500/80 mono-text z-10 flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                            Partner Ads
+                        </span>
+                        
+                        <!-- 1. DYNAMIC ADSGRAM TASK CARD -->
+                        <div class="hidden flex-col z-10" id="adsgram-task-wrapper">
+                            <div class="relative flex items-center justify-between bg-white p-3 rounded-2xl border border-indigo-100 shadow-sm overflow-hidden group">
+                                <div class="flex items-center gap-3 relative z-10 pointer-events-none">
+                                    <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-50 flex items-center justify-center text-xl shadow-inner border border-indigo-200/50">💎</div>
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-extrabold text-neutral-800">Watch Partner Ad</span>
+                                        <span class="text-[10px] text-emerald-600 font-bold mono-text mt-0.5 tracking-wide">+50 PTS</span>
+                                    </div>
+                                </div>
+                                <div class="absolute inset-0 z-20 opacity-0 hover:opacity-10 transition-opacity pointer-events-none bg-indigo-500"></div>
+                                <div class="absolute inset-0 z-30 flex items-center justify-end pr-4">
+                                    <div class="w-full h-full opacity-0 absolute top-0 left-0">
+                                        <adsgram-task 
+                                            id="adsgram-task-element"
+                                            data-block-id="task-35948" 
+                                            data-debug="true" 
+                                            data-debug-console="false" 
+                                            class="w-full h-full block">
+                                        </adsgram-task>
+                                    </div>
+                                    <span class="bg-indigo-600 text-white text-[10px] font-bold px-4 py-2 rounded-xl shadow-sm tracking-wider uppercase pointer-events-none relative z-10">Start</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🤝 INVITATION HUB -->

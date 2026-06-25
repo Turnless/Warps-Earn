@@ -1,0 +1,124 @@
+<div id="view-invite" class="hidden flex flex-col gap-3 w-full">
+                    <div class="px-1">
+                        <h2 class="text-lg font-bold text-neutral-900 tracking-tight">Invite Friends</h2>
+                        <p class="text-xs text-neutral-500 mt-0.5">Invite friends and earn cash rewards when they hit milestones.</p>
+                    </div>
+
+                    <div class="w-full bg-gradient-to-br from-neutral-900 to-neutral-950 text-[#e6ddd0] border border-neutral-800 rounded-3xl p-5 shadow-lg flex flex-col gap-4 relative overflow-hidden">
+                        <div class="absolute inset-0 opacity-5 pointer-events-none bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px)] bg-[size:20px_20px]"></div>
+
+                        <div class="flex justify-between items-center relative z-10">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-emerald-700 text-white font-bold text-[9px] tracking-wider uppercase px-2 py-0.5 rounded mono-text">LIVE CONTEST</span>
+                                <h3 class="font-bold text-xs tracking-wide uppercase text-neutral-300">Referral Race</h3>
+                            </div>
+                            <span class="text-emerald-400 font-bold text-[11px] mono-text">Total Pool: $50.00</span>
+                        </div>
+
+                        <div class="flex items-baseline gap-2 relative z-10">
+                            <span class="text-4xl font-extrabold text-white tracking-tight">
+                                <%= qualifiedRefs %>
+                            </span>
+                            <span class="text-xs text-neutral-400 font-bold uppercase tracking-wider mono-text">Qualified Referrals</span>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5 relative z-10">
+                            <div class="flex justify-between items-center text-[10px] text-neutral-400 font-medium">
+                                <span>Progress to Tier: <span class="text-white font-bold"><%= nextMilestoneTarget %></span></span>
+                                <span class="text-emerald-400 font-bold mono-text"><%= Math.round(contestProgressPct) %>%</span>
+                            </div>
+                            <div class="w-full h-3 bg-neutral-800 rounded-full border border-neutral-700/60 p-0.5 overflow-hidden">
+                                <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500 shadow-inner" style="width: <%= contestProgressPct %>%"></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-1.5 pt-3 border-t border-neutral-800 relative z-10 text-center text-[9px] font-bold mono-text">
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="<%= qualifiedRefs >= 10 ? 'text-emerald-400' : 'text-neutral-500' %>">10 Refs</span>
+                                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] <%= qualifiedRefs >= 10 ? 'bg-emerald-950 text-emerald-400 border border-emerald-500' : 'bg-neutral-800 text-neutral-500 border border-neutral-700' %>">
+                                    <%= qualifiedRefs>= 10 ? '✓' : '1' %>
+                                </span>
+                                <span class="text-[8px] mt-0.5 text-neutral-400">$5.00</span>
+                            </div>
+
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="<%= qualifiedRefs >= 20 ? 'text-emerald-400' : 'text-neutral-500' %>">20 Refs</span>
+                                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] <%= qualifiedRefs >= 20 ? 'bg-emerald-950 text-emerald-400 border border-emerald-500' : 'bg-neutral-800 text-neutral-500 border border-neutral-700' %>">
+                                    <%= qualifiedRefs>= 20 ? '✓' : '2' %>
+                                </span>
+                                <span class="text-[8px] mt-0.5 text-neutral-400">$5.00</span>
+                            </div>
+
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="<%= qualifiedRefs >= 50 ? 'text-emerald-400' : 'text-neutral-500' %>">50 Refs</span>
+                                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] <%= qualifiedRefs >= 50 ? 'bg-emerald-950 text-emerald-400 border border-emerald-500' : 'bg-neutral-800 text-neutral-500 border border-neutral-700' %>">
+                                    <%= qualifiedRefs>= 50 ? '✓' : '3' %>
+                                </span>
+                                <span class="text-[8px] mt-0.5 text-neutral-400">$15.00</span>
+                            </div>
+
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="<%= qualifiedRefs >= 100 ? 'text-emerald-400' : 'text-neutral-500' %>">100 Refs</span>
+                                <span class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] <%= qualifiedRefs >= 100 ? 'bg-emerald-950 text-emerald-400 border border-emerald-500' : 'bg-neutral-800 text-neutral-500 border border-neutral-700' %>">
+                                    <%= qualifiedRefs>= 100 ? '✓' : '4' %>
+                                </span>
+                                <span class="text-[8px] mt-0.5 text-neutral-400">$25.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-3">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">How It Works</span>
+
+                        <div class="flex flex-col gap-2.5 text-xs text-neutral-700">
+                            <div class="flex gap-2.5 items-start">
+                                <span class="bg-neutral-950 text-[#e6ddd0] text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-md shrink-0 mt-0.5">1</span>
+                                <p><strong class="text-neutral-900">Share Link:</strong> Copy your invite link and send it to friends.</p>
+                            </div>
+                            <div class="flex gap-2.5 items-start">
+                                <span class="bg-neutral-950 text-[#e6ddd0] text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-md shrink-0 mt-0.5">2</span>
+                                <p><strong class="text-neutral-900">Qualify:</strong> Your friend must make their first <strong class="text-neutral-900">1,500 PTS withdrawal</strong> to count as a qualified referral.</p>
+                            </div>
+                            <div class="flex gap-2.5 items-start">
+                                <span class="bg-neutral-950 text-[#e6ddd0] text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-md shrink-0 mt-0.5">3</span>
+                                <p><strong class="text-neutral-900">Earn:</strong> You get paid automatically when you hit each referral milestone!</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-2 p-3 bg-neutral-100 border border-neutral-200/80 rounded-xl flex items-center justify-between gap-2">
+                            <span class="text-[11px] text-neutral-500 truncate select-all mono-text tracking-tight w-3/4">https://t.me/warpsearn_bot?start=ref_<%= user.telegram_id %></span>
+                            <button onclick="copyRefLink('https://t.me/warpsearn_bot?start=ref_<%= user.telegram_id %>')" id="btn-copy-link" class="bg-neutral-950 text-[#e6ddd0] font-bold text-[10px] uppercase tracking-wider px-3 py-2 rounded-lg shrink-0 active:scale-95 transition-all">Copy</button>
+                        </div>
+                    </div>
+
+                    <div class="w-full bg-white/70 backdrop-blur-md border border-neutral-300/80 rounded-3xl p-5 shadow-sm flex flex-col gap-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mono-text">Your Referrals</span>
+                            <span class="bg-neutral-200 text-neutral-800 text-[10px] font-bold px-2 py-0.5 rounded mono-text">Total: <%= (user.referrals || []).length %></span>
+                        </div>
+
+                        <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                            <% if (user.referrals && user.referrals.length> 0) { %>
+                                <% user.referrals.forEach(ref=> { %>
+                                    <div class="flex flex-col pb-3 border-b border-neutral-200/60 last:border-0 last:pb-0 gap-1.5">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-bold text-neutral-800 truncate max-w-[180px]">
+                                                <%= ref.username || ('id_' + ref.telegram_id.toString().slice(-4)) %>
+                                            </span>
+                                            <span class="text-[10px] font-medium text-neutral-500 mono-text">Status: <%= ref.qualified ? 'QUALIFIED' : `${ref.ads_viewed}/1000 ads` %></span>
+                                        </div>
+
+                                        <div class="w-full bg-neutral-200 rounded-full h-1.5 overflow-hidden">
+                                            <% let pct=ref.qualified ? 100 : Math.min((ref.ads_viewed / 1000) * 100, 100); %>
+                                                <div class="bg-neutral-950 h-1.5 rounded-full transition-all duration-300" style="width: <%= pct %>%"></div>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <div class="text-center py-6 text-xs text-neutral-400">No referrals yet. Share your link above!</div>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🛒 STORE -->
