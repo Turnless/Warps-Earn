@@ -141,7 +141,10 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
             gold_tier_6m_blue: 150000
         };
 
-        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig });
+        const StoreOrder = require('../models/StoreOrder');
+        const pendingOrders = await StoreOrder.find({ telegram_id: userId, status: 'pending' }).lean();
+
+        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig, pendingOrders: pendingOrders, globalSettings: req.globalSettings });
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
@@ -439,7 +442,12 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         if (!user) return res.status(404).send("User not found.");
 
         if (!user.custom_promos) user.custom_promos = new Map();
-        if (user.custom_promos.get(promoKey) === true) return res.status(400).send("Already verified.");
+        
+        // If already verified and we have a truthy value, reject (unless it's an object with verified: true)
+        const currentPromo = user.custom_promos.get(promoKey);
+        if (currentPromo === true || (currentPromo && currentPromo.verified)) {
+            return res.status(400).send("Already verified.");
+        }
 
         const campaign = promoMap[promoKey];
 
@@ -479,8 +487,35 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
             }
         }
 
-        user.points_balance = (user.points_balance || 0) + campaign.pts;
-        user.custom_promos.set(promoKey, true);
+        const rewardPts = campaign.pts || 0;
+        user.points_balance = (user.points_balance || 0) + rewardPts;
+
+        // Save link if required
+        const submittedLink = String(req.body.commentLink || "").trim();
+        if (campaign.requires_comment_link && !submittedLink) {
+            return res.status(400).send("A valid comment link is required.");
+        }
+
+        if (submittedLink) {
+            user.custom_promos.set(promoKey, { verified: true, link: submittedLink });
+            try {
+                const redis = require('../database/redis'); // or global redis depending on architecture
+                // Wait, redis is global in portal.js
+            } catch (e) {}
+            // Actually, redis is available globally in portal.js
+            try {
+                await redis.lpush('admin:quest_submissions', JSON.stringify({
+                    telegram_id: user.telegram_id,
+                    username: user.username,
+                    promoKey: promoKey,
+                    link: submittedLink,
+                    timestamp: new Date().toISOString()
+                }));
+                await redis.ltrim('admin:quest_submissions', 0, 49); // keep last 50
+            } catch(e) { console.warn("Redis log fail", e); }
+        } else {
+            user.custom_promos.set(promoKey, true);
+        }
 
         if (!user.earnings_history) user.earnings_history = [];
         user.earnings_history.unshift({
@@ -510,7 +545,8 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
     const items = {
         cooldown: { key: 'cooldown', title: "Instant Cooldown Reset" },
         multiplier: { key: 'multiplier', title: "2x Yield Multiplier (1 Month)" },
-        premium_tier: { key: 'premium_tier', title: "Premium Tier Upgrade" },
+        premium_tier_3m: { key: 'premium_tier_3m', title: "Premium Tier (3 Months)" },
+        premium_tier_6m: { key: 'premium_tier_6m', title: "Premium Tier (6 Months)" },
         gold_tier_3m: { key: 'gold_tier_3m', title: "Gold Tier (3 Months)" },
         gold_tier_6m: { key: 'gold_tier_6m', title: "Gold Tier (6 Months)" }
     };
@@ -541,6 +577,12 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         } else if (item === 'gold_tier_6m' && hasBlueTick) {
             cost = storeConfig.gold_tier_6m_blue;
             title += " + Blue Tick";
+        } else if (item === 'premium_tier_3m' && hasBlueTick) {
+            cost = storeConfig.premium_tier_3m_blue;
+            title += " + Blue Tick";
+        } else if (item === 'premium_tier_6m' && hasBlueTick) {
+            cost = storeConfig.premium_tier_6m_blue;
+            title += " + Blue Tick";
         }
 
         if ((user.points_balance || 0) < cost) {
@@ -559,8 +601,24 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             const expDate = new Date();
             expDate.setMonth(expDate.getMonth() + 1);
             user.multiplier_expires_at = expDate;
-        } else if (item === 'premium_tier') {
-            user.account_tier = 'Premium';
+        } else if (item === 'premium_tier_3m') {
+            if (hasBlueTick) {
+                isPending = true;
+            } else {
+                user.account_tier = 'Premium';
+                const expDate = new Date();
+                expDate.setMonth(expDate.getMonth() + 3);
+                user.tier_expires_at = expDate;
+            }
+        } else if (item === 'premium_tier_6m') {
+            if (hasBlueTick) {
+                isPending = true;
+            } else {
+                user.account_tier = 'Premium';
+                const expDate = new Date();
+                expDate.setMonth(expDate.getMonth() + 6);
+                user.tier_expires_at = expDate;
+            }
         } else if (item === 'gold_tier_3m') {
             if (hasBlueTick) {
                 isPending = true;
@@ -615,17 +673,68 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
                 await fetch(tgUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: '@tun_less', text: msg, parse_mode: 'Markdown' })
+                    body: JSON.stringify({ chat_id: '6314427516', text: msg, parse_mode: 'Markdown' })
                 });
             } catch (err) {
                 console.error("Failed to notify admin on Telegram:", err);
             }
         }
 
-        res.status(200).json({ success: true, newBalance: user.points_balance });
+        return res.json({ success: true, newBalance: user.points_balance, isPending });
     } catch (e) {
-        console.error("Store Purchase Error:", e);
-        res.status(500).send("Internal error processing purchase.");
+        console.error("Store error:", e);
+        return res.status(500).send("Purchase failed.");
+    }
+});
+
+// --- 🌟 GENERATE INVOICE FOR TELEGRAM STARS ---
+router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWebAppData, async (req, res) => {
+    const userId = String(req.body.id || "");
+    const item = String(req.body.item || "");
+    const amount = parseInt(req.body.amount || 0);
+
+    if (!userId || !item || amount <= 0) {
+        return res.status(400).send("Invalid invoice payload.");
+    }
+
+    try {
+        const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+        const fetch = require('node-fetch');
+        
+        const payload = JSON.stringify({ userId, item, amount });
+        
+        let title = "Store Purchase";
+        if (item === 'premium_tier') title = "Premium Tier Upgrade";
+        else if (item === 'gold_tier') title = "Gold Tier Upgrade";
+        else if (item === 'x_verify') title = "X Verification Pack";
+
+        const tgUrl = `https://api.telegram.org/bot${botToken}/createInvoiceLink`;
+        const invoiceData = {
+            title: title,
+            description: `Payment for ${title} using Telegram Stars`,
+            payload: payload,
+            provider_token: "", // Empty string for Stars
+            currency: "XTR",
+            prices: [{ label: title, amount: amount }]
+        };
+
+        const response = await fetch(tgUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(invoiceData)
+        });
+
+        const data = await response.json();
+        
+        if (data.ok && data.result) {
+            return res.json({ success: true, invoiceUrl: data.result });
+        } else {
+            console.error("Failed to generate invoice:", data);
+            return res.status(500).json({ success: false, error: data.description });
+        }
+    } catch (e) {
+        console.error("Invoice generation error:", e);
+        return res.status(500).send("Invoice generation failed.");
     }
 });
 

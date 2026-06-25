@@ -235,7 +235,8 @@
                                 <div id="ad-btn-icon" class="w-10 h-10 rounded-xl bg-neutral-800 flex items-center justify-center text-xl border border-neutral-700 transition-all">⚡</div>
                                 <div class="text-left">
                                     <h3 id="ad-btn-title" class="font-bold text-sm tracking-wide text-white">Watch Ad</h3>
-                                    <p id="ad-btn-subtitle" class="text-xs text-neutral-400 mono-text mt-0.5">Watch short ads to earn points</p>
+                                    <% const baseAdReward = ((locals.globalSettings?.reward_per_ad || 3) * 3) * (user.ad_multiplier || 1); %>
+                                    <p id="ad-btn-subtitle" class="text-xs text-emerald-400 mono-text mt-0.5 font-bold">Watch 3 short ads (+<%= baseAdReward %> PTS)</p>
                                 </div>
                             </div>
                             <div id="ad-btn-arrow" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold group-hover:translate-x-0.5 transition-transform">→</div>
@@ -562,7 +563,7 @@
                                             <span class="text-[9px] text-emerald-600 font-bold uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">Active</span>
                                         </div>
                                         <div class="relative z-0">
-                                            <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>', <%= q.pts || 150 %>, <%= q.is_telegram || false %>)" id="promo-btn-<%= qKey %>" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
+                                            <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>', <%= q.pts || 150 %>, <%= q.is_telegram || false %>, <%= q.timer || 8 %>, <%= q.requires_comment_link || false %>)" id="promo-btn-<%= qKey %>" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
                                         </div>
                                     </div>
                                 </div>
@@ -636,12 +637,12 @@
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">💳</div>
                                 <div class="flex flex-col">
-                                    <span class="text-xs font-bold text-neutral-800">WarpsEarn Payouts</span>
+                                    <span class="text-xs font-bold text-neutral-800">Follow Warp on X</span>
                                     <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
                                 </div>
                             </div>
-                            <div>
-                                <button onclick="verifyTask('payout_channel', 'https://t.me/WarpsEarn')" id="btn-quest-payout_channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                            <div class="flex items-center gap-2">
+                                <button onclick="verifyTask('payout_channel', 'https://x.com/warp_HQ')" id="btn-quest-payout_channel" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
                             </div>
                         </div>
                         <% } %>
@@ -651,12 +652,12 @@
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg border border-neutral-200 shadow-sm">🐦</div>
                                 <div class="flex flex-col">
-                                    <span class="text-xs font-bold text-neutral-800">Follow turnless_HQ</span>
+                                    <span class="text-xs font-bold text-neutral-800">Follow WarpsEarn on X</span>
                                     <span class="text-[10px] text-emerald-700 font-semibold mono-text mt-0.5">+100 PTS</span>
                                 </div>
                             </div>
-                            <div>
-                                <button onclick="verifyTask('x_account', 'https://x.com/turnless_HQ')" id="btn-quest-x_account" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
+                            <div class="flex items-center gap-2">
+                                <button onclick="verifyTask('x_account', 'https://x.com/WarpsEarn')" id="btn-quest-x_account" class="bg-neutral-950 hover:bg-neutral-900 active:scale-[0.95] transition-all text-[#e6ddd0] text-xs font-bold px-4 py-2 rounded-xl shadow-sm">Start</button>
                             </div>
                         </div>
                         <% } %>
@@ -860,7 +861,10 @@
                                 <span class="text-indigo-100 text-xs">Unlock high-yield tasks & faster payouts.</span>
                             </div>
 
-                            <% if (user.account_tier === 'Standard') { %>
+                            <% 
+                                const hasPendingPremium = locals.pendingOrders && locals.pendingOrders.some(o => o.item_key.startsWith('premium_tier'));
+                                if (user.account_tier === 'Standard' && !hasPendingPremium) { 
+                            %>
                                 <div class="flex items-center gap-2 mt-3 bg-indigo-400/20 p-2.5 rounded-lg border border-indigo-300/40 relative z-10">
                                     <label class="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" id="store-premium-bluetick-toggle" class="sr-only peer" onchange="updatePremiumPrices()">
@@ -879,8 +883,23 @@
                                         <span id="price-premium-6m" class="text-[9px] text-indigo-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.premium_tier_6m) || 28000).toLocaleString() %> PTS</span>
                                     </button>
                                 </div>
-                            <% } else { %>
-                                <button disabled class="w-full bg-violet-900/50 text-violet-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-violet-700/50 mt-4">You are already Premium (or Gold)</button>
+                                <div class="mt-2 relative z-10 flex justify-center border-t border-indigo-400/30 pt-2">
+                                    <button onclick="purchaseWithStars('premium_tier', <%= locals.storeConfig?.stars_premium || 50 %>)" class="w-full bg-[#2AABEE] hover:bg-[#229ED9] text-white font-bold text-xs py-2.5 rounded-xl shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                                        <span>Pay with Telegram Stars</span>
+                                        <span class="bg-white/20 px-2 py-0.5 rounded text-[10px] mono-text">🌟 <%= locals.storeConfig?.stars_premium || 50 %></span>
+                                    </button>
+                                </div>
+                            <% } else if (hasPendingPremium) { %>
+                                <button disabled class="w-full bg-violet-900/50 text-violet-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-violet-700/50 mt-4">
+                                    Upgrade Pending Verification ⏳
+                                </button>
+                            <% } else { 
+                                const daysLeft = user.tier_expires_at ? Math.ceil((new Date(user.tier_expires_at) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+                            %>
+                                <button disabled class="w-full bg-violet-900/50 text-violet-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-violet-700/50 mt-4">
+                                    You are already Premium (or Gold)
+                                    <% if (daysLeft > 0) { %><br><span class="text-[10px] text-violet-400"><%= daysLeft %> days left</span><% } %>
+                                </button>
                             <% } %>
                         </div>
                         <% } %>
@@ -893,6 +912,10 @@
                                 <span class="text-amber-900 text-xs">Instant payouts, max yield, exclusive access.</span>
                             </div>
 
+                            <% 
+                                const hasPendingGold = locals.pendingOrders && locals.pendingOrders.some(o => o.item_key.startsWith('gold_tier'));
+                                if (user.account_tier !== 'Gold' && !hasPendingGold) { 
+                            %>
                             <div class="flex items-center gap-2 mt-3 bg-amber-500/20 p-2.5 rounded-lg border border-amber-500/30 relative z-10">
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" id="store-bluetick-toggle" class="sr-only peer" onchange="updateGoldPrices()">
@@ -911,6 +934,30 @@
                                     <span id="price-gold-6m" class="text-[9px] text-amber-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.gold_tier_6m) || 90000).toLocaleString() %> PTS</span>
                                 </button>
                             </div>
+                            <div class="mt-2 relative z-10 flex justify-center border-t border-amber-400/30 pt-2">
+                                <button onclick="purchaseWithStars('gold_tier', <%= locals.storeConfig?.stars_gold || 150 %>)" class="w-full bg-[#2AABEE] hover:bg-[#229ED9] text-white font-bold text-xs py-2.5 rounded-xl shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                                    <span>Pay with Telegram Stars</span>
+                                    <span class="bg-white/20 px-2 py-0.5 rounded text-[10px] mono-text">🌟 <%= locals.storeConfig?.stars_gold || 150 %></span>
+                                </button>
+                            </div>
+                            <div class="mt-2 relative z-10 flex justify-center border-t border-amber-400/30 pt-2">
+                                <button onclick="purchaseWithStars('x_verify', <%= locals.storeConfig?.stars_x_verify || 100 %>)" class="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-[10px] py-2 rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                                    <span>X Verification Pack</span>
+                                    <span class="bg-white/20 px-1.5 py-0.5 rounded text-[9px] mono-text">🌟 <%= locals.storeConfig?.stars_x_verify || 100 %></span>
+                                </button>
+                            </div>
+                            <% } else if (hasPendingGold) { %>
+                                <button disabled class="w-full bg-amber-900/50 text-amber-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-amber-700/50 mt-4">
+                                    Upgrade Pending Verification ⏳
+                                </button>
+                            <% } else { 
+                                const daysLeft = user.tier_expires_at ? Math.ceil((new Date(user.tier_expires_at) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+                            %>
+                                <button disabled class="w-full bg-amber-900/50 text-amber-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-amber-700/50 mt-4">
+                                    You are already Gold
+                                    <% if (daysLeft > 0) { %><br><span class="text-[10px] text-amber-400"><%= daysLeft %> days left</span><% } %>
+                                </button>
+                            <% } %>
                         </div>
                         <% } %>
                     </div>
@@ -1130,6 +1177,49 @@
             document.getElementById('store-confirm-modal').classList.add('hidden');
         }
 
+        async function purchaseWithStars(itemKey, amount) {
+            showToast("Generating invoice...", "⏳");
+            try {
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                const response = await fetch('/portal/generate-invoice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
+                    body: JSON.stringify({
+                        id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "<%= user.telegram_id %>",
+                        item: itemKey,
+                        amount: amount
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.invoiceUrl) {
+                        window.Telegram.WebApp.openInvoice(data.invoiceUrl, (status) => {
+                            if (status === 'paid') {
+                                showToast("Payment successful! Processing upgrade...", "🎉");
+                                // Realistically the backend bot would handle the pre_checkout_query and successful_payment webhook
+                                // and upgrade the user. For immediate frontend feedback, we can reload.
+                                setTimeout(() => window.location.reload(), 2000);
+                            } else {
+                                showToast("Payment " + status, "ℹ️");
+                            }
+                        });
+                    } else {
+                        showToast(data.error || "Failed to generate invoice", "❌");
+                    }
+                } else {
+                    const err = await response.text();
+                    showToast(err, "❌");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Connection error", "❌");
+            }
+        }
+
         async function purchaseStoreItem(itemKey, hasBlueTick = false) {
             showToast("Processing purchase...", "⚡");
             
@@ -1151,7 +1241,7 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    showToast("Purchase Successful!", "🎉");
+                    showToast(data.isPending ? "Purchase Pending Verification!" : "Purchase Successful!", "🎉");
                     
                     const userBalanceEl = document.getElementById('user-balance');
                     const storeBalanceEl = document.getElementById('store-balance');
@@ -1161,7 +1251,28 @@
                     if(storeBalanceEl) storeBalanceEl.innerText = data.newBalance.toLocaleString();
                     if(walletBalanceEl) walletBalanceEl.innerText = data.newBalance.toLocaleString();
                     
-                    setTimeout(() => window.location.reload(), 1500);
+                    // Dynamically update activity history
+                    const activityList = document.getElementById('list-activity');
+                    if (activityList) {
+                        const emptyMsg = document.getElementById('empty-history');
+                        if (emptyMsg) emptyMsg.remove();
+                        
+                        const title = document.getElementById('store-modal-item') ? document.getElementById('store-modal-item').innerText : itemKey;
+                        const costText = document.getElementById('store-modal-cost') ? document.getElementById('store-modal-cost').innerText.replace(' PTS', '') : '';
+                        
+                        const newEntry = document.createElement('div');
+                        newEntry.className = 'flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0';
+                        newEntry.innerHTML = `
+                            <div class="flex flex-col">
+                                <span class="text-xs font-bold text-neutral-800">${data.isPending ? '[PENDING] Store Purchase: ' : '[COMPLETED] Store Purchase: '}${title}</span>
+                                <span class="text-[9px] text-neutral-400 mono-text">${new Date().toLocaleString()}</span>
+                            </div>
+                            <span class="text-xs font-bold text-rose-700 mono-text">-${costText.replace(/,/g, '')}</span>
+                        `;
+                        activityList.prepend(newEntry);
+                    }
+                    
+                    setTimeout(() => window.location.reload(), 2500);
                 } else {
                     const errMsg = await response.text();
                     showToast(errMsg || "Insufficient balance.", "❌");
@@ -1745,7 +1856,7 @@
                     } catch(e) {}
                 }
 
-                const activePool = shuffleArray(['adsgram', 'onclicka', 'monetag', 'adsonar', 'telegaio']);
+                const activePool = shuffleArray(['adsgram', 'monetag', 'telegaio']);
                 let adLoadedSuccessfully = false;
 
                 for (let network of activePool) {
@@ -1763,57 +1874,63 @@
                                 showToast(`Ad ${i}/${totalChainSteps} (Adsgram) completed!`, "✓", 1500);
                             }
                         }
-                        else if (network === 'onclicka' && AdConfiguration.onclicka.enabled) {
-                            if (!window.initCdTma) throw new Error("OnClickA SDK not fully loaded yet.");
-                            let success = false;
-                            
-                            // Map existing preloaded functions or dynamically initialize them if missing due to network race conditions
-                            const spots = AdConfiguration.onclicka.spotIds;
-                            const preloadedShows = [OnClickAShowAd1, OnClickAShowAd2, OnClickAShowAd3];
-
-                            for (let idx = 0; idx < spots.length; idx++) {
-                                try {
-                                    let showFn = preloadedShows[idx];
-                                    
-                                    // Fallback: If preload failed because of script loading times, dynamically init it right now
-                                    if (!showFn && window.initCdTma) {
-                                        showFn = await window.initCdTma({ id: spots[idx] });
-                                    }
-                                    
-                                    if (showFn) {
-                                        await showFn();
-                                        adsCompletedCount++;
-                                        adLoadedSuccessfully = true;
-                                        reportAdTelemetry('onclicka', 'success');
-                                        showToast(`Ad ${i}/${totalChainSteps} (OnClickA) completed!`, "✓", 1500);
-                                        success = true;
-                                        break; // Stop trying spots if one succeeded
-                                    }
-                                } catch (err) {
-                                    console.warn(`OnClickA specific spot ${spots[idx]} failed...`, err);
-                                }
-                            }
-                            if (!success) {
-                                throw new Error("All OnClickA spots failed or were not configured.");
-                            }
-                        }
                         else if (network === 'monetag' && AdConfiguration.monetag.enabled) {
-                            // Using the internal fallback player to prevent external browser pops
-                            const completed = await triggerFallbackOverlay(AdConfiguration.monetag.adUrl);
+                            // Open in Telegram web browser externally
+                            if (window.Telegram && window.Telegram.WebApp) {
+                                window.Telegram.WebApp.openLink(AdConfiguration.monetag.adUrl);
+                            } else {
+                                window.open(AdConfiguration.monetag.adUrl, '_blank');
+                            }
+
+                            // Show a waiting modal to claim the reward
+                            const completed = await new Promise((resolve) => {
+                                const modal = document.getElementById('fallback-player-modal');
+                                const closeBtn = document.getElementById('fallback-close-btn');
+                                const iframe = document.getElementById('fallback-ad-iframe');
+                                const spinner = document.getElementById('fallback-loading-spinner');
+                                const countdownText = document.getElementById('fallback-countdown-text');
+                                const progressBar = document.getElementById('fallback-progress-bar');
+
+                                modal.classList.remove('hidden');
+                                spinner.classList.add('hidden');
+                                iframe.classList.add('hidden');
+
+                                countdownText.innerText = "Please view the ad in the browser. You can claim your reward in 15 seconds.";
+
+                                closeBtn.disabled = true;
+                                closeBtn.innerText = "Wait 15s";
+                                closeBtn.className = "bg-neutral-800 text-neutral-500 font-bold text-[11px] px-3 py-1.5 rounded-xl uppercase tracking-wider transition-all cursor-not-allowed shadow-none";
+
+                                progressBar.style.transition = "width 15s linear";
+                                void progressBar.offsetWidth;
+                                progressBar.style.width = "0%";
+
+                                let secondsLeft = 15;
+                                const timer = setInterval(() => {
+                                    secondsLeft--;
+                                    closeBtn.innerText = `Wait ${secondsLeft}s`;
+
+                                    if (secondsLeft <= 0) {
+                                        clearInterval(timer);
+                                        closeBtn.disabled = false;
+                                        closeBtn.innerText = "Claim Reward ✓";
+                                        closeBtn.className = "bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-[#e6ddd0] font-bold text-[11px] px-4 py-1.5 rounded-xl uppercase tracking-wider transition-all shadow-md";
+                                        countdownText.innerText = "Ad complete! Tap below to claim your points.";
+                                    }
+                                }, 1000);
+
+                                closeBtn.onclick = () => {
+                                    clearInterval(timer);
+                                    modal.classList.add('hidden');
+                                    resolve(true); 
+                                };
+                            });
+
                             if (completed) {
                                 adsCompletedCount++;
                                 adLoadedSuccessfully = true;
                                 reportAdTelemetry('monetag', 'success');
                                 showToast(`Ad ${i}/${totalChainSteps} (Monetag) completed!`, "✓", 1500);
-                            }
-                        }
-                        else if (network === 'adsonar' && AdConfiguration.adsonar.enabled) {
-                            const completed = await triggerFallbackOverlay(AdConfiguration.adsonar.adUrl);
-                            if (completed) {
-                                adsCompletedCount++;
-                                adLoadedSuccessfully = true;
-                                reportAdTelemetry('adsonar', 'success');
-                                showToast(`Ad ${i}/${totalChainSteps} (Adsonar) completed!`, "✓", 1500);
                             }
                         }
                         else if (network === 'telegaio' && AdConfiguration.telegaio.enabled) {
@@ -1866,10 +1983,10 @@
                             window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
                         }
 
-                        showToast("+3 PTS earned!", "⚡");
+                        showToast("+<%= ((locals.globalSettings?.reward_per_ad || 3) * 3) * (user.ad_multiplier || 1) %> PTS earned!", "🪙");
 
                         const currentBalance = parseInt(document.getElementById('user-balance').innerText.replace(/,/g, ''));
-                        const newBalance = currentBalance + 3;
+                        const newBalance = currentBalance + <%= ((locals.globalSettings?.reward_per_ad || 3) * 3) * (user.ad_multiplier || 1) %>;
 
                         document.getElementById('user-balance').innerText = newBalance.toLocaleString();
                         document.getElementById('user-value').innerText = `$${(newBalance * 0.0008).toFixed(2)} USD`;
@@ -1918,7 +2035,7 @@
                 playBtn.classList.remove('opacity-70', 'cursor-not-allowed');
                 btnIcon.innerText = "⚡";
                 btnTitle.innerText = "Watch Ad";
-                btnSubtitle.innerText = "Watch 3 short ads to earn points";
+                btnSubtitle.innerText = "Watch 3 short ads (+<%= ((locals.globalSettings?.reward_per_ad || 3) * 3) * (user.ad_multiplier || 1) %> PTS)";
                 btnArrow.innerText = "→";
             }
         }
@@ -1989,7 +2106,7 @@
 
 
         // Promo task handler
-        async function triggerPromoTask(promoKey, targetUrl, rewardPts = 150, isTelegram = false) {
+        async function triggerPromoTask(promoKey, targetUrl, rewardPts = 150, isTelegram = false, timer = 8, requiresCommentLink = false) {
             if (window.Telegram && window.Telegram.WebApp) {
                 window.Telegram.WebApp.HapticFeedback.selectionChanged();
             }
@@ -1997,6 +2114,17 @@
 
             const btn = document.getElementById(`promo-btn-${promoKey}`); 
             if (!btn) return;
+
+            let commentLink = null;
+            if (requiresCommentLink) {
+                // Wait a bit before prompting so they actually switch tabs and come back
+                await new Promise(r => setTimeout(r, 2000));
+                commentLink = window.prompt("Please paste the link to your X comment/retweet to verify this task:");
+                if (!commentLink || commentLink.trim() === "") {
+                    showToast("Task verification cancelled. Valid link required.", "⚠️");
+                    return;
+                }
+            }
 
             btn.disabled = true;
             btn.innerText = "Verifying...";
@@ -2013,7 +2141,8 @@
                         },
                         body: JSON.stringify({
                             id: "<%= user.telegram_id %>",
-                            promoKey: promoKey
+                            promoKey: promoKey,
+                            commentLink: commentLink
                         })
                     });
 
@@ -2073,7 +2202,7 @@
                     btn.innerText = "Start";
                     btn.className = "bg-neutral-900 hover:bg-neutral-800 active:scale-[0.95] transition-all text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md border border-neutral-800";
                 }
-            }, 8000);
+            }, timer * 1000);
         }
 
         // ✅ BOUNTY MODAL & SUBMISSION LOGIC

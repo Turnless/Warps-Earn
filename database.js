@@ -102,9 +102,15 @@ async function watchAdRound(userId) {
         user.current_session_loop = 0;
     }
 
+    // --- MULTIPLIER EXPIRATION CHECK ---
+    if (user.multiplier_expires_at && new Date() > new Date(user.multiplier_expires_at)) {
+        user.ad_multiplier = 1;
+        user.multiplier_expires_at = null;
+    }
+
     // --- TIERED VIP ACCOUNTS (50+ Referrals) ---
     const refCount = (user.referrals || []).length;
-    if (refCount >= 50 && user.ad_multiplier < 2) {
+    if (refCount >= 50 && (user.ad_multiplier || 1) < 2) {
         user.ad_multiplier = 2; // VIP Gold: 2x multiplier
         console.log(`[VIP] User ${userId} upgraded to Gold VIP (2x Multiplier)!`);
     } else if (!user.ad_multiplier) {
@@ -115,7 +121,8 @@ async function watchAdRound(userId) {
     const settingsStr = await redis.get('global_settings');
     const settings = settingsStr ? JSON.parse(settingsStr) : {};
     const baseReward = settings.reward_per_ad || 3;
-    const finalReward = baseReward * user.ad_multiplier;
+    const adsPerRound = 3; // The client forces 3 ads per sequence
+    const finalReward = (baseReward * adsPerRound) * user.ad_multiplier;
 
     user.points_balance = (user.points_balance || 0) + finalReward;
     user.total_ads_watched = (user.total_ads_watched || 0) + 3; 

@@ -395,7 +395,13 @@
                                             </div>
                                             <span class="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded border border-indigo-500/20 font-bold">+<%= sub.bounty.reward_pts || 0 %> PTS</span>
                                         </div>
-                                        <a href="<%= sub.proof_link %>" target="_blank" class="text-[10px] text-cyan-400 bg-cyan-500/5 hover:bg-cyan-500/10 p-2 rounded truncate border border-cyan-500/20 w-max transition-colors">View Proof ↗</a>
+                                        <% if(sub.proof_link.includes('x.com') || sub.proof_link.includes('twitter.com')) { %>
+                                            <div class="w-full bg-neutral-100 rounded-lg overflow-hidden border border-neutral-200">
+                                                <iframe border=0 frameborder=0 height=250 width="100%" src="https://twitframe.com/show?url=<%= sub.proof_link %>"></iframe>
+                                            </div>
+                                        <% } else { %>
+                                            <a href="<%= sub.proof_link %>" target="_blank" class="text-[10px] text-cyan-400 bg-cyan-500/5 hover:bg-cyan-500/10 p-2 rounded truncate border border-cyan-500/20 w-max transition-colors">View Proof ↗</a>
+                                        <% } %>
                                         <div class="grid grid-cols-2 gap-2 mt-1">
                                             <a href="/admin/bounty/action?subId=<%= sub._id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10">Reject</a>
                                             <a href="/admin/bounty/action?subId=<%= sub._id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10">Approve</a>
@@ -439,7 +445,85 @@
                                     </div>
                                 <% }) %>
                             <% } else { %>
-                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending upgrades.</p>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending orders.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 4: DYNAMIC QUEST SUBMISSIONS PREVIEW -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🔗 Quest Previews</h3>
+                            <span class="bg-neutral-800 text-neutral-600 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof questSubmissions !== 'undefined' ? questSubmissions.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            <% if (typeof questSubmissions !== 'undefined' && questSubmissions.length > 0) { %>
+                                <% questSubmissions.forEach(sub => { %>
+                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex flex-col gap-1">
+                                                <span class="font-bold text-sm text-neutral-900"><%= sub.promoKey %></span>
+                                                <span class="text-[10px] text-neutral-500">@<%= sub.username || sub.telegram_id %></span>
+                                                <span class="text-[9px] text-neutral-400"><%= new Date(sub.timestamp).toLocaleString() %></span>
+                                            </div>
+                                        </div>
+                                        <% if(sub.link && (sub.link.includes('x.com') || sub.link.includes('twitter.com'))) { %>
+                                            <div class="w-full bg-neutral-100 rounded-lg overflow-hidden border border-neutral-200">
+                                                <iframe border=0 frameborder=0 height=250 width="100%" src="https://twitframe.com/show?url=<%= sub.link %>"></iframe>
+                                            </div>
+                                        <% } else if(sub.link) { %>
+                                            <a href="<%= sub.link %>" target="_blank" class="text-[10px] text-cyan-400 bg-cyan-500/5 hover:bg-cyan-500/10 p-2 rounded truncate border border-cyan-500/20 w-max transition-colors">View Proof ↗</a>
+                                        <% } %>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">No recent submissions.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 5: X VERIFICATIONS -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🐦 X Verification</h3>
+                            <span class="bg-neutral-800 text-neutral-600 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof pendingXVerifications !== 'undefined' ? pendingXVerifications.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            <% if (typeof pendingXVerifications !== 'undefined' && pendingXVerifications.length > 0) { %>
+                                <% pendingXVerifications.forEach(p => { %>
+                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex flex-col gap-1">
+                                                <span class="font-bold text-sm text-neutral-900">@<%= p.username || 'Anon' %></span>
+                                                <span class="text-[10px] text-neutral-500 font-mono"><%= p.telegram_id %></span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[10px] text-neutral-500 font-bold bg-neutral-100 px-2 py-1 rounded">X:</span>
+                                            <a href="<%= p.x_handle %>" target="_blank" class="text-[10px] text-cyan-500 hover:underline truncate w-full"><%= p.x_handle %></a>
+                                        </div>
+                                        <form action="/admin/user-x-verify" method="POST" class="flex flex-col gap-2 mt-1">
+                                            <input type="hidden" name="telegram_id" value="<%= p.telegram_id %>">
+                                            <input type="hidden" name="redirect_dashboard" value="true">
+                                            
+                                            <div class="flex gap-2">
+                                                <input type="number" name="followers" placeholder="Followers" class="w-1/2 bg-white border border-neutral-200 rounded px-2 py-1.5 text-[10px] focus:outline-none focus:border-violet-400">
+                                                <select name="tier" class="w-1/2 bg-white border border-neutral-200 rounded px-2 py-1.5 text-[10px] focus:outline-none focus:border-violet-400">
+                                                    <option value="Standard">Standard</option>
+                                                    <option value="Premium">Premium</option>
+                                                    <option value="Gold">Gold</option>
+                                                </select>
+                                            </div>
+                                            <div class="flex items-center gap-2 px-1">
+                                                <input type="checkbox" name="blue_tick" id="blue_tick_<%= p.telegram_id %>" class="rounded border-neutral-300 text-violet-500 focus:ring-violet-500">
+                                                <label for="blue_tick_<%= p.telegram_id %>" class="text-[10px] text-neutral-600 font-bold">Has Blue Tick?</label>
+                                            </div>
+                                            <button type="submit" class="bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-2 rounded-lg text-[10px] shadow-sm uppercase tracking-wider mt-1 transition-all">Verify & Assign</button>
+                                        </form>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending verifications.</p>
                             <% } %>
                         </div>
                     </div>
@@ -544,6 +628,22 @@
                             </label>
                         </div>
                         
+                        <div class="flex justify-between items-center bg-white/60 p-4 rounded-xl border border-neutral-200">
+                            <div class="flex flex-col">
+                                <label class="text-sm font-bold text-neutral-900">Automatic X Verification</label>
+                                <span class="text-[10px] text-neutral-500">Enable automatic tier verification via X API</span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="auto_x_verify" class="sr-only peer" <%= settings.auto_x_verify ? 'checked' : '' %>>
+                                <div class="w-12 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                            </label>
+                        </div>
+                        
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-neutral-500 uppercase tracking-widest">X API Bearer Token</label>
+                            <input type="password" name="x_api_key" value="<%= settings.x_api_key || '' %>" placeholder="Enter Bearer Token..." class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:outline-none focus:border-cyan-500 font-mono text-sm">
+                        </div>
+                        
                         <div class="flex flex-col gap-2">
                             <label class="text-xs font-bold text-neutral-500 uppercase tracking-widest">Base Reward Per Ad (PTS)</label>
                             <input type="number" name="reward_per_ad" value="<%= settings.reward_per_ad || 3 %>" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:outline-none focus:border-violet-500 font-mono">
@@ -625,6 +725,29 @@
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Telegram Stars Pricing -->
+                            <div class="border-t border-neutral-300 pt-4 mt-2">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h4 class="text-xs font-bold text-yellow-500 uppercase tracking-widest">Telegram Stars Pricing (🌟)</h4>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 mb-3">
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">Premium Tier (Stars)</label>
+                                        <input type="number" name="stars_premium" value="<%= storeConfig.stars_premium || 50 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">Gold Tier (Stars)</label>
+                                        <input type="number" name="stars_gold" value="<%= storeConfig.stars_gold || 150 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">X Verification Pack (Stars)</label>
+                                        <input type="number" name="stars_x_verify" value="<%= storeConfig.stars_x_verify || 100 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-3 py-2 text-neutral-900 font-mono text-sm">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <button type="submit" class="w-full bg-white text-black hover:bg-neutral-200 font-bold py-3.5 rounded-xl shadow-sm transition-all uppercase tracking-widest text-xs mt-2">Update Pricing</button>
                     </form>
@@ -647,13 +770,25 @@
                                     <input type="text" name="icon" required placeholder="🐦" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 text-xs text-center">
                                 </div>
                             </div>
-                            <div class="flex flex-col gap-2">
-                                <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Quest Title</label>
-                                <input type="text" name="title" required placeholder="Follow us on Twitter" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 text-xs">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Quest Title</label>
+                                    <input type="text" name="title" required placeholder="Follow us on Twitter" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 text-xs">
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Target URL</label>
+                                    <input type="url" name="url" required placeholder="https://..." class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs">
+                                </div>
                             </div>
-                            <div class="flex flex-col gap-2">
-                                <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Target URL</label>
-                                <input type="url" name="url" required placeholder="https://..." class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs">
+                            <div class="grid grid-cols-2 gap-4 mt-2">
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Quest Timer (Seconds)</label>
+                                    <input type="number" name="timer" value="8" min="0" placeholder="e.g. 15" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs">
+                                </div>
+                                <div class="flex items-center gap-2 mt-6">
+                                    <input type="checkbox" name="requires_comment_link" id="requires_comment_link" class="w-4 h-4 rounded border-neutral-300 text-cyan-500 focus:ring-cyan-500">
+                                    <label for="requires_comment_link" class="text-xs font-bold text-neutral-700">Require X Comment Link</label>
+                                </div>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="flex flex-col gap-2">

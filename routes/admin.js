@@ -135,10 +135,21 @@ router.get('/', checkAdminAuth, async (req, res) => {
             { $group: { _id: "$country", count: { $sum: 1 } } },
             { $sort: { count: -1 } }
         ]);
-        const countryStats = countryStatsRaw.map(c => ({
-            country: c._id || 'Unknown',
-            count: c.count
-        }));
+        
+        const mergedCountryStats = {};
+        countryStatsRaw.forEach(c => {
+            let label = c._id;
+            if (!label || label === "OTHER" || label.toLowerCase() === "unknown") {
+                label = "Unknown";
+            } else {
+                label = label.toUpperCase();
+            }
+            mergedCountryStats[label] = (mergedCountryStats[label] || 0) + c.count;
+        });
+
+        const countryStats = Object.keys(mergedCountryStats)
+            .map(country => ({ country, count: mergedCountryStats[country] }))
+            .sort((a, b) => b.count - a.count);
 
         const settingsStr = await redis.get('global_settings');
         const settings = settingsStr ? JSON.parse(settingsStr) : {
@@ -160,6 +171,9 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const StoreOrder = require('../models/StoreOrder');
         const pendingBounties = await BountySubmission.find({ status: 'pending' }).sort({ submitted_at: -1 }).lean();
         const pendingStoreOrders = await StoreOrder.find({ status: 'pending' }).sort({ created_at: -1 }).lean();
+        
+        // Fetch pending X verifications
+        const pendingXVerifications = await User.find({ x_verification_status: 'pending' }).sort({ _id: -1 }).limit(50).lean();
         
         // Populate user details and bounty details manually for the view since it's NoSQL without direct population setup
         const Bounty = require('../models/Bounty');
@@ -187,6 +201,19 @@ router.get('/', checkAdminAuth, async (req, res) => {
             enable_gold: true
         };
 
+        const telemetryStr = await redis.get('admin:telemetry');
+        const telemetry = telemetryStr ? JSON.parse(telemetryStr) : { adAttempts: 0, adSuccess: 0, activeNetworks: {} };
+
+        const storeConfigStr = await redis.get('admin:store_config');
+        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {};
+
+        const questsStr = await redis.get('admin:dynamic_quests');
+        const dynamicQuests = questsStr ? JSON.parse(questsStr) : {};
+
+        // Fetch recent quest submissions
+        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, 49);
+        const questSubmissions = questSubmissionsRaw.map(s => JSON.parse(s));
+
         res.render('admin_dashboard', { 
             secret: ADMIN_SECRET_SIGNATURE,
             stats: {
@@ -204,6 +231,8 @@ router.get('/', checkAdminAuth, async (req, res) => {
             pendingList: pendingList,
             pendingBounties: pendingBounties,
             pendingStoreOrders: pendingStoreOrders,
+            pendingXVerifications: pendingXVerifications,
+            questSubmissions: questSubmissions,
             topUsers: topUsers,
             countryStats: countryStats,
             settings: settings,
@@ -220,10 +249,12 @@ router.get('/', checkAdminAuth, async (req, res) => {
 // --- ⚙️ GLOBAL SETTINGS CONTROLLER ---
 router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { maintenance, withdrawals, reward_per_ad, streak_reward } = req.body;
+        const { maintenance, withdrawals, reward_per_ad, streak_reward, auto_x_verify, x_api_key } = req.body;
         const newSettings = {
             maintenance: maintenance === 'on',
             withdrawals: withdrawals === 'on',
+            auto_x_verify: auto_x_verify === 'on',
+            x_api_key: x_api_key || '',
             reward_per_ad: parseInt(reward_per_ad) || 3,
             streak_reward: parseInt(streak_reward) || 500
         };
@@ -237,7 +268,7 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
 // --- 🛒 STORE CONFIG CONTROLLER ---
 router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { cooldown, multiplier, premium_tier_3m, premium_tier_6m, premium_tier_3m_blue, premium_tier_6m_blue, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue, enable_cooldown, enable_multiplier, enable_premium, enable_gold } = req.body;
+        const { cooldown, multiplier, premium_tier_3m, premium_tier_6m, premium_tier_3m_blue, premium_tier_6m_blue, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue, enable_cooldown, enable_multiplier, enable_premium, enable_gold, stars_premium, stars_gold, stars_x_verify } = req.body;
         const newConfig = {
             cooldown: parseInt(cooldown) || 500,
             multiplier: parseInt(multiplier) || 3000,
@@ -249,6 +280,9 @@ router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true
             gold_tier_6m: parseInt(gold_tier_6m) || 90000,
             gold_tier_3m_blue: parseInt(gold_tier_3m_blue) || 80000,
             gold_tier_6m_blue: parseInt(gold_tier_6m_blue) || 150000,
+            stars_premium: parseInt(stars_premium) || 50,
+            stars_gold: parseInt(stars_gold) || 150,
+            stars_x_verify: parseInt(stars_x_verify) || 100,
             enable_cooldown: enable_cooldown === 'on',
             enable_multiplier: enable_multiplier === 'on',
             enable_premium: enable_premium === 'on',
@@ -318,7 +352,7 @@ router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extende
 // --- 🎯 DYNAMIC QUESTS ENGINE ---
 router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { action, key, title, url, pts, icon, tier_required, target_countries, is_telegram } = req.body;
+        const { action, key, title, url, pts, icon, tier_required, target_countries, is_telegram, timer, requires_comment_link } = req.body;
         const questsStr = await redis.get('admin:dynamic_quests');
         let quests = questsStr ? JSON.parse(questsStr) : {};
 
@@ -330,7 +364,9 @@ router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), a
                 icon: (icon || "🔥").trim(),
                 tier_required: tier_required || "Any",
                 target_countries: target_countries ? target_countries.split(',').map(c => c.trim().toUpperCase()) : [],
-                is_telegram: is_telegram === 'on'
+                is_telegram: is_telegram === 'on',
+                timer: parseInt(timer) || 8,
+                requires_comment_link: requires_comment_link === 'on'
             };
         } else if (action === 'delete' && key) {
             delete quests[key];
@@ -438,6 +474,38 @@ router.post('/user-manage-balance', checkAdminAuth, express.urlencoded({ extende
             await redis.del(`user:${telegram_id}:profile`);
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
+    } catch (e) {
+        res.status(500).send("Action failed");
+    }
+});
+
+router.post('/user-x-verify', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    const { telegram_id, followers, blue_tick, tier } = req.body;
+    try {
+        const user = await User.findOne({ telegram_id });
+        if (user) {
+            user.x_followers = parseInt(followers) || 0;
+            user.x_blue_tick = blue_tick === 'on';
+            user.account_tier = tier || 'Standard';
+            user.x_verification_status = 'verified';
+            
+            await user.save();
+            await redis.del(`user:${telegram_id}:profile`);
+            
+            // Notify user of tier upgrade
+            const msg = `🎉 *Account Tier Updated* 🎉\n\nYour account has been manually reviewed and placed in the *${user.account_tier} Tier*.\nFollowers: ${user.x_followers}\nBlue Tick: ${user.x_blue_tick ? 'Yes' : 'No'}`;
+            try {
+                const { sendTelegramMessageAsync } = require('../services/queue');
+                await sendTelegramMessageAsync(telegram_id, msg, { parse_mode: 'Markdown' });
+            } catch (err) {
+                console.error("Failed to notify user of tier change:", err);
+            }
+        }
+        if (req.body.redirect_dashboard) {
+            res.redirect('/admin');
+        } else {
+            res.redirect(`/admin/user-lookup?q=${telegram_id}`);
+        }
     } catch (e) {
         res.status(500).send("Action failed");
     }

@@ -78,7 +78,7 @@ app.use("/admin", adminRouter);
 const { createBullBoard } = require('@bull-board/api');
 const { BullAdapter } = require('@bull-board/api/bullAdapter');
 const { ExpressAdapter } = require('@bull-board/express');
-const { telegramQueue } = require(path.join(process.cwd(), 'services', 'queue'));
+const { telegramQueue, sendTelegramMessageAsync } = require(path.join(process.cwd(), 'services', 'queue'));
 
 const serverAdapter = new ExpressAdapter();
 serverAdapter.setBasePath('/admin/queues');
@@ -172,9 +172,9 @@ app.post('/portal/claim-ad-reward', async (req, res) => {
 
 // 🛡️ CLIENT-TO-SERVER SYBIL DETECTION HANDSHAKE PROCESSOR
 app.post("/portal/verify-sybil", async (req, res) => {
-    const { id, fingerprint, solution, expectedCaptcha } = req.body;
-    if (!id || !fingerprint) {
-        return res.status(400).json({ error: "Missing credentials or fingerprint." });
+    const { id, fingerprint, solution, expectedCaptcha, country, xHandle } = req.body;
+    if (!id || !fingerprint || !country || !xHandle) {
+        return res.status(400).json({ error: "Missing credentials or profile information." });
     }
 
     // Securely validate the CAPTCHA solution matching check on the backend
@@ -202,6 +202,21 @@ app.post("/portal/verify-sybil", async (req, res) => {
         user.device_hardware_hash = req.validatedHardwareHash || "legacy-hash";
         user.points_balance = (user.points_balance || 0) + 100; // +100 PTS onboarding reward
         
+        user.country = country;
+        
+        // Auto-Format X Handle to full URL
+        let formattedXHandle = xHandle.trim();
+        if (!formattedXHandle.startsWith('http')) {
+            // Remove @ if present
+            if (formattedXHandle.startsWith('@')) {
+                formattedXHandle = formattedXHandle.substring(1);
+            }
+            // Add base url
+            formattedXHandle = `https://x.com/${formattedXHandle}`;
+        }
+        user.x_handle = formattedXHandle;
+        user.x_verification_status = 'pending';
+        
         // Push transactions to ledger
         if (!user.earnings_history) {
             user.earnings_history = [];
@@ -213,6 +228,14 @@ app.post("/portal/verify-sybil", async (req, res) => {
         });
 
         await user.save();
+
+        try {
+            const msg = `🚨 *New User Onboarded* 🚨\n\nUser: @${user.username || user.telegram_id}\nCountry: ${user.country}\nX Handle: ${user.x_handle}\n\nPlease check the Admin Dashboard to manually verify their account tier.`;
+            await sendTelegramMessageAsync('6314427516', msg, { parse_mode: 'Markdown' });
+        } catch (err) {
+            console.error("Failed to notify admin on Telegram:", err);
+        }
+
         return res.status(200).json({ success: true });
 
     } catch (err) {
