@@ -70,10 +70,12 @@
                             <div class="absolute -right-2 -bottom-2 text-6xl opacity-10">👑</div>
                             <div class="flex flex-col gap-1 z-10">
                                 <span class="text-[10px] font-extrabold text-neutral-400 tracking-wider uppercase mono-text">Account Tier</span>
-                                <% if ((user.ad_multiplier || 1) >= 2 || (user.referrals && user.referrals.length >= 50)) { %>
-                                    <span class="text-xl font-black text-amber-400">GOLD VIP</span>
+                                <% if (user.account_tier === 'Gold' || (user.referrals && user.referrals.length >= 50)) { %>
+                                    <span class="text-xl font-black text-amber-400 uppercase">GOLD VIP</span>
+                                <% } else if (user.account_tier === 'Premium') { %>
+                                    <span class="text-xl font-black text-indigo-400 uppercase">PREMIUM</span>
                                 <% } else { %>
-                                    <span class="text-xl font-black text-white">STANDARD</span>
+                                    <span class="text-xl font-black text-white uppercase">STANDARD</span>
                                 <% } %>
                             </div>
                             <div class="mt-3 z-10 flex items-center justify-between">

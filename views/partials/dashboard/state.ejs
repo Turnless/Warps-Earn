@@ -1,0 +1,63 @@
+<% 
+var incompleteCount=0; 
+if (!user.quests || !user.quests.channel) incompleteCount++; 
+if (!user.quests || !user.quests.group) incompleteCount++; 
+if (!user.quests || !user.quests.payout_channel) incompleteCount++;
+if (!user.quests || !user.quests.x_account) incompleteCount++; 
+
+if (typeof dynamicQuests !== 'undefined') {
+    Object.keys(dynamicQuests).forEach(k => {
+        let q = dynamicQuests[k];
+        if (!user.custom_promos || !user.custom_promos[k]) {
+            if (!q.target_countries || q.target_countries.length === 0 || q.target_countries.includes(user.country)) {
+                incompleteCount++;
+            }
+        }
+    });
+}
+
+if (typeof bounties !== 'undefined') {
+    bounties.forEach(b => {
+        if (!b.target_countries || b.target_countries.length === 0 || b.target_countries.includes(user.country)) {
+            incompleteCount++;
+        }
+    });
+}
+
+var firstWithdrawalDone=(user.withdrawals_count && user.withdrawals_count> 0);
+
+var totalRefs = (user.referrals || []).length;
+var qualifiedRefs = (user.referrals || []).filter(r => r.qualified).length;
+
+var nextMilestoneTarget = 10;
+var prevMilestoneTarget = 0;
+var rewardValue = "$5.00";
+
+if (qualifiedRefs >= 50) {
+    nextMilestoneTarget = 100;
+    prevMilestoneTarget = 50;
+    rewardValue = "$25.00";
+} else if (qualifiedRefs >= 20) {
+    nextMilestoneTarget = 50;
+    prevMilestoneTarget = 20;
+    rewardValue = "$15.00";
+} else if (qualifiedRefs >= 10) {
+    nextMilestoneTarget = 20;
+    prevMilestoneTarget = 10;
+    rewardValue = "$5.00";
+}
+
+var rangeFactor = nextMilestoneTarget - prevMilestoneTarget;
+var relativeProgress = qualifiedRefs - prevMilestoneTarget;
+var contestProgressPct = Math.min(Math.max((relativeProgress / rangeFactor) * 100, 0), 100);
+
+// Expose to all partials
+locals.incompleteCount = incompleteCount;
+locals.firstWithdrawalDone = firstWithdrawalDone;
+locals.totalRefs = totalRefs;
+locals.qualifiedRefs = qualifiedRefs;
+locals.nextMilestoneTarget = nextMilestoneTarget;
+locals.prevMilestoneTarget = prevMilestoneTarget;
+locals.rewardValue = rewardValue;
+locals.contestProgressPct = contestProgressPct;
+%>

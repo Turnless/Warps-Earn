@@ -190,11 +190,23 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
             cooldown: 500,
             multiplier: 3000,
-            premium_tier: 15000,
+            premium_tier_3m: 15000,
+            premium_tier_6m: 28000,
+            premium_tier_3m_blue: 45000,
+            premium_tier_6m_blue: 85000,
             gold_tier_3m: 50000,
             gold_tier_6m: 90000,
             gold_tier_3m_blue: 80000,
             gold_tier_6m_blue: 150000,
+            stars_premium_3m: 25,
+            stars_premium_6m: 45,
+            stars_premium_3m_blue: 50,
+            stars_premium_6m_blue: 95,
+            stars_gold_3m: 100,
+            stars_gold_6m: 180,
+            stars_gold_3m_blue: 120,
+            stars_gold_6m_blue: 220,
+            stars_x_verify: 100,
             enable_cooldown: true,
             enable_multiplier: true,
             enable_premium: true,
@@ -264,7 +276,15 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
 // --- 🛒 STORE CONFIG CONTROLLER ---
 router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { cooldown, multiplier, premium_tier_3m, premium_tier_6m, premium_tier_3m_blue, premium_tier_6m_blue, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue, enable_cooldown, enable_multiplier, enable_premium, enable_gold, stars_premium, stars_gold, stars_x_verify } = req.body;
+        const { 
+            cooldown, multiplier, 
+            premium_tier_3m, premium_tier_6m, premium_tier_3m_blue, premium_tier_6m_blue, 
+            gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue, 
+            stars_premium_3m, stars_premium_6m, stars_premium_3m_blue, stars_premium_6m_blue,
+            stars_gold_3m, stars_gold_6m, stars_gold_3m_blue, stars_gold_6m_blue,
+            stars_x_verify,
+            enable_cooldown, enable_multiplier, enable_premium, enable_gold 
+        } = req.body;
         const newConfig = {
             cooldown: parseInt(cooldown) || 500,
             multiplier: parseInt(multiplier) || 3000,
@@ -276,8 +296,14 @@ router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true
             gold_tier_6m: parseInt(gold_tier_6m) || 90000,
             gold_tier_3m_blue: parseInt(gold_tier_3m_blue) || 80000,
             gold_tier_6m_blue: parseInt(gold_tier_6m_blue) || 150000,
-            stars_premium: parseInt(stars_premium) || 50,
-            stars_gold: parseInt(stars_gold) || 150,
+            stars_premium_3m: parseInt(stars_premium_3m) || 25,
+            stars_premium_6m: parseInt(stars_premium_6m) || 45,
+            stars_premium_3m_blue: parseInt(stars_premium_3m_blue) || 50,
+            stars_premium_6m_blue: parseInt(stars_premium_6m_blue) || 95,
+            stars_gold_3m: parseInt(stars_gold_3m) || 100,
+            stars_gold_6m: parseInt(stars_gold_6m) || 180,
+            stars_gold_3m_blue: parseInt(stars_gold_3m_blue) || 120,
+            stars_gold_6m_blue: parseInt(stars_gold_6m_blue) || 220,
             stars_x_verify: parseInt(stars_x_verify) || 100,
             enable_cooldown: enable_cooldown === 'on',
             enable_multiplier: enable_multiplier === 'on',

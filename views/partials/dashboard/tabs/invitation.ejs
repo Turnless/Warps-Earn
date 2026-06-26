@@ -1,4 +1,9 @@
-<div id="view-invite" class="hidden flex flex-col gap-3 w-full">
+<div id="view-invite" class="hidden flex flex-col gap-4 w-full">
+<% 
+var qualifiedRefs = locals.qualifiedRefs || 0;
+var nextMilestoneTarget = locals.nextMilestoneTarget || 10;
+var contestProgressPct = locals.contestProgressPct || 0;
+%>
                     <div class="px-1">
                         <h2 class="text-lg font-bold text-neutral-900 tracking-tight">Invite Friends</h2>
                         <p class="text-xs text-neutral-500 mt-0.5">Invite friends and earn cash rewards when they hit milestones.</p>

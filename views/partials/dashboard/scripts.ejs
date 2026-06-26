@@ -22,7 +22,7 @@
         let currentStoreItem = null;
         let currentStoreCost = 0;
 
-        function promptStorePurchase(itemKey) {
+        function promptStorePurchase(itemKey, ptsParam = null, starsParam = null) {
             currentStoreItem = itemKey;
             
             // Determine blue tick state based on which tier
@@ -30,29 +30,34 @@
             if (itemKey.startsWith('premium_tier_')) {
                 const premToggle = document.getElementById('store-premium-bluetick-toggle');
                 hasBlueTick = premToggle ? premToggle.checked : false;
-            } else {
+            } else if (itemKey.startsWith('gold_tier_')) {
                 const goldToggle = document.getElementById('store-bluetick-toggle');
                 hasBlueTick = goldToggle ? goldToggle.checked : false;
             }
             
             let itemName = "";
             let desc = "";
+            let starsCost = null;
             
             if (itemKey === 'gold_tier_3m') {
                 itemName = hasBlueTick ? "Gold Tier (3 Months) + X Blue Tick ✓" : "Gold Tier (3 Months)";
                 currentStoreCost = hasBlueTick ? STORE_CONFIG.gold_tier_3m_blue : STORE_CONFIG.gold_tier_3m;
+                starsCost = hasBlueTick ? STORE_CONFIG.stars_gold_3m_blue : STORE_CONFIG.stars_gold_3m;
                 desc = hasBlueTick ? "You will upgrade to Gold Tier for 3 months and we will verify your X account with a blue tick via our partner. Your order will be pending until verification is complete." : "You will upgrade to Gold Tier for 3 months.";
             } else if (itemKey === 'gold_tier_6m') {
                 itemName = hasBlueTick ? "Gold Tier (6 Months) + X Blue Tick ✓" : "Gold Tier (6 Months)";
                 currentStoreCost = hasBlueTick ? STORE_CONFIG.gold_tier_6m_blue : STORE_CONFIG.gold_tier_6m;
+                starsCost = hasBlueTick ? STORE_CONFIG.stars_gold_6m_blue : STORE_CONFIG.stars_gold_6m;
                 desc = hasBlueTick ? "You will upgrade to Gold Tier for 6 months and we will verify your X account with a blue tick via our partner. Your order will be pending until verification is complete." : "You will upgrade to Gold Tier for 6 months.";
             } else if (itemKey === 'premium_tier_3m') {
                 itemName = hasBlueTick ? "Premium Tier (3 Months) + X Blue Tick ✓" : "Premium Tier (3 Months)";
                 currentStoreCost = hasBlueTick ? (STORE_CONFIG.premium_tier_3m_blue || 45000) : (STORE_CONFIG.premium_tier_3m || 15000);
+                starsCost = hasBlueTick ? (STORE_CONFIG.stars_premium_3m_blue || 50) : (STORE_CONFIG.stars_premium_3m || 25);
                 desc = hasBlueTick ? "Upgrade to Premium Tier for 3 months and get verified with a blue tick via our partner. Your order will be pending." : "Unlock premium tasks and faster withdrawals for 3 months.";
             } else if (itemKey === 'premium_tier_6m') {
                 itemName = hasBlueTick ? "Premium Tier (6 Months) + X Blue Tick ✓" : "Premium Tier (6 Months)";
                 currentStoreCost = hasBlueTick ? (STORE_CONFIG.premium_tier_6m_blue || 85000) : (STORE_CONFIG.premium_tier_6m || 28000);
+                starsCost = hasBlueTick ? (STORE_CONFIG.stars_premium_6m_blue || 95) : (STORE_CONFIG.stars_premium_6m || 45);
                 desc = hasBlueTick ? "Upgrade to Premium Tier for 6 months and get verified with a blue tick via our partner. Your order will be pending." : "Unlock premium tasks and faster withdrawals for 6 months.";
             } else if (itemKey === 'multiplier') {
                 itemName = "2x Yield Multiplier (1 Month)";
@@ -64,15 +69,33 @@
                 desc = "Skip the 45s wait between ad blocks.";
             }
 
+            // Fallback to params if defined directly in UI
+            if (ptsParam) currentStoreCost = ptsParam;
+            if (starsParam) starsCost = starsParam;
+
             document.getElementById('store-modal-item').innerText = itemName;
-            document.getElementById('store-modal-cost').innerText = currentStoreCost.toLocaleString() + " PTS";
-            document.getElementById('store-modal-desc').innerText = desc;
             
-            document.getElementById('btn-store-confirm').onclick = () => {
+            // Adjust PTS Button
+            document.getElementById('store-modal-pts-badge').innerText = currentStoreCost.toLocaleString() + " PTS";
+            document.getElementById('btn-store-confirm-pts').onclick = () => {
                 closeStoreModal();
                 purchaseStoreItem(itemKey, hasBlueTick);
             };
 
+            // Adjust Stars Button
+            const starsBtn = document.getElementById('btn-store-confirm-stars');
+            if (starsCost) {
+                starsBtn.classList.remove('hidden');
+                document.getElementById('store-modal-stars-badge').innerText = "🌟 " + starsCost;
+                starsBtn.onclick = () => {
+                    closeStoreModal();
+                    purchaseWithStars(itemKey, starsCost, hasBlueTick);
+                };
+            } else {
+                starsBtn.classList.add('hidden');
+            }
+
+            document.getElementById('store-modal-desc').innerText = desc;
             document.getElementById('store-confirm-modal').classList.remove('hidden');
         }
 
@@ -80,7 +103,7 @@
             document.getElementById('store-confirm-modal').classList.add('hidden');
         }
 
-        async function purchaseWithStars(itemKey, amount) {
+        async function purchaseWithStars(itemKey, amount, hasBlueTick = false) {
             showToast("Generating invoice...", "⏳");
             try {
                 const telegramInitData = window.Telegram?.WebApp?.initData || "";
@@ -93,7 +116,8 @@
                     body: JSON.stringify({
                         id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "<%= user.telegram_id %>",
                         item: itemKey,
-                        amount: amount
+                        amount: amount,
+                        hasBlueTick: hasBlueTick
                     })
                 });
 
@@ -1174,47 +1198,7 @@
             }
         }
 
-        // ✅ PURCHASE STORE ITEM
-        async function purchaseStoreItem(itemKey) {
-            if (window.Telegram && window.Telegram.WebApp) {
-                window.Telegram.WebApp.HapticFeedback.selectionChanged();
-            }
 
-            const telegramInitData = window.Telegram?.WebApp?.initData || "";
-            try {
-                showToast("Processing purchase...", "⏳");
-                const response = await fetch('/portal/purchase-store-item', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `WebApp ${telegramInitData}`
-                    },
-                    body: JSON.stringify({
-                        id: "<%= user.telegram_id %>",
-                        item: itemKey
-                    })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    showToast("Upgrade purchased successfully!", "🎉");
-                    
-                    const newBalanceStr = data.newBalance.toLocaleString();
-                    document.getElementById('user-balance').innerText = newBalanceStr;
-                    document.getElementById('store-balance').innerText = newBalanceStr;
-                    if (document.getElementById('wallet-balance')) document.getElementById('wallet-balance').innerText = newBalanceStr;
-
-                    const newUsdVal = data.newBalance * 0.0008;
-                    document.getElementById('user-value').innerText = `$${newUsdVal.toFixed(2)} USD`;
-                    if (document.getElementById('wallet-valuation')) document.getElementById('wallet-valuation').innerText = `$${newUsdVal.toFixed(2)} USD`;
-                } else {
-                    const errMsg = await response.text();
-                    showToast(`Purchase failed: ${errMsg}`, "⚠️");
-                }
-            } catch (err) {
-                showToast("Connection timeout. Try again.", "⚠️");
-            }
-        }
 
         document.addEventListener("DOMContentLoaded", () => {
             initAdsgram(); 

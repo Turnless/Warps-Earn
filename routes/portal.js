@@ -134,11 +134,27 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
             cooldown: 500,
             multiplier: 3000,
-            premium_tier: 15000,
+            premium_tier_3m: 15000,
+            premium_tier_6m: 28000,
+            premium_tier_3m_blue: 45000,
+            premium_tier_6m_blue: 85000,
             gold_tier_3m: 50000,
             gold_tier_6m: 90000,
             gold_tier_3m_blue: 80000,
-            gold_tier_6m_blue: 150000
+            gold_tier_6m_blue: 150000,
+            stars_premium_3m: 25,
+            stars_premium_6m: 45,
+            stars_premium_3m_blue: 50,
+            stars_premium_6m_blue: 95,
+            stars_gold_3m: 100,
+            stars_gold_6m: 180,
+            stars_gold_3m_blue: 120,
+            stars_gold_6m_blue: 220,
+            stars_x_verify: 100,
+            enable_cooldown: true,
+            enable_multiplier: true,
+            enable_premium: true,
+            enable_gold: true
         };
 
         const StoreOrder = require('../models/StoreOrder');
@@ -692,6 +708,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
     const userId = String(req.body.id || "");
     const item = String(req.body.item || "");
     const amount = parseInt(req.body.amount || 0);
+    const hasBlueTick = Boolean(req.body.hasBlueTick || false);
 
     if (!userId || !item || amount <= 0) {
         return res.status(400).send("Invalid invoice payload.");
@@ -701,7 +718,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
         const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
         const fetch = require('node-fetch');
         
-        const payload = JSON.stringify({ userId, item, amount });
+        const payload = JSON.stringify({ userId, item, amount, hasBlueTick });
         
         let title = "Store Purchase";
         if (item === 'premium_tier') title = "Premium Tier Upgrade";
