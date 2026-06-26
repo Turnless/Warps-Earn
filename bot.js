@@ -114,23 +114,23 @@ bot.on('successful_payment', async (ctx) => {
         
         // Process the item upgrade (same logic as PTS)
         if (item.startsWith('premium_tier_')) {
-            if (hasBlueTick) {
+            if (item.includes('blue')) {
                 isPending = true;
             } else {
                 user.account_tier = 'Premium';
                 const expDate = new Date();
-                const months = item.includes('6m') ? 6 : 3;
+                const months = item.includes('6m') ? 6 : (item.includes('3m') ? 3 : 1);
                 expDate.setMonth(expDate.getMonth() + months);
                 user.tier_expires_at = expDate;
             }
         } else if (item.startsWith('gold_tier_')) {
-            if (hasBlueTick) {
+            if (item.includes('blue')) {
                 isPending = true;
             } else {
                 user.account_tier = 'Gold';
                 user.x_blue_tick = false;
                 const expDate = new Date();
-                const months = item.includes('6m') ? 6 : 3;
+                const months = item.includes('6m') ? 6 : (item.includes('3m') ? 3 : 1);
                 expDate.setMonth(expDate.getMonth() + months);
                 user.tier_expires_at = expDate;
             }

@@ -134,10 +134,12 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
             cooldown: 500,
             multiplier: 3000,
+            premium_tier_1m: 15000,
             premium_tier_3m: 15000,
             premium_tier_6m: 28000,
             premium_tier_3m_blue: 45000,
             premium_tier_6m_blue: 85000,
+            gold_tier_1m: 50000,
             gold_tier_3m: 50000,
             gold_tier_6m: 90000,
             gold_tier_3m_blue: 80000,
@@ -561,8 +563,10 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
     const items = {
         cooldown: { key: 'cooldown', title: "Instant Cooldown Reset" },
         multiplier: { key: 'multiplier', title: "2x Yield Multiplier (1 Month)" },
+        premium_tier_1m: { key: 'premium_tier_1m', title: "Premium Tier (1 Month)" },
         premium_tier_3m: { key: 'premium_tier_3m', title: "Premium Tier (3 Months)" },
         premium_tier_6m: { key: 'premium_tier_6m', title: "Premium Tier (6 Months)" },
+        gold_tier_1m: { key: 'gold_tier_1m', title: "Gold Tier (1 Month)" },
         gold_tier_3m: { key: 'gold_tier_3m', title: "Gold Tier (3 Months)" },
         gold_tier_6m: { key: 'gold_tier_6m', title: "Gold Tier (6 Months)" }
     };
@@ -575,6 +579,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             cooldown: 500,
             multiplier: 3000,
             premium_tier: 15000,
+            gold_tier_1m: 50000,
             gold_tier_3m: 50000,
             gold_tier_6m: 90000,
             gold_tier_3m_blue: 80000,
@@ -617,6 +622,25 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             const expDate = new Date();
             expDate.setMonth(expDate.getMonth() + 1);
             user.multiplier_expires_at = expDate;
+        
+        } else if (item === 'premium_tier_1m') {
+            user.account_tier = 'Premium';
+            const expDate = new Date();
+            expDate.setMonth(expDate.getMonth() + 1);
+            user.tier_expires_at = expDate;
+        } else if (item === 'gold_tier_1m') {
+            user.account_tier = 'Gold';
+            const expDate = new Date();
+            expDate.setMonth(expDate.getMonth() + 1);
+            user.tier_expires_at = expDate;
+        } else if (item === 'premium_tier_3m_blue') {
+            isPending = true;
+        } else if (item === 'premium_tier_6m_blue') {
+            isPending = true;
+        } else if (item === 'gold_tier_3m_blue') {
+            isPending = true;
+        } else if (item === 'gold_tier_6m_blue') {
+            isPending = true;
         } else if (item === 'premium_tier_3m') {
             if (hasBlueTick) {
                 isPending = true;

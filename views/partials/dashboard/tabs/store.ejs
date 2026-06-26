@@ -39,14 +39,21 @@
                                     <span class="text-[10px] font-bold text-white uppercase tracking-widest leading-tight">Add X Blue Tick <span class="inline-block">✓</span><br><span class="text-indigo-200 lowercase tracking-normal font-medium">(Verified via Partner)</span></span>
                                 </div>
 
-                                <div class="grid grid-cols-2 gap-2 mt-2 relative z-10">
-                                    <button onclick="promptStorePurchase('premium_tier_3m', <%= locals.storeConfig?.premium_tier_3m || 15000 %>, <%= locals.storeConfig?.stars_premium_3m || 25 %>)" class="bg-indigo-900/60 hover:bg-indigo-800 text-indigo-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-indigo-700/50 flex flex-col items-center">
-                                        <span>3 Months</span>
-                                        <span id="price-premium-3m" class="text-[9px] text-indigo-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.premium_tier_3m) || 15000).toLocaleString() %> PTS</span>
+                                <div id="premium-options-1m" class="mt-2 relative z-10">
+                                    <button onclick="promptStorePurchase('premium_tier_1m', <%= locals.storeConfig?.premium_tier_1m || 15000 %>, <%= locals.storeConfig?.stars_premium_1m || 15 %>)" class="w-full bg-indigo-900/60 hover:bg-indigo-800 text-indigo-50 font-bold text-xs py-3 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-indigo-700/50 flex items-center justify-between px-4">
+                                        <span>1 Month (Standard)</span>
+                                        <span class="text-[9px] text-indigo-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.premium_tier_1m) || 15000).toLocaleString() %> PTS</span>
                                     </button>
-                                    <button onclick="promptStorePurchase('premium_tier_6m', <%= locals.storeConfig?.premium_tier_6m || 28000 %>, <%= locals.storeConfig?.stars_premium_6m || 45 %>)" class="bg-indigo-900/60 hover:bg-indigo-800 text-indigo-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-indigo-700/50 flex flex-col items-center">
+                                </div>
+
+                                <div id="premium-options-blue" class="hidden grid grid-cols-2 gap-2 mt-2 relative z-10">
+                                    <button onclick="promptStorePurchase('premium_tier_3m_blue', <%= locals.storeConfig?.premium_tier_3m_blue || 45000 %>, <%= locals.storeConfig?.stars_premium_3m_blue || 50 %>)" class="bg-indigo-900/60 hover:bg-indigo-800 text-indigo-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-indigo-700/50 flex flex-col items-center">
+                                        <span>3 Months</span>
+                                        <span class="text-[9px] text-indigo-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.premium_tier_3m_blue) || 45000).toLocaleString() %> PTS</span>
+                                    </button>
+                                    <button onclick="promptStorePurchase('premium_tier_6m_blue', <%= locals.storeConfig?.premium_tier_6m_blue || 85000 %>, <%= locals.storeConfig?.stars_premium_6m_blue || 95 %>)" class="bg-indigo-900/60 hover:bg-indigo-800 text-indigo-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-indigo-700/50 flex flex-col items-center">
                                         <span>6 Months</span>
-                                        <span id="price-premium-6m" class="text-[9px] text-indigo-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.premium_tier_6m) || 28000).toLocaleString() %> PTS</span>
+                                        <span class="text-[9px] text-indigo-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.premium_tier_6m_blue) || 85000).toLocaleString() %> PTS</span>
                                     </button>
                                 </div>
                                 
@@ -85,14 +92,21 @@
                                 <span class="text-[10px] font-bold text-amber-950 uppercase tracking-widest leading-tight">Add X Blue Tick <span class="inline-block">✓</span><br><span class="text-amber-800 lowercase tracking-normal font-medium">(Verified via Partner)</span></span>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-2 mt-2 relative z-10">
-                                <button onclick="promptStorePurchase('gold_tier_3m', <%= locals.storeConfig?.gold_tier_3m || 50000 %>, <%= locals.storeConfig?.stars_gold_3m || 100 %>)" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
-                                    <span>3 Months</span>
-                                    <span id="price-gold-3m" class="text-[9px] text-amber-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.gold_tier_3m) || 50000).toLocaleString() %> PTS</span>
+                            <div id="gold-options-1m" class="mt-2 relative z-10">
+                                <button onclick="promptStorePurchase('gold_tier_1m', <%= locals.storeConfig?.gold_tier_1m || 50000 %>, <%= locals.storeConfig?.stars_gold_1m || 50 %>)" class="w-full bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-3 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex items-center justify-between px-4">
+                                    <span>1 Month (Standard)</span>
+                                    <span class="text-[9px] text-amber-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.gold_tier_1m) || 50000).toLocaleString() %> PTS</span>
                                 </button>
-                                <button onclick="promptStorePurchase('gold_tier_6m', <%= locals.storeConfig?.gold_tier_6m || 90000 %>, <%= locals.storeConfig?.stars_gold_6m || 180 %>)" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
+                            </div>
+
+                            <div id="gold-options-blue" class="hidden grid grid-cols-2 gap-2 mt-2 relative z-10">
+                                <button onclick="promptStorePurchase('gold_tier_3m_blue', <%= locals.storeConfig?.gold_tier_3m_blue || 80000 %>, <%= locals.storeConfig?.stars_gold_3m_blue || 120 %>)" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
+                                    <span>3 Months</span>
+                                    <span class="text-[9px] text-amber-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.gold_tier_3m_blue) || 80000).toLocaleString() %> PTS</span>
+                                </button>
+                                <button onclick="promptStorePurchase('gold_tier_6m_blue', <%= locals.storeConfig?.gold_tier_6m_blue || 150000 %>, <%= locals.storeConfig?.stars_gold_6m_blue || 220 %>)" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
                                     <span>6 Months</span>
-                                    <span id="price-gold-6m" class="text-[9px] text-amber-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.gold_tier_6m) || 90000).toLocaleString() %> PTS</span>
+                                    <span class="text-[9px] text-amber-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.gold_tier_6m_blue) || 150000).toLocaleString() %> PTS</span>
                                 </button>
                             </div>
                             

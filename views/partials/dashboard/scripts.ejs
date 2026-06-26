@@ -9,14 +9,28 @@
 
         function updateGoldPrices() {
             const hasBlueTick = document.getElementById('store-bluetick-toggle').checked;
-            document.getElementById('price-gold-3m').innerText = (hasBlueTick ? STORE_CONFIG.gold_tier_3m_blue : STORE_CONFIG.gold_tier_3m).toLocaleString() + ' PTS';
-            document.getElementById('price-gold-6m').innerText = (hasBlueTick ? STORE_CONFIG.gold_tier_6m_blue : STORE_CONFIG.gold_tier_6m).toLocaleString() + ' PTS';
+            const opt1m = document.getElementById('gold-options-1m');
+            const optBlue = document.getElementById('gold-options-blue');
+            if (hasBlueTick) {
+                opt1m?.classList.add('hidden');
+                optBlue?.classList.remove('hidden');
+            } else {
+                opt1m?.classList.remove('hidden');
+                optBlue?.classList.add('hidden');
+            }
         }
 
         function updatePremiumPrices() {
             const hasBlueTick = document.getElementById('store-premium-bluetick-toggle').checked;
-            document.getElementById('price-premium-3m').innerText = (hasBlueTick ? (STORE_CONFIG.premium_tier_3m_blue || 45000) : (STORE_CONFIG.premium_tier_3m || 15000)).toLocaleString() + ' PTS';
-            document.getElementById('price-premium-6m').innerText = (hasBlueTick ? (STORE_CONFIG.premium_tier_6m_blue || 85000) : (STORE_CONFIG.premium_tier_6m || 28000)).toLocaleString() + ' PTS';
+            const opt1m = document.getElementById('premium-options-1m');
+            const optBlue = document.getElementById('premium-options-blue');
+            if (hasBlueTick) {
+                opt1m?.classList.add('hidden');
+                optBlue?.classList.remove('hidden');
+            } else {
+                opt1m?.classList.remove('hidden');
+                optBlue?.classList.add('hidden');
+            }
         }
 
         let currentStoreItem = null;
@@ -39,34 +53,35 @@
             let desc = "";
             let starsCost = null;
             
-            if (itemKey === 'gold_tier_3m') {
-                itemName = hasBlueTick ? "Gold Tier (3 Months) + X Blue Tick ✓" : "Gold Tier (3 Months)";
-                currentStoreCost = hasBlueTick ? STORE_CONFIG.gold_tier_3m_blue : STORE_CONFIG.gold_tier_3m;
-                starsCost = hasBlueTick ? STORE_CONFIG.stars_gold_3m_blue : STORE_CONFIG.stars_gold_3m;
-                desc = hasBlueTick ? "You will upgrade to Gold Tier for 3 months and we will verify your X account with a blue tick via our partner. Your order will be pending until verification is complete." : "You will upgrade to Gold Tier for 3 months.";
-            } else if (itemKey === 'gold_tier_6m') {
-                itemName = hasBlueTick ? "Gold Tier (6 Months) + X Blue Tick ✓" : "Gold Tier (6 Months)";
-                currentStoreCost = hasBlueTick ? STORE_CONFIG.gold_tier_6m_blue : STORE_CONFIG.gold_tier_6m;
-                starsCost = hasBlueTick ? STORE_CONFIG.stars_gold_6m_blue : STORE_CONFIG.stars_gold_6m;
-                desc = hasBlueTick ? "You will upgrade to Gold Tier for 6 months and we will verify your X account with a blue tick via our partner. Your order will be pending until verification is complete." : "You will upgrade to Gold Tier for 6 months.";
-            } else if (itemKey === 'premium_tier_3m') {
-                itemName = hasBlueTick ? "Premium Tier (3 Months) + X Blue Tick ✓" : "Premium Tier (3 Months)";
-                currentStoreCost = hasBlueTick ? (STORE_CONFIG.premium_tier_3m_blue || 45000) : (STORE_CONFIG.premium_tier_3m || 15000);
-                starsCost = hasBlueTick ? (STORE_CONFIG.stars_premium_3m_blue || 50) : (STORE_CONFIG.stars_premium_3m || 25);
-                desc = hasBlueTick ? "Upgrade to Premium Tier for 3 months and get verified with a blue tick via our partner. Your order will be pending." : "Unlock premium tasks and faster withdrawals for 3 months.";
-            } else if (itemKey === 'premium_tier_6m') {
-                itemName = hasBlueTick ? "Premium Tier (6 Months) + X Blue Tick ✓" : "Premium Tier (6 Months)";
-                currentStoreCost = hasBlueTick ? (STORE_CONFIG.premium_tier_6m_blue || 85000) : (STORE_CONFIG.premium_tier_6m || 28000);
-                starsCost = hasBlueTick ? (STORE_CONFIG.stars_premium_6m_blue || 95) : (STORE_CONFIG.stars_premium_6m || 45);
-                desc = hasBlueTick ? "Upgrade to Premium Tier for 6 months and get verified with a blue tick via our partner. Your order will be pending." : "Unlock premium tasks and faster withdrawals for 6 months.";
+            if (itemKey === 'gold_tier_1m') {
+                itemName = "Gold Tier (1 Month)";
+                desc = "You will upgrade to Gold Tier for 1 month.";
+            } else if (itemKey === 'premium_tier_1m') {
+                itemName = "Premium Tier (1 Month)";
+                desc = "Unlock premium tasks and faster withdrawals for 1 month.";
+            } else if (itemKey === 'gold_tier_3m_blue') {
+                itemName = "Gold Tier (3 Months) + X Blue Tick ✓";
+                desc = "You will upgrade to Gold Tier for 3 months and we will verify your X account with a blue tick via our partner. Your order will be pending until verification is complete.";
+            } else if (itemKey === 'gold_tier_6m_blue') {
+                itemName = "Gold Tier (6 Months) + X Blue Tick ✓";
+                desc = "You will upgrade to Gold Tier for 6 months and we will verify your X account with a blue tick via our partner. Your order will be pending until verification is complete.";
+            } else if (itemKey === 'premium_tier_3m_blue') {
+                itemName = "Premium Tier (3 Months) + X Blue Tick ✓";
+                desc = "Upgrade to Premium Tier for 3 months and get verified with a blue tick via our partner. Your order will be pending.";
+            } else if (itemKey === 'premium_tier_6m_blue') {
+                itemName = "Premium Tier (6 Months) + X Blue Tick ✓";
+                desc = "Upgrade to Premium Tier for 6 months and get verified with a blue tick via our partner. Your order will be pending.";
             } else if (itemKey === 'multiplier') {
                 itemName = "2x Yield Multiplier (1 Month)";
-                currentStoreCost = STORE_CONFIG.multiplier;
                 desc = "Double your points from ad views for 30 days.";
+                currentStoreCost = STORE_CONFIG.multiplier || 3000;
             } else if (itemKey === 'cooldown') {
                 itemName = "Instant Cooldown Reset";
-                currentStoreCost = STORE_CONFIG.cooldown;
                 desc = "Skip the 45s wait between ad blocks.";
+                currentStoreCost = STORE_CONFIG.cooldown || 500;
+            } else if (itemKey === 'x_verify') {
+                itemName = "X Verification Pack";
+                desc = "Purchase the standalone X Verification pack to get the blue tick. Pending approval.";
             }
 
             // Fallback to params if defined directly in UI

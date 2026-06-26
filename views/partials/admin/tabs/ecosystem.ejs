@@ -678,10 +678,10 @@
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 mb-3">
                                     <div class="flex flex-col gap-1">
-                                        <label class="text-[10px] text-neutral-500">3 Month</label>
+                                        <label class="text-[10px] text-neutral-500">1 Month (Standard)</label>
                                         <div class="flex gap-2">
-                                            <input type="number" name="premium_tier_3m" placeholder="PTS" value="<%= storeConfig.premium_tier_3m || 15000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
-                                            <input type="number" name="stars_premium_3m" placeholder="Stars" value="<%= storeConfig.stars_premium_3m || 25 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
+                                            <input type="number" name="premium_tier_1m" placeholder="PTS" value="<%= storeConfig.premium_tier_1m || 15000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="stars_premium_1m" placeholder="Stars" value="<%= storeConfig.stars_premium_1m || 15 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
                                         </div>
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -694,11 +694,6 @@
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
                                     <div class="flex flex-col gap-1">
-                                        <label class="text-[10px] text-neutral-500">6 Month</label>
-                                        <div class="flex gap-2">
-                                            <input type="number" name="premium_tier_6m" placeholder="PTS" value="<%= storeConfig.premium_tier_6m || 28000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
-                                            <input type="number" name="stars_premium_6m" placeholder="Stars" value="<%= storeConfig.stars_premium_6m || 45 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
-                                        </div>
                                     </div>
                                     <div class="flex flex-col gap-1">
                                         <label class="text-[10px] text-neutral-500">6 Month + X Blue Tick</label>
@@ -718,32 +713,27 @@
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 mb-3">
                                     <div class="flex flex-col gap-1">
-                                        <label class="text-[10px] text-neutral-500">3 Month</label>
+                                        <label class="text-[10px] text-neutral-500">1 Month (Standard)</label>
                                         <div class="flex gap-2">
-                                            <input type="number" name="gold_tier_3m" placeholder="PTS" value="<%= storeConfig.gold_tier_3m %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
-                                            <input type="number" name="stars_gold_3m" placeholder="Stars" value="<%= storeConfig.stars_gold_3m || 100 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
+                                            <input type="number" name="gold_tier_1m" placeholder="PTS" value="<%= storeConfig.gold_tier_1m || 50000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="stars_gold_1m" placeholder="Stars" value="<%= storeConfig.stars_gold_1m || 50 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
                                         </div>
                                     </div>
                                     <div class="flex flex-col gap-1">
                                         <label class="text-[10px] text-neutral-500">3 Month + X Blue Tick</label>
                                         <div class="flex gap-2">
-                                            <input type="number" name="gold_tier_3m_blue" placeholder="PTS" value="<%= storeConfig.gold_tier_3m_blue %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="gold_tier_3m_blue" placeholder="PTS" value="<%= storeConfig.gold_tier_3m_blue || 80000 %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
                                             <input type="number" name="stars_gold_3m_blue" placeholder="Stars" value="<%= storeConfig.stars_gold_3m_blue || 120 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
                                         </div>
                                     </div>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
                                     <div class="flex flex-col gap-1">
-                                        <label class="text-[10px] text-neutral-500">6 Month</label>
-                                        <div class="flex gap-2">
-                                            <input type="number" name="gold_tier_6m" placeholder="PTS" value="<%= storeConfig.gold_tier_6m %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
-                                            <input type="number" name="stars_gold_6m" placeholder="Stars" value="<%= storeConfig.stars_gold_6m || 180 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
-                                        </div>
                                     </div>
                                     <div class="flex flex-col gap-1">
                                         <label class="text-[10px] text-neutral-500">6 Month + X Blue Tick</label>
                                         <div class="flex gap-2">
-                                            <input type="number" name="gold_tier_6m_blue" placeholder="PTS" value="<%= storeConfig.gold_tier_6m_blue %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="gold_tier_6m_blue" placeholder="PTS" value="<%= storeConfig.gold_tier_6m_blue || 150000 %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
                                             <input type="number" name="stars_gold_6m_blue" placeholder="Stars" value="<%= storeConfig.stars_gold_6m_blue || 220 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
                                         </div>
                                     </div>
