@@ -108,6 +108,14 @@ async function watchAdRound(userId) {
         user.multiplier_expires_at = null;
     }
 
+    // --- TIER EXPIRATION CHECK ---
+    if (user.tier_expiry && new Date() > new Date(user.tier_expiry)) {
+        console.log(`[TIER EXPIRED] User ${userId} tier ${user.account_tier} has expired. Reverting to Standard.`);
+        user.account_tier = 'Standard';
+        user.tier_expiry = null;
+        user.x_blue_tick = false;
+    }
+
     // --- TIERED VIP ACCOUNTS (50+ Referrals) ---
     const refCount = (user.referrals || []).length;
     if (refCount >= 50 && (user.ad_multiplier || 1) < 2) {

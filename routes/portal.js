@@ -566,9 +566,13 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         premium_tier_1m: { key: 'premium_tier_1m', title: "Premium Tier (1 Month)" },
         premium_tier_3m: { key: 'premium_tier_3m', title: "Premium Tier (3 Months)" },
         premium_tier_6m: { key: 'premium_tier_6m', title: "Premium Tier (6 Months)" },
+        premium_tier_3m_blue: { key: 'premium_tier_3m_blue', title: "Premium Tier (3 Months) + Blue Tick" },
+        premium_tier_6m_blue: { key: 'premium_tier_6m_blue', title: "Premium Tier (6 Months) + Blue Tick" },
         gold_tier_1m: { key: 'gold_tier_1m', title: "Gold Tier (1 Month)" },
         gold_tier_3m: { key: 'gold_tier_3m', title: "Gold Tier (3 Months)" },
-        gold_tier_6m: { key: 'gold_tier_6m', title: "Gold Tier (6 Months)" }
+        gold_tier_6m: { key: 'gold_tier_6m', title: "Gold Tier (6 Months)" },
+        gold_tier_3m_blue: { key: 'gold_tier_3m_blue', title: "Gold Tier (3 Months) + Blue Tick" },
+        gold_tier_6m_blue: { key: 'gold_tier_6m_blue', title: "Gold Tier (6 Months) + Blue Tick" }
     };
 
     try {
@@ -606,6 +610,12 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             title += " + Blue Tick";
         }
 
+        // Block multiplier re-purchase while still active (check before deducting)
+        if (item === 'multiplier' && user.ad_multiplier === 2 && user.multiplier_expires_at && new Date(user.multiplier_expires_at) > new Date()) {
+            const daysLeft = Math.ceil((new Date(user.multiplier_expires_at) - new Date()) / (1000 * 60 * 60 * 24));
+            return res.status(400).send(`Multiplier already active. ${daysLeft} day(s) remaining.`);
+        }
+
         if ((user.points_balance || 0) < cost) {
             return res.status(400).send(`Insufficient balance. You need ${cost.toLocaleString()} PTS.`);
         }
@@ -627,12 +637,12 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             user.account_tier = 'Premium';
             const expDate = new Date();
             expDate.setMonth(expDate.getMonth() + 1);
-            user.tier_expires_at = expDate;
+            user.tier_expiry = expDate;
         } else if (item === 'gold_tier_1m') {
             user.account_tier = 'Gold';
             const expDate = new Date();
             expDate.setMonth(expDate.getMonth() + 1);
-            user.tier_expires_at = expDate;
+            user.tier_expiry = expDate;
         } else if (item === 'premium_tier_3m_blue') {
             isPending = true;
         } else if (item === 'premium_tier_6m_blue') {
@@ -648,7 +658,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
                 user.account_tier = 'Premium';
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + 3);
-                user.tier_expires_at = expDate;
+                user.tier_expiry = expDate;
             }
         } else if (item === 'premium_tier_6m') {
             if (hasBlueTick) {
@@ -657,7 +667,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
                 user.account_tier = 'Premium';
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + 6);
-                user.tier_expires_at = expDate;
+                user.tier_expiry = expDate;
             }
         } else if (item === 'gold_tier_3m') {
             if (hasBlueTick) {
@@ -667,7 +677,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
                 user.x_blue_tick = false;
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + 3);
-                user.tier_expires_at = expDate;
+                user.tier_expiry = expDate;
             }
         } else if (item === 'gold_tier_6m') {
             if (hasBlueTick) {
@@ -677,7 +687,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
                 user.x_blue_tick = false;
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + 6);
-                user.tier_expires_at = expDate;
+                user.tier_expiry = expDate;
             }
         }
 

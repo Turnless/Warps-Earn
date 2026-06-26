@@ -62,7 +62,7 @@
                                     Upgrade Pending Verification ⏳
                                 </button>
                             <% } else { 
-                                const daysLeft = user.tier_expires_at ? Math.ceil((new Date(user.tier_expires_at) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+                                const daysLeft = user.tier_expiry ? Math.ceil((new Date(user.tier_expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
                             %>
                                 <button disabled class="w-full bg-violet-900/50 text-violet-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-violet-700/50 mt-4">
                                     You are already Premium (or Gold)
@@ -121,7 +121,7 @@
                                     Upgrade Pending Verification ⏳
                                 </button>
                             <% } else { 
-                                const daysLeft = user.tier_expires_at ? Math.ceil((new Date(user.tier_expires_at) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+                                const daysLeft = user.tier_expiry ? Math.ceil((new Date(user.tier_expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
                             %>
                                 <button disabled class="w-full bg-amber-900/50 text-amber-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-amber-700/50 mt-4">
                                     You are already Gold
@@ -145,7 +145,19 @@
                             <button onclick="promptStorePurchase('cooldown')" class="bg-neutral-900 text-white text-[10px] font-bold px-3 py-2 rounded-lg shrink-0"><%= ((locals.storeConfig && locals.storeConfig.cooldown) || 500).toLocaleString() %> PTS</button>
                         </div>
                         <% } %>
-                        <% if ((locals.storeConfig && locals.storeConfig.enable_multiplier) !== false) { %>
+                        <% 
+                            const multiplierActive = user.ad_multiplier === 2 && user.multiplier_expires_at && new Date(user.multiplier_expires_at) > new Date();
+                            const multiplierDaysLeft = multiplierActive ? Math.ceil((new Date(user.multiplier_expires_at) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+                        %>
+                        <% if (multiplierActive) { %>
+                        <div class="flex justify-between items-center">
+                            <div class="flex flex-col">
+                                <span class="text-xs font-bold text-neutral-800">2x Yield Multiplier</span>
+                                <span class="text-[10px] text-neutral-500 mt-0.5">Double your ad earnings for 1 Month</span>
+                            </div>
+                            <button disabled class="bg-neutral-400 text-white text-[10px] font-bold px-3 py-2 rounded-lg shrink-0 cursor-not-allowed">Active (<%= multiplierDaysLeft %>d)</button>
+                        </div>
+                        <% } else { %>
                         <div class="flex justify-between items-center">
                             <div class="flex flex-col">
                                 <span class="text-xs font-bold text-neutral-800">2x Yield Multiplier</span>

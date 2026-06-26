@@ -51,6 +51,7 @@ const userSchema = new mongoose.Schema({
     last_login_date: { type: String, default: null },
     
     ad_multiplier: { type: Number, default: 1 },
+    multiplier_expires_at: { type: Date, default: null },
     
     quests: {
         channel: { type: Boolean, default: false },
@@ -82,7 +83,7 @@ const userSchema = new mongoose.Schema({
         count: { type: Number, default: 0 }
     },
     
-    custom_promos: { type: Map, of: Boolean, default: {} },
+    custom_promos: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} },
     
     milestones_claimed: {
         tier_10: { type: Boolean, default: false },

@@ -113,6 +113,13 @@ bot.on('successful_payment', async (ctx) => {
         let isPending = false;
         
         // Process the item upgrade (same logic as PTS)
+        // Build a human-readable title for the order
+        let orderTitle = item.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        if (item === 'x_verify') orderTitle = 'X Verification Pack';
+        else if (item.startsWith('premium_tier_')) orderTitle = 'Premium Tier Upgrade';
+        else if (item.startsWith('gold_tier_')) orderTitle = 'Gold Tier Upgrade';
+        if (hasBlueTick && !item.includes('blue')) orderTitle += ' + Blue Tick';
+
         if (item.startsWith('premium_tier_')) {
             if (item.includes('blue')) {
                 isPending = true;
@@ -121,7 +128,7 @@ bot.on('successful_payment', async (ctx) => {
                 const expDate = new Date();
                 const months = item.includes('6m') ? 6 : (item.includes('3m') ? 3 : 1);
                 expDate.setMonth(expDate.getMonth() + months);
-                user.tier_expires_at = expDate;
+                user.tier_expiry = expDate;
             }
         } else if (item.startsWith('gold_tier_')) {
             if (item.includes('blue')) {
@@ -132,7 +139,7 @@ bot.on('successful_payment', async (ctx) => {
                 const expDate = new Date();
                 const months = item.includes('6m') ? 6 : (item.includes('3m') ? 3 : 1);
                 expDate.setMonth(expDate.getMonth() + months);
-                user.tier_expires_at = expDate;
+                user.tier_expiry = expDate;
             }
         } else if (item === 'x_verify') {
             isPending = true;
@@ -143,10 +150,11 @@ bot.on('successful_payment', async (ctx) => {
         const order = new StoreOrder({
             telegram_id: userId,
             item_key: item,
+            item_title: orderTitle,
             cost: amount,
             currency: 'stars',
             status: isPending ? 'pending' : 'completed',
-            has_blue_tick: hasBlueTick || false
+            blue_tick: hasBlueTick || false
         });
         await order.save();
 
