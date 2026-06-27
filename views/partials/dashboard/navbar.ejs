@@ -7,12 +7,10 @@
                 <button onclick="switchTab('tasks')" id="tab-tasks" class="text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all relative">
                     <span class="text-base">📋</span>
                     <span class="text-[10px] font-bold tracking-tight">Tasks</span>
-                    <% var incompleteCount = locals.incompleteCount || 0; %>
-                    <% if (incompleteCount> 0) { %>
-                        <span id="task-nav-badge" class="absolute top-1 right-2 bg-rose-500 text-white text-[8px] font-extrabold h-4 w-4 rounded-full flex items-center justify-center border border-white animate-pulse shadow-sm mono-text">
-                            <%= incompleteCount %>
-                        </span>
-                    <% } %>
+                    <% var badgeCount = locals.incompleteCount || 0; %>
+                    <span id="task-nav-badge" class="absolute top-1 right-2 bg-rose-500 text-white text-[8px] font-extrabold h-4 w-4 rounded-full flex items-center justify-center border border-white animate-pulse shadow-sm mono-text <%= badgeCount > 0 ? '' : 'hidden' %>">
+                        <%= badgeCount %>
+                    </span>
                 </button>
 
                 <button onclick="switchTab('store')" id="tab-store" class="text-neutral-500 hover:text-neutral-900 py-2.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all">
