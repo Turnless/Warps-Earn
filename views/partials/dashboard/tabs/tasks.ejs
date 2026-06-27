@@ -14,7 +14,7 @@
                         <% const hasBounties = (typeof bounties !== 'undefined' && bounties.length > 0); %>
                         <% const hasDynamicQuests = (typeof dynamicQuests !== 'undefined' && Object.keys(dynamicQuests).length > 0); %>
                         <% if (hasBounties || hasDynamicQuests) { %>
-                            <div class="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-1">
+                            <div class="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-1 pb-4">
                             <% if (hasBounties) { bounties.forEach(bounty => { 
                                 let isEligible = true;
                                 let eligibilityMsg = '';
@@ -30,7 +30,7 @@
                                     return; // Completely hide if not in region
                                 }
                             %>
-                                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-neutral-200 relative overflow-hidden group">
+                                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-neutral-200 relative overflow-hidden group shrink-0">
                                     <% if (!isEligible) { %>
                                         <div class="absolute inset-0 bg-neutral-100/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
                                             <span class="bg-white/90 text-rose-600 font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-rose-100 shadow-sm"><%= eligibilityMsg %></span>
@@ -101,10 +101,8 @@
                                 if (q.target_countries && q.target_countries.length > 0 && !q.target_countries.includes(user.country)) {
                                     return; // Completely hide if not in region
                                 }
-                                
-                                if (!isDone) {
                             %>
-                                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-neutral-200 relative overflow-hidden group" id="promo-row-<%= qKey %>">
+                                <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-neutral-200 relative overflow-hidden group shrink-0" id="promo-row-<%= qKey %>">
                                     <% if (!isEligible) { %>
                                         <div class="absolute inset-0 bg-neutral-100/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
                                             <span class="bg-white/90 text-rose-600 font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-rose-100 shadow-sm"><%= eligibilityMsg %></span>
@@ -129,13 +127,15 @@
                                         <div class="relative z-0">
                                             <% if (isPending) { %>
                                                 <button disabled class="bg-neutral-300 text-neutral-500 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm cursor-not-allowed">Verifying</button>
+                                            <% } else if (isDone) { %>
+                                                <button disabled class="bg-emerald-100 text-emerald-600 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm cursor-not-allowed">Done</button>
                                             <% } else { %>
                                                 <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>', <%= q.pts || 150 %>, <%= q.is_telegram || false %>, <%= q.timer || 8 %>, <%= q.requires_comment_link || false %>)" id="promo-btn-<%= qKey %>" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
                                             <% } %>
                                         </div>
                                     </div>
                                 </div>
-                            <% }})} %>
+                            <% })} %>
 
                             </div>
                         <% } else { %>
