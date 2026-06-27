@@ -363,9 +363,9 @@
                                                 <span class="font-bold text-sm text-neutral-900">@<%= p.username || 'Anon' %></span>
                                                 <span class="text-[10px] text-neutral-500 font-mono"><%= p.telegram_id %></span>
                                             </div>
-                                            <span class="text-xs font-bold text-emerald-400 font-mono"><%= p.amount_points %> PTS</span>
+                                            <span class="text-sm font-bold text-emerald-400 font-mono"><%= p.amount_points.toLocaleString() %> PTS</span>
                                         </div>
-                                        <div class="text-[10px] text-neutral-600 bg-white/90 p-2.5 rounded font-mono border border-neutral-200 break-all leading-relaxed whitespace-pre-wrap"><strong>Asset:</strong> <%= p.asset %><br><strong>Details:</strong> <%= p.destination_details %><br><strong>Status:</strong> Pending Review</div>
+                                        <div class="text-[10px] text-neutral-600 bg-white/90 p-2.5 rounded font-mono border border-neutral-200 break-all leading-relaxed whitespace-pre-wrap"><strong>Amount:</strong> <%= p.amount_points.toLocaleString() %> PTS<br><strong>Asset:</strong> <%= p.asset %><% if (p.bank_provider) { %><br><strong>Bank/Provider:</strong> <%= p.bank_provider %><% } %><br><strong>Account Details:</strong> <%= p.destination_details %><br><strong>Status:</strong> Pending Review<br><strong>Date:</strong> <%= new Date(p.created_at).toLocaleString() %></div>
                                         <div class="grid grid-cols-2 gap-2 mt-1">
                                             <a href="/admin/payout?txId=<%= p.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
                                             <a href="/admin/payout?txId=<%= p.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve</a>
@@ -390,13 +390,13 @@
                                     <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
                                         <div class="flex justify-between items-start">
                                             <div class="flex flex-col gap-1">
-                                                <span class="font-bold text-sm text-neutral-900"><%= sub.bounty.title || 'Task' %></span>
-                                                <span class="text-[10px] text-neutral-500">@<%= sub.user.username || sub.user.telegram_id %></span>
+                                                <span class="font-bold text-sm text-neutral-900">@<%= sub.user.username || sub.user.telegram_id || 'Unknown' %></span>
+                                                <span class="text-[10px] text-neutral-500 font-mono"><%= sub.telegram_id %></span>
+                                                <span class="text-[9px] text-neutral-400"><%= sub.bounty.title || 'Task' %> • +<%= sub.bounty.reward_pts || 0 %> PTS</span>
                                             </div>
-                                            <span class="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded border border-indigo-500/20 font-bold">+<%= sub.bounty.reward_pts || 0 %> PTS</span>
                                         </div>
-                                        <div class="text-[10px] font-mono bg-neutral-100 p-2 rounded border border-neutral-200 break-all">
-                                            <span class="font-bold text-neutral-500">Proof:</span> <a href="<%= sub.proof_url %>" target="_blank" class="text-indigo-500 hover:underline"><%= sub.proof_url %></a>
+                                        <div class="text-[10px] font-mono bg-neutral-100 p-2.5 rounded border border-neutral-200 break-all leading-relaxed">
+                                            <span class="font-bold text-neutral-500">Submitted Link:</span> <a href="<%= sub.proof_url %>" target="_blank" class="text-indigo-500 hover:underline"><%= sub.proof_url %></a>
                                         </div>
                                         <div class="grid grid-cols-2 gap-2 mt-1">
                                             <a href="/admin/bounty/action?subId=<%= sub._id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10">Reject</a>
@@ -449,26 +449,23 @@
                     <!-- COLUMN 4: DYNAMIC QUEST SUBMISSIONS PREVIEW -->
                     <div class="glass-panel p-6 flex flex-col gap-4">
                         <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
-                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🔗 Quest Previews</h3>
+                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🔗 Quest Submissions</h3>
                             <span class="bg-neutral-800 text-neutral-600 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof questSubmissions !== 'undefined' ? questSubmissions.length : 0 %></span>
                         </div>
-                        <div class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
                             <% if (typeof questSubmissions !== 'undefined' && questSubmissions.length > 0) { %>
                                 <% questSubmissions.forEach(sub => { %>
-                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
-                                        <div class="flex justify-between items-start">
-                                            <div class="flex flex-col gap-1">
-                                                <span class="font-bold text-sm text-neutral-900"><%= sub.promoKey %></span>
-                                                <span class="text-[10px] text-neutral-500">@<%= sub.username || sub.telegram_id %></span>
-                                                <span class="text-[9px] text-neutral-400"><%= new Date(sub.timestamp).toLocaleString() %></span>
+                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-2 hover:border-neutral-300 transition-colors">
+                                        <div class="flex justify-between items-center">
+                                            <div class="flex flex-col gap-0.5">
+                                                <span class="font-bold text-sm text-neutral-900">@<%= sub.username || sub.telegram_id %></span>
+                                                <span class="text-[9px] text-neutral-400 font-mono"><%= sub.promoKey %> • <%= new Date(sub.timestamp).toLocaleString() %></span>
                                             </div>
                                         </div>
-                                        <% if(sub.link && (sub.link.includes('x.com') || sub.link.includes('twitter.com'))) { %>
-                                            <div class="w-full bg-neutral-100 rounded-lg overflow-hidden border border-neutral-200">
-                                                <iframe border=0 frameborder=0 height=250 width="100%" src="https://twitframe.com/show?url=<%= sub.link %>"></iframe>
+                                        <% if(sub.link) { %>
+                                            <div class="text-[10px] font-mono bg-neutral-100 p-2.5 rounded border border-neutral-200 break-all leading-relaxed">
+                                                <span class="font-bold text-neutral-500">Link:</span> <a href="<%= sub.link %>" target="_blank" class="text-cyan-500 hover:underline"><%= sub.link %></a>
                                             </div>
-                                        <% } else if(sub.link) { %>
-                                            <a href="<%= sub.link %>" target="_blank" class="text-[10px] text-cyan-400 bg-cyan-500/5 hover:bg-cyan-500/10 p-2 rounded truncate border border-cyan-500/20 w-max transition-colors">View Proof ↗</a>
                                         <% } %>
                                     </div>
                                 <% }) %>
@@ -798,14 +795,13 @@
                                     <input type="number" name="pts" required placeholder="500" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs">
                                 </div>
                             </div>
-                                <div class="flex flex-col gap-2">
-                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Tier Requirement</label>
-                                    <select name="tier_required" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 text-xs appearance-none">
-                                        <option value="Any">Any Tier</option>
-                                        <option value="Premium">Premium + Gold</option>
-                                        <option value="Gold">Gold Only</option>
-                                    </select>
-                                </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Tier Requirement</label>
+                                <select name="tier_required" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 text-xs appearance-none">
+                                    <option value="Any">Any Tier</option>
+                                    <option value="Premium">Premium + Gold</option>
+                                    <option value="Gold">Gold Only</option>
+                                </select>
                             </div>
                             <div class="flex flex-col gap-2">
                                 <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Target Countries (Comma separated, empty for global)</label>

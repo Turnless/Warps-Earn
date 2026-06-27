@@ -51,9 +51,9 @@
                                     <div class="mt-2.5 flex justify-between items-center border-t border-neutral-100 pt-2.5">
                                         <div class="flex items-center gap-1.5">
                                             <div class="w-full h-1 bg-neutral-100 rounded-full w-16 overflow-hidden">
-                                                <div class="h-full bg-indigo-400 rounded-full" style="width: <%= Math.min((bounty.completions / bounty.max_completions) * 100, 100) %>%"></div>
+                                                <div class="h-full bg-indigo-400 rounded-full" style="width: <%= Math.min(((bounty.completions || bounty.current_participants || 0) / bounty.max_participants) * 100, 100) %>%"></div>
                                             </div>
-                                            <span class="text-[9px] text-neutral-400 font-medium mono-text"><%= bounty.completions %>/<%= bounty.max_completions %></span>
+                                            <span class="text-[9px] text-neutral-400 font-medium mono-text"><%= bounty.completions || bounty.current_participants || 0 %>/<%= bounty.max_participants %></span>
                                         </div>
                                         <% 
                                         let bSub = null;

@@ -532,7 +532,7 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
                     link: submittedLink,
                     timestamp: new Date().toISOString()
                 }));
-                await redis.ltrim('admin:quest_submissions', 0, 49); // keep last 50
+                await redis.ltrim('admin:quest_submissions', 0, 199); // keep last 200
             } catch(e) { console.warn("Redis log fail", e); }
         } else {
             user.custom_promos.set(promoKey, true);
@@ -1072,6 +1072,7 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         await submission.save();
         if (isAutoApprove) {
             bounty.current_participants += 1;
+            bounty.completions = (bounty.completions || 0) + 1;
             if (bounty.current_participants >= bounty.max_participants) {
                 bounty.status = 'completed';
             }

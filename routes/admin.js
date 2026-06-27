@@ -223,7 +223,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
 
 
         // Fetch recent quest submissions
-        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, 49);
+        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, 199);
         const questSubmissions = questSubmissionsRaw.map(s => JSON.parse(s));
 
         res.render('admin_dashboard', { 
@@ -864,7 +864,11 @@ router.get('/bounty/action', checkAdminAuth, async (req, res) => {
             submission.status = 'approved';
             submission.reviewed_at = new Date();
             
-            targetBounty.completions += 1;
+            targetBounty.completions = (targetBounty.completions || 0) + 1;
+            targetBounty.current_participants = (targetBounty.current_participants || 0) + 1;
+            if (targetBounty.current_participants >= targetBounty.max_participants) {
+                targetBounty.status = 'completed';
+            }
             
             targetUser.points_balance = (targetUser.points_balance || 0) + targetBounty.reward_pts;
             if (!targetUser.earnings_history) targetUser.earnings_history = [];

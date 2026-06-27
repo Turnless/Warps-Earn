@@ -7,6 +7,8 @@ const bountySchema = new mongoose.Schema({
     
     // Task requirements
     task_type: { type: String, enum: ['twitter_comment', 'twitter_like', 'twitter_retweet', 'discord_join', 'telegram_join', 'other'], required: true },
+    platform: { type: String, default: 'Twitter' },
+    action_type: { type: String, default: 'Task' },
     target_url: { type: String, required: true },
     requires_link: { type: Boolean, default: true },
     
@@ -17,6 +19,7 @@ const bountySchema = new mongoose.Schema({
     
     max_participants: { type: Number, required: true },
     current_participants: { type: Number, default: 0 },
+    completions: { type: Number, default: 0 },
     
     // State
     status: { type: String, enum: ['active', 'completed', 'expired', 'draft'], default: 'active' },
@@ -26,3 +29,4 @@ const bountySchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Bounty', bountySchema);
+
