@@ -432,7 +432,7 @@ router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extende
 // --- 🎯 DYNAMIC QUESTS ENGINE ---
 router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { action, key, title, url, pts, icon, tier_required, target_countries, is_telegram, timer, requires_comment_link } = req.body;
+        const { action, key, title, url, pts, icon, tier_required, target_countries, is_telegram, timer, requires_comment_link, max_participants } = req.body;
         const questsStr = await redis.get('admin:dynamic_quests');
         let quests = questsStr ? JSON.parse(questsStr) : {};
 
@@ -446,7 +446,9 @@ router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), a
                 target_countries: target_countries ? target_countries.split(',').map(c => c.trim().toUpperCase()) : [],
                 is_telegram: is_telegram === 'on',
                 timer: parseInt(timer) || 8,
-                requires_comment_link: requires_comment_link === 'on'
+                requires_comment_link: requires_comment_link === 'on',
+                max_participants: parseInt(max_participants) || 0,
+                current_participants: 0
             };
         } else if (action === 'delete' && key) {
             delete quests[key];

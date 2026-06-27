@@ -547,6 +547,21 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
 
         await user.save();
         await invalidateUserCache(userId);
+
+        if (campaign.max_participants > 0) {
+            campaign.current_participants = (campaign.current_participants || 0) + 1;
+            if (campaign.current_participants >= campaign.max_participants) {
+                delete promoMap[promoKey];
+            } else {
+                promoMap[promoKey] = campaign;
+            }
+            try {
+                await redis.set('admin:dynamic_quests', JSON.stringify(promoMap));
+            } catch (e) {
+                console.error("Failed to update dynamic quest limits", e);
+            }
+        }
+
         res.sendStatus(200);
     } catch (e) {
         console.error("Custom Promo Error:", e);
@@ -1051,7 +1066,7 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         const submission = new BountySubmission({
             bounty_id: bountyId,
             telegram_id: userId,
-            proof_link: proofUrl || "N/A",
+            proof_url: proofUrl || "N/A",
             status: isAutoApprove ? 'approved' : 'pending'
         });
         await submission.save();
