@@ -363,8 +363,10 @@
                             currentBadgeCount--;
                             if (currentBadgeCount > 0) {
                                 taskBadge.innerText = currentBadgeCount;
+                                taskBadge.classList.remove('hidden');
                             } else {
-                                taskBadge.remove();
+                                taskBadge.innerText = '0';
+                                taskBadge.classList.add('hidden');
                             }
                         }
 
@@ -1131,6 +1133,20 @@
                                 </div>`;
                             listActivity.insertAdjacentHTML('afterbegin', historyHtml);
                         }
+                        
+                        // Decrement the task badge
+                        const taskBadge = document.getElementById('task-nav-badge');
+                        if (taskBadge) {
+                            let currentBadgeCount = parseInt(taskBadge.innerText) || 0;
+                            currentBadgeCount--;
+                            if (currentBadgeCount > 0) {
+                                taskBadge.innerText = currentBadgeCount;
+                                taskBadge.classList.remove('hidden');
+                            } else {
+                                taskBadge.innerText = '0';
+                                taskBadge.classList.add('hidden');
+                            }
+                        }
                     } else {
                         const errText = await response.text();
                         showToast(errText || "Complete the task first, then try again.", "⚠️");
@@ -1148,9 +1164,45 @@
         }
 
         // ✅ BOUNTY MODAL & SUBMISSION LOGIC
-        function openBountyModal(id, title, platform, action, reward, url) {
+        function openBountyModal(id, title, platform, action, reward, url, requiresLink = true) {
             if (window.Telegram && window.Telegram.WebApp) {
                 window.Telegram.WebApp.HapticFeedback.selectionChanged();
+            }
+            
+            if (!requiresLink) {
+                // "verify after some times" logic
+                window.open(url, '_blank');
+                showToast("Verifying... Please wait.", "⏳");
+                
+                // We don't have the button reference easily here, but we can do a background submit
+                setTimeout(async () => {
+                    try {
+                        const telegramInitData = window.Telegram?.WebApp?.initData || "";
+                        const response = await fetch('/portal/submit-bounty', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `WebApp ${telegramInitData}`
+                            },
+                            body: JSON.stringify({
+                                id: "<%= user.telegram_id %>",
+                                bounty_id: id,
+                                proof_url: "N/A"
+                            })
+                        });
+
+                        if (response.ok) {
+                            showToast(`Task done! +${reward} PTS`, "🎉");
+                            setTimeout(() => window.location.reload(), 1500);
+                        } else {
+                            const errText = await response.text();
+                            showToast(errText || "Verification failed.", "⚠️");
+                        }
+                    } catch (err) {
+                        showToast("Something went wrong.", "⚠️");
+                    }
+                }, 8000); // 8 second timer
+                return;
             }
             
             document.getElementById('bounty-modal-id').value = id;
@@ -1164,6 +1216,11 @@
             };
             
             document.getElementById('bounty-proof-input').value = '';
+            
+            const step2Div = document.getElementById('bounty-proof-input').parentElement;
+            step2Div.style.display = 'flex';
+            document.getElementById('btn-submit-bounty').innerText = "Submit for Verification";
+            
             document.getElementById('bounty-modal').classList.remove('hidden');
             document.getElementById('bounty-modal').classList.add('flex');
         }

@@ -55,7 +55,19 @@
                                             </div>
                                             <span class="text-[9px] text-neutral-400 font-medium mono-text"><%= bounty.completions %>/<%= bounty.max_completions %></span>
                                         </div>
-                                        <button onclick="openBountyModal('<%= bounty._id %>', '<%= bounty.title %>', '<%= bounty.platform %>', '<%= bounty.action_type %>', '<%= bounty.reward_pts %>', '<%= bounty.target_url %>')" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
+                                        <% 
+                                        let bSub = null;
+                                        if (typeof userBountySubmissions !== 'undefined') {
+                                            bSub = userBountySubmissions.find(s => String(s.bounty_id) === String(bounty._id));
+                                        }
+                                        %>
+                                        <% if (bSub && bSub.status === 'pending') { %>
+                                            <button disabled class="bg-neutral-300 text-neutral-500 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm cursor-not-allowed">Verifying</button>
+                                        <% } else if (bSub && bSub.status === 'approved') { %>
+                                            <button disabled class="bg-emerald-100 text-emerald-600 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm cursor-not-allowed">Done</button>
+                                        <% } else { %>
+                                            <button onclick="openBountyModal('<%= bounty._id %>', '<%= bounty.title %>', '<%= bounty.platform %>', '<%= bounty.action_type %>', '<%= bounty.reward_pts %>', '<%= bounty.target_url %>', <%= bounty.requires_link !== false %>)" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
+                                        <% } %>
                                     </div>
                                 </div>
                             <% })} %>

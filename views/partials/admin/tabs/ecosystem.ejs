@@ -365,7 +365,7 @@
                                             </div>
                                             <span class="text-xs font-bold text-emerald-400 font-mono"><%= p.amount_points %> PTS</span>
                                         </div>
-                                        <div class="text-[10px] text-neutral-500 bg-white/90 p-2 rounded truncate font-mono border border-neutral-200"><%= p.asset %>: <%= p.destination_details %></div>
+                                        <div class="text-[10px] text-neutral-600 bg-white/90 p-2.5 rounded font-mono border border-neutral-200 break-all leading-relaxed whitespace-pre-wrap"><strong>Asset:</strong> <%= p.asset %><br><strong>Details:</strong> <%= p.destination_details %><br><strong>Status:</strong> Pending Review</div>
                                         <div class="grid grid-cols-2 gap-2 mt-1">
                                             <a href="/admin/payout?txId=<%= p.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
                                             <a href="/admin/payout?txId=<%= p.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve</a>
@@ -395,13 +395,9 @@
                                             </div>
                                             <span class="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded border border-indigo-500/20 font-bold">+<%= sub.bounty.reward_pts || 0 %> PTS</span>
                                         </div>
-                                        <% if(sub.proof_link.includes('x.com') || sub.proof_link.includes('twitter.com')) { %>
-                                            <div class="w-full bg-neutral-100 rounded-lg overflow-hidden border border-neutral-200">
-                                                <iframe border=0 frameborder=0 height=250 width="100%" src="https://twitframe.com/show?url=<%= sub.proof_link %>"></iframe>
-                                            </div>
-                                        <% } else { %>
-                                            <a href="<%= sub.proof_link %>" target="_blank" class="text-[10px] text-cyan-400 bg-cyan-500/5 hover:bg-cyan-500/10 p-2 rounded truncate border border-cyan-500/20 w-max transition-colors">View Proof ↗</a>
-                                        <% } %>
+                                        <div class="text-[10px] font-mono bg-neutral-100 p-2 rounded border border-neutral-200 break-all">
+                                            <span class="font-bold text-neutral-500">Proof:</span> <a href="<%= sub.proof_link %>" target="_blank" class="text-indigo-500 hover:underline"><%= sub.proof_link %></a>
+                                        </div>
                                         <div class="grid grid-cols-2 gap-2 mt-1">
                                             <a href="/admin/bounty/action?subId=<%= sub._id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10">Reject</a>
                                             <a href="/admin/bounty/action?subId=<%= sub._id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10">Approve</a>

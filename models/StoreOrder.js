@@ -5,6 +5,8 @@ const storeOrderSchema = new mongoose.Schema({
     item_key: { type: String, required: true },
     item_title: { type: String, required: true },
     cost: { type: Number, required: true },
+    currency: { type: String, enum: ['pts', 'stars'], default: 'pts' },
+    telegram_payment_charge_id: { type: String },
     blue_tick: { type: Boolean, default: false },
     status: { type: String, enum: ['pending', 'completed', 'rejected'], default: 'pending' },
     created_at: { type: Date, default: Date.now },

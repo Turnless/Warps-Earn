@@ -162,7 +162,10 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
         const StoreOrder = require('../models/StoreOrder');
         const pendingOrders = await StoreOrder.find({ telegram_id: userId, status: 'pending' }).lean();
 
-        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig, pendingOrders: pendingOrders, globalSettings: req.globalSettings });
+        const BountySubmission = require('../models/BountySubmission');
+        const userBountySubmissions = await BountySubmission.find({ telegram_id: userId }).lean();
+
+        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig, pendingOrders: pendingOrders, userBountySubmissions: userBountySubmissions, globalSettings: req.globalSettings });
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
@@ -1014,10 +1017,10 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppData, async (req, res) => {
     const userId = String(req.body.id || "");
     const bountyId = String(req.body.bounty_id || "");
-    const proofUrl = String(req.body.proof_url || "").trim();
+    let proofUrl = String(req.body.proof_url || "").trim();
 
     try {
-        if (!userId || !bountyId || !proofUrl) return res.status(400).send("Invalid payload.");
+        if (!userId || !bountyId) return res.status(400).send("Invalid payload.");
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) return res.status(404).send("User not found.");
@@ -1035,22 +1038,50 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
             return res.status(403).send("Bounty not available in your region.");
         }
 
-        const BountySubmission = require('../models/BountySubmission');
+        if (bounty.requires_link !== false && !proofUrl) {
+            return res.status(400).send("A proof link is required for this task.");
+        }
         
         // Prevent duplicate
         const existing = await BountySubmission.findOne({ bounty_id: bountyId, telegram_id: userId });
         if (existing) return res.status(400).send("You have already submitted proof for this task.");
 
+        const isAutoApprove = (bounty.requires_link === false);
+
         const submission = new BountySubmission({
             bounty_id: bountyId,
             telegram_id: userId,
-            proof_link: proofUrl,
-            status: 'pending'
+            proof_link: proofUrl || "N/A",
+            status: isAutoApprove ? 'approved' : 'pending'
         });
-
         await submission.save();
+        if (isAutoApprove) {
+            bounty.current_participants += 1;
+            if (bounty.current_participants >= bounty.max_participants) {
+                bounty.status = 'completed';
+            }
+            await bounty.save();
 
-        res.status(200).json({ success: true });
+            user.points_balance = (user.points_balance || 0) + bounty.reward_pts;
+            if (!user.earnings_history) user.earnings_history = [];
+            user.earnings_history.unshift({
+                type: `Bounty: ${bounty.title}`,
+                amount: bounty.reward_pts,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            await user.save();
+        }
+
+        try {
+            const redis = require('../database/redis'); // or similar
+            if (redis) await redis.del(`user:${userId}:profile`);
+        } catch (e) {}
+
+        if (isAutoApprove) {
+            return res.status(200).send("Verified successfully!");
+        } else {
+            return res.status(200).send("Submission received! Pending admin verification.");
+        }
     } catch (e) {
         console.error("Bounty submission error:", e);
         res.status(500).send("Internal error processing submission.");

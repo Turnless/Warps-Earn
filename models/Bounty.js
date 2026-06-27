@@ -8,6 +8,7 @@ const bountySchema = new mongoose.Schema({
     // Task requirements
     task_type: { type: String, enum: ['twitter_comment', 'twitter_like', 'twitter_retweet', 'discord_join', 'telegram_join', 'other'], required: true },
     target_url: { type: String, required: true },
+    requires_link: { type: Boolean, default: true },
     
     // Targeting & Economics
     target_countries: [{ type: String }], // If empty, available to all

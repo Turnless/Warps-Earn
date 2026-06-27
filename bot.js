@@ -160,10 +160,36 @@ bot.on('successful_payment', async (ctx) => {
             item_title: orderTitle,
             cost: amount,
             currency: 'stars',
+            telegram_payment_charge_id: payment.telegram_payment_charge_id,
             status: isPending ? 'pending' : 'completed',
-            blue_tick: hasBlueTick || false
+            blue_tick: hasBlueTick || false,
+            resolved_at: isPending ? null : new Date()
         });
         await order.save();
+
+        if (!user.earnings_history) user.earnings_history = [];
+        user.earnings_history.unshift({
+            type: isPending ? `[PENDING] Store Purchase (Stars): ${orderTitle}` : `[COMPLETED] Store Purchase (Stars): ${orderTitle}`,
+            amount: 0,
+            timestamp: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' • ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        });
+        await user.save();
+
+        if (isPending) {
+            try {
+                const fetch = require('node-fetch');
+                const tgToken = process.env.BOT_TOKEN;
+                const msg = `🚨 *New Store Order via Stars (Pending)* 🚨\n\nUser: @${user.username || user.telegram_id}\nItem: ${orderTitle}\nCost: ${amount} Stars\n\nCheck the Admin Dashboard to fulfill the X Blue Tick verification and approve the upgrade.`;
+                const tgUrl = `https://api.telegram.org/bot${tgToken}/sendMessage`;
+                await fetch(tgUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: '6314427516', text: msg, parse_mode: 'Markdown' })
+                });
+            } catch (err) {
+                console.error("Failed to notify admin on Telegram:", err);
+            }
+        }
 
         if (isPending) {
             await ctx.reply("🛒 Payment successful! Your verification is pending review. We will notify you once it is approved.");

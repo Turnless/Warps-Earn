@@ -340,33 +340,83 @@ router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extende
         if (action === 'approve') {
             order.status = 'completed';
             
-            // Upgrade User
-            if (order.item_key === 'gold_tier_3m' || order.item_key === 'gold_tier_6m') {
-                user.account_tier = 'Gold';
-                user.x_blue_tick = true;
+            // Determine tier, months, and blue tick from order
+            const itemKey = order.item_key;
+            const isPremium = itemKey.includes('premium_tier');
+            const isGold = itemKey.includes('gold_tier');
+            const isXVerify = itemKey === 'x_verify';
+            
+            let months = 1;
+            if (itemKey.includes('6m')) months = 6;
+            else if (itemKey.includes('3m')) months = 3;
+            
+            if (isPremium || isGold) {
+                user.account_tier = isPremium ? 'Premium' : 'Gold';
                 const expDate = new Date();
-                expDate.setMonth(expDate.getMonth() + (order.item_key === 'gold_tier_3m' ? 3 : 6));
+                expDate.setMonth(expDate.getMonth() + months);
                 user.tier_expiry = expDate;
-            } else if (order.item_key === 'premium_tier_3m' || order.item_key === 'premium_tier_6m') {
-                user.account_tier = 'Premium';
+            }
+            
+            if (order.blue_tick || itemKey.includes('blue') || isXVerify) {
                 user.x_blue_tick = true;
-                const expDate = new Date();
-                expDate.setMonth(expDate.getMonth() + (order.item_key === 'premium_tier_3m' ? 3 : 6));
-                user.tier_expiry = expDate;
             }
 
             // Optional: Send Telegram DM to user letting them know it's approved
+            try {
+                const fetch = require('node-fetch');
+                const tgToken = process.env.BOT_TOKEN;
+                const tgUrl = `https://api.telegram.org/bot${tgToken}/sendMessage`;
+                await fetch(tgUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: user.telegram_id, text: "🎉 Your order has been verified and approved!", parse_mode: 'Markdown' })
+                });
+            } catch (err) {}
+
         } else if (action === 'reject') {
             order.status = 'rejected';
             
-            // Refund user pts
-            user.points_balance = (user.points_balance || 0) + order.cost;
-            if (!user.earnings_history) user.earnings_history = [];
-            user.earnings_history.unshift({
-                type: `Refund: ${order.item_title} (Rejected)`,
-                amount: order.cost,
-                timestamp: getFormattedDateTime()
-            });
+            if (order.currency === 'stars' && order.telegram_payment_charge_id) {
+                // Refund Telegram Stars
+                try {
+                    const fetch = require('node-fetch');
+                    const tgToken = process.env.BOT_TOKEN;
+                    const tgUrl = `https://api.telegram.org/bot${tgToken}/refundStarPayment`;
+                    await fetch(tgUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: user.telegram_id, telegram_payment_charge_id: order.telegram_payment_charge_id })
+                    });
+                } catch (err) {
+                    console.error("Failed to refund stars:", err);
+                }
+                if (!user.earnings_history) user.earnings_history = [];
+                user.earnings_history.unshift({
+                    type: `Refund: ${order.item_title} (Rejected)`,
+                    amount: 0,
+                    timestamp: getFormattedDateTime()
+                });
+            } else {
+                // Refund user pts
+                user.points_balance = (user.points_balance || 0) + order.cost;
+                if (!user.earnings_history) user.earnings_history = [];
+                user.earnings_history.unshift({
+                    type: `Refund: ${order.item_title} (Rejected)`,
+                    amount: order.cost,
+                    timestamp: getFormattedDateTime()
+                });
+            }
+            
+            try {
+                const fetch = require('node-fetch');
+                const tgToken = process.env.BOT_TOKEN;
+                const tgUrl = `https://api.telegram.org/bot${tgToken}/sendMessage`;
+                await fetch(tgUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: user.telegram_id, text: "❌ Your recent order was rejected and refunded. Contact support if you have questions.", parse_mode: 'Markdown' })
+                });
+            } catch (err) {}
         }
 
         order.resolved_at = new Date();
@@ -859,51 +909,6 @@ router.get('/bounty/action', checkAdminAuth, async (req, res) => {
     }
 });
 
-// --- ⚡ EXCLUSIVE ADMINISTRATIVE DATA WIPE ENDPOINT ---
-router.get('/delete-user', checkAdminAuth, async (req, res) => {
-    const { id } = req.query;
 
-    if (!id) {
-        return res.status(400).send("Please provide an 'id' parameter (Telegram ID or 'all').");
-    }
-
-    try {
-        if (id.toLowerCase() === 'all') {
-            await User.deleteMany({});
-            await redis.flushall();
-            return res.send(`
-                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #e6ddd0; color: #1a1a16;">
-                    <div style="background: white; padding: 40px; border-radius: 24px; text-align: center;">
-                        <span style="font-size: 48px;">🗑️</span>
-                        <h2>Global Database Wiped</h2>
-                        <p>All users and cached sessions have been completely removed from production.</p>
-                    </div>
-                </body>
-            `);
-        } else {
-            const result = await User.deleteOne({ telegram_id: String(id) });
-            await redis.del(`user:${id}:profile`);
-            await redis.del(`lock:claim:${id}`);
-            await redis.del(`lock:payout:${id}`);
-            
-            const message = result.deletedCount > 0 
-                ? `Successfully removed user <b>${id}</b> from database and cache.`
-                : `User <b>${id}</b> was not found in the database, but their cache was cleared.`;
-
-            return res.send(`
-                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #e6ddd0; color: #1a1a16;">
-                    <div style="background: white; padding: 40px; border-radius: 24px; text-align: center;">
-                        <span style="font-size: 48px;">✅</span>
-                        <h2>User Data Cleared</h2>
-                        <p>${message}</p>
-                    </div>
-                </body>
-            `);
-        }
-    } catch (err) {
-        console.error("Data wipe failure:", err);
-        return res.status(500).send("Wipe operation failed.");
-    }
-});
 
 module.exports = router;
