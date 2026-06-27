@@ -509,52 +509,44 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         }
 
         const rewardPts = campaign.pts || 0;
-        user.points_balance = (user.points_balance || 0) + rewardPts;
-
-        // Save link if required
         const submittedLink = String(req.body.commentLink || "").trim();
+        
         if (campaign.requires_comment_link && !submittedLink) {
             return res.status(400).send("A valid comment link is required.");
         }
 
         if (submittedLink) {
-            user.custom_promos.set(promoKey, { verified: true, link: submittedLink });
+            user.custom_promos.set(promoKey, { verified: false, status: 'pending', link: submittedLink, pts: rewardPts, title: campaign.title });
             try {
-                const redis = require('../database/redis'); // or global redis depending on architecture
-                // Wait, redis is global in portal.js
-            } catch (e) {}
-            // Actually, redis is available globally in portal.js
-            try {
+                const subId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
                 await redis.lpush('admin:quest_submissions', JSON.stringify({
+                    id: subId,
                     telegram_id: user.telegram_id,
                     username: user.username,
                     promoKey: promoKey,
                     link: submittedLink,
+                    pts: rewardPts,
                     timestamp: new Date().toISOString()
                 }));
                 await redis.ltrim('admin:quest_submissions', 0, 199); // keep last 200
             } catch(e) { console.warn("Redis log fail", e); }
         } else {
+            user.points_balance = (user.points_balance || 0) + rewardPts;
+            if (!user.earnings_history) user.earnings_history = [];
+            user.earnings_history.unshift({
+                type: campaign.title,
+                amount: campaign.pts,
+                timestamp: getFormattedDateTime()
+            });
             user.custom_promos.set(promoKey, true);
         }
-
-        if (!user.earnings_history) user.earnings_history = [];
-        user.earnings_history.unshift({
-            type: campaign.title,
-            amount: campaign.pts,
-            timestamp: getFormattedDateTime()
-        });
 
         await user.save();
         await invalidateUserCache(userId);
 
         if (campaign.max_participants > 0) {
             campaign.current_participants = (campaign.current_participants || 0) + 1;
-            if (campaign.current_participants >= campaign.max_participants) {
-                delete promoMap[promoKey];
-            } else {
-                promoMap[promoKey] = campaign;
-            }
+            promoMap[promoKey] = campaign;
             try {
                 await redis.set('admin:dynamic_quests', JSON.stringify(promoMap));
             } catch (e) {

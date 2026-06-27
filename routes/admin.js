@@ -461,6 +461,56 @@ router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), a
     }
 });
 
+// --- 🎯 APPROVE/REJECT QUEST SUBMISSION ---
+router.get('/quests/action', checkAdminAuth, async (req, res) => {
+    try {
+        const { id, action } = req.query;
+        if (!id || !action) return res.status(400).send("Missing parameters");
+
+        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, 199);
+        let targetSub = null;
+        let subIndex = -1;
+        
+        const questSubmissions = questSubmissionsRaw.map((s, index) => {
+            const parsed = JSON.parse(s);
+            if (parsed.id === id) {
+                targetSub = parsed;
+                subIndex = index;
+            }
+            return parsed;
+        });
+
+        if (!targetSub) return res.status(404).send("Submission not found or already processed");
+
+        const user = await User.findOne({ telegram_id: targetSub.telegram_id });
+        if (!user) return res.status(404).send("User not found");
+
+        if (action === 'approve') {
+            user.points_balance = (user.points_balance || 0) + (targetSub.pts || 0);
+            if (!user.earnings_history) user.earnings_history = [];
+            user.earnings_history.unshift({
+                type: user.custom_promos.get(targetSub.promoKey)?.title || targetSub.promoKey,
+                amount: targetSub.pts || 0,
+                timestamp: getFormattedDateTime()
+            });
+            user.custom_promos.set(targetSub.promoKey, { verified: true, link: targetSub.link });
+        } else if (action === 'reject') {
+            user.custom_promos.delete(targetSub.promoKey); // Let them try again
+        }
+
+        await user.save();
+
+        // Remove from Redis list
+        // Since Redis LREM removes by exact value, we can use the raw string
+        await redis.lrem('admin:quest_submissions', 1, questSubmissionsRaw[subIndex]);
+
+        res.redirect('/admin');
+    } catch (e) {
+        console.error(e);
+        res.status(500).send("Action failed");
+    }
+});
+
 // --- 🔍 USER LOOKUP & BAN CONTROLLER ---
 router.get('/user-lookup', checkAdminAuth, async (req, res) => {
     const rawQuery = (req.query.q || '').trim();

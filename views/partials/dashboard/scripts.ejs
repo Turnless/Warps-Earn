@@ -1091,60 +1091,65 @@
                     });
 
                     if (response.ok) {
-                        showToast(`Task done! +${rewardPts} PTS`, "🎉");
-                        
-                        const row = document.getElementById(`promo-row-${promoKey}`);
-                        if (row) {
-                            row.style.opacity = '0';
-                            setTimeout(() => {
-                                row.remove();
-                                // Hide whole container if empty
-                                const remainingRows = document.querySelectorAll('[id^="promo-row-"]');
-                                if (remainingRows.length === 0) {
-                                    const container = document.querySelector('.bg-gradient-to-br.from-amber-50');
-                                    if(container) container.classList.add('hidden');
+                        if (requiresCommentLink) {
+                            showToast(`Proof submitted! Pending approval.`, "✅");
+                            setTimeout(() => window.location.reload(), 1500);
+                        } else {
+                            showToast(`Task done! +${rewardPts} PTS`, "🎉");
+                            
+                            const row = document.getElementById(`promo-row-${promoKey}`);
+                            if (row) {
+                                row.style.opacity = '0';
+                                setTimeout(() => {
+                                    row.remove();
+                                    // Hide whole container if empty
+                                    const remainingRows = document.querySelectorAll('[id^="promo-row-"]');
+                                    if (remainingRows.length === 0) {
+                                        const container = document.querySelector('.bg-gradient-to-br.from-amber-50');
+                                        if(container) container.classList.add('hidden');
+                                    }
+                                }, 300);
+                            }
+                            
+                            const userBalanceEl = document.getElementById('user-balance');
+                            const walletBalanceEl = document.getElementById('wallet-balance');
+                            const currentVal = parseInt(userBalanceEl.innerText.replace(/,/g, '')) || 0;
+                            
+                            userBalanceEl.innerText = (currentVal + rewardPts).toLocaleString();
+                            if (walletBalanceEl) walletBalanceEl.innerText = (currentVal + rewardPts).toLocaleString();
+                            
+                            // Sync UI valuation
+                            const newUsdVal = (currentVal + rewardPts) * 0.0008;
+                            const userValEl = document.getElementById('user-value');
+                            if(userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
+                            
+                            // Add to activity history instantly
+                            const listActivity = document.getElementById('list-activity');
+                            if (listActivity) {
+                                const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                const historyHtml = `
+                                    <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
+                                        <div class="flex flex-col">
+                                            <span class="text-xs font-bold text-neutral-800">Bonus Task: ${promoKey}</span>
+                                            <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
+                                        </div>
+                                        <span class="text-xs font-bold text-emerald-700 mono-text">+${rewardPts}</span>
+                                    </div>`;
+                                listActivity.insertAdjacentHTML('afterbegin', historyHtml);
+                            }
+                            
+                            // Decrement the task badge
+                            const taskBadge = document.getElementById('task-nav-badge');
+                            if (taskBadge) {
+                                let currentBadgeCount = parseInt(taskBadge.innerText) || 0;
+                                currentBadgeCount--;
+                                if (currentBadgeCount > 0) {
+                                    taskBadge.innerText = currentBadgeCount;
+                                    taskBadge.classList.remove('hidden');
+                                } else {
+                                    taskBadge.innerText = '0';
+                                    taskBadge.classList.add('hidden');
                                 }
-                            }, 300);
-                        }
-                        
-                        const userBalanceEl = document.getElementById('user-balance');
-                        const walletBalanceEl = document.getElementById('wallet-balance');
-                        const currentVal = parseInt(userBalanceEl.innerText.replace(/,/g, '')) || 0;
-                        
-                        userBalanceEl.innerText = (currentVal + rewardPts).toLocaleString();
-                        if (walletBalanceEl) walletBalanceEl.innerText = (currentVal + rewardPts).toLocaleString();
-                        
-                        // Sync UI valuation
-                        const newUsdVal = (currentVal + rewardPts) * 0.0008;
-                        const userValEl = document.getElementById('user-value');
-                        if(userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
-                        
-                        // Add to activity history instantly
-                        const listActivity = document.getElementById('list-activity');
-                        if (listActivity) {
-                            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                            const historyHtml = `
-                                <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-neutral-800">Bonus Task: ${promoKey}</span>
-                                        <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
-                                    </div>
-                                    <span class="text-xs font-bold text-emerald-700 mono-text">+${rewardPts}</span>
-                                </div>`;
-                            listActivity.insertAdjacentHTML('afterbegin', historyHtml);
-                        }
-                        
-                        // Decrement the task badge
-                        const taskBadge = document.getElementById('task-nav-badge');
-                        if (taskBadge) {
-                            let currentBadgeCount = parseInt(taskBadge.innerText) || 0;
-                            currentBadgeCount--;
-                            if (currentBadgeCount > 0) {
-                                taskBadge.innerText = currentBadgeCount;
-                                taskBadge.classList.remove('hidden');
-                            } else {
-                                taskBadge.innerText = '0';
-                                taskBadge.classList.add('hidden');
                             }
                         }
                     } else {

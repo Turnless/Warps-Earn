@@ -467,6 +467,12 @@
                                                 <span class="font-bold text-neutral-500">Link:</span> <a href="<%= sub.link %>" target="_blank" class="text-cyan-500 hover:underline"><%= sub.link %></a>
                                             </div>
                                         <% } %>
+                                        <% if(sub.id && sub.pts) { %>
+                                            <div class="grid grid-cols-2 gap-2 mt-1 border-t border-neutral-100 pt-3">
+                                                <a href="/admin/quests/action?id=<%= sub.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
+                                                <a href="/admin/quests/action?id=<%= sub.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve (+<%= sub.pts %>)</a>
+                                            </div>
+                                        <% } %>
                                     </div>
                                 <% }) %>
                             <% } else { %>

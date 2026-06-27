@@ -74,7 +74,19 @@
 
                             <% if (hasDynamicQuests) { Object.keys(dynamicQuests).forEach(qKey => { 
                                 const q = dynamicQuests[qKey];
-                                const isDone = user.custom_promos && user.custom_promos[qKey];
+                                
+                                // Hide if quest is full
+                                if (q.max_participants > 0 && (q.current_participants || 0) >= q.max_participants) {
+                                    return;
+                                }
+
+                                let promoData = null;
+                                if (user.custom_promos) {
+                                    promoData = typeof user.custom_promos.get === 'function' ? user.custom_promos.get(qKey) : user.custom_promos[qKey];
+                                }
+                                
+                                const isDone = promoData === true || (promoData && promoData.verified === true);
+                                const isPending = promoData && promoData.status === 'pending';
                                 
                                 let isEligible = true;
                                 let eligibilityMsg = '';
@@ -115,7 +127,11 @@
                                             <span class="text-[9px] text-emerald-600 font-bold uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">Active</span>
                                         </div>
                                         <div class="relative z-0">
-                                            <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>', <%= q.pts || 150 %>, <%= q.is_telegram || false %>, <%= q.timer || 8 %>, <%= q.requires_comment_link || false %>)" id="promo-btn-<%= qKey %>" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
+                                            <% if (isPending) { %>
+                                                <button disabled class="bg-neutral-300 text-neutral-500 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm cursor-not-allowed">Verifying</button>
+                                            <% } else { %>
+                                                <button onclick="triggerPromoTask('<%= qKey %>', '<%= q.url %>', <%= q.pts || 150 %>, <%= q.is_telegram || false %>, <%= q.timer || 8 %>, <%= q.requires_comment_link || false %>)" id="promo-btn-<%= qKey %>" class="bg-indigo-600 active:scale-95 transition-all text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">Do Task</button>
+                                            <% } %>
                                         </div>
                                     </div>
                                 </div>
