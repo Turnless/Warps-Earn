@@ -346,13 +346,13 @@ router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extende
                 user.x_blue_tick = true;
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + (order.item_key === 'gold_tier_3m' ? 3 : 6));
-                user.tier_expires_at = expDate;
+                user.tier_expiry = expDate;
             } else if (order.item_key === 'premium_tier_3m' || order.item_key === 'premium_tier_6m') {
                 user.account_tier = 'Premium';
                 user.x_blue_tick = true;
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + (order.item_key === 'premium_tier_3m' ? 3 : 6));
-                user.tier_expires_at = expDate;
+                user.tier_expiry = expDate;
             }
 
             // Optional: Send Telegram DM to user letting them know it's approved

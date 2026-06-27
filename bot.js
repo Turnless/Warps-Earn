@@ -146,6 +146,13 @@ bot.on('successful_payment', async (ctx) => {
         }
 
         await user.save();
+        
+        try {
+            const redis = require('./services/redis');
+            if (redis) await redis.del(`user:${userId}:profile`);
+        } catch (err) {
+            console.error("Cache clear failed in webhook:", err);
+        }
 
         const order = new StoreOrder({
             telegram_id: userId,

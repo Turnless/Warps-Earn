@@ -820,7 +820,7 @@
 
                         <!-- Active Quests List -->
                         <div class="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-2">
-                            <% const qObj = typeof dynamicQuests !== 'undefined' && typeof dynamicQuests === 'string' ? JSON.parse(dynamicQuests) : {}; %>
+                            <% const qObj = typeof dynamicQuests !== 'undefined' ? dynamicQuests : {}; %>
                             <% const qKeys = Object.keys(qObj); %>
                             <% if (qKeys.length > 0) { %>
                                 <% qKeys.forEach(k => { const q = qObj[k]; %>
