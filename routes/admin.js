@@ -494,14 +494,22 @@ router.get('/quests/action', checkAdminAuth, async (req, res) => {
                 timestamp: getFormattedDateTime()
             });
             user.custom_promos.set(targetSub.promoKey, { verified: true, link: targetSub.link });
+            user.markModified('custom_promos');
         } else if (action === 'reject') {
             user.custom_promos.delete(targetSub.promoKey); // Let them try again
+            user.markModified('custom_promos');
         }
 
         await user.save();
+        
+        // Invalidate cache so their dashboard updates instantly
+        try {
+            await redis.del(`user:${targetSub.telegram_id}:profile`);
+        } catch (e) {
+            console.warn("Failed to clear user cache", e);
+        }
 
         // Remove from Redis list
-        // Since Redis LREM removes by exact value, we can use the raw string
         await redis.lrem('admin:quest_submissions', 1, questSubmissionsRaw[subIndex]);
 
         res.redirect('/admin');
