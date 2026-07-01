@@ -42,11 +42,11 @@ bot.command('start', async (ctx) => {
         // Create user profile and link upline if brand new
         let user = await database.setupUser(telegramId, username, uplineId);
 
-        // Sync persistent native Menu Button
+        // Sync persistent native Menu Button — uses /auth without ?id= so loader.ejs shows first
         await ctx.setChatMenuButton({
             type: 'web_app',
             text: '🕹️ Open App',
-            web_app: { url: userAppUrl }
+            web_app: { url: `${SERVER_URL}/auth` }
         }).catch((e) => console.error("⚠️ Menu button sync issue:", e.message));
 
         if (user && user.onboarding_passed) {
