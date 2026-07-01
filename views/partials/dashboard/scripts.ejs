@@ -700,7 +700,7 @@
         // --- Ad Network Config ---
         const AdConfiguration = {
             // Video / Rewarded Video Only
-            adsgram: { enabled: true, blockId: "35947" },
+            adsgram: { enabled: false, blockId: "35947" }, // DISABLED: Adsgram temporarily disabled
             // OnClickA Rewarded Video Spots
             onclicka: { enabled: true, spotIds: ["445824", "445825", "445825"] },
             // Monetag Smartlink (Direct Link) to prevent external browser popouts
@@ -800,7 +800,7 @@
                     } catch(e) {}
                 }
 
-                const activePool = shuffleArray(['adsgram', 'monetag', 'telegaio']);
+                const activePool = shuffleArray(['monetag', 'telegaio']); // DISABLED: Adsgram removed from pool
                 let adLoadedSuccessfully = false;
 
                 for (let network of activePool) {
@@ -1297,10 +1297,14 @@
 
 
         document.addEventListener("DOMContentLoaded", () => {
-            initAdsgram(); 
+            // DISABLED: Adsgram temporarily disabled
+            // initAdsgram(); 
             initOnClickA();
 
-            // ✅ FIXED: Safely binds listener exclusively to the auto-loading Adsgram HTML web component
+            // DISABLED: Adsgram task element initialization skipped
+            // The entire Adsgram task card and ecosystem container remain hidden by default.
+            // To re-enable, uncomment initAdsgram() above and the block below.
+            /*
             const taskAdElement = document.getElementById('adsgram-task-element');
             const taskAdWrapper = document.getElementById('adsgram-task-wrapper');
             const ecoContainer = document.getElementById('ecosystem-container');
@@ -1362,6 +1366,7 @@
                     taskAdWrapper.classList.add('hidden'); 
                 });
             }
+            */
         });
     </script>
 
