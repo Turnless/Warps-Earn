@@ -1,0 +1,188 @@
+<section id="tab-approvals" class="hide-section flex flex-col gap-10">
+                <div class="flex flex-col gap-1 animate-fade-in">
+                    <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Action Center</h2>
+                    <p class="text-neutral-500 text-sm">Process pending payouts, review social bounties, and fulfill store orders.</p>
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 animate-fade-in stagger-2">
+                    
+                    <!-- COLUMN 1: PAYOUTS -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">💸 Payouts</h3>
+                            <span class="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded text-[10px] font-mono"><%= pendingList ? pendingList.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            <% if (pendingList && pendingList.length > 0) { %>
+                                <% pendingList.forEach(p => { %>
+                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex flex-col gap-1">
+                                                <span class="font-bold text-sm text-neutral-900">@<%= p.username || 'Anon' %></span>
+                                                <span class="text-[10px] text-neutral-500 font-mono"><%= p.telegram_id %></span>
+                                            </div>
+                                            <span class="text-sm font-bold text-emerald-400 font-mono"><%= p.amount_points.toLocaleString() %> PTS</span>
+                                        </div>
+                                        <div class="text-[10px] text-neutral-600 bg-white/90 p-2.5 rounded font-mono border border-neutral-200 break-all leading-relaxed whitespace-pre-wrap"><strong>Amount:</strong> <%= p.amount_points.toLocaleString() %> PTS<br><strong>Asset:</strong> <%= p.asset %><% if (p.bank_provider) { %><br><strong>Bank/Provider:</strong> <%= p.bank_provider %><% } %><br><strong>Account Details:</strong> <%= p.destination_details %><br><strong>Status:</strong> Pending Review<br><strong>Date:</strong> <%= new Date(p.created_at).toLocaleString() %></div>
+                                        <div class="grid grid-cols-2 gap-2 mt-1">
+                                            <a href="/admin/payout?txId=<%= p.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
+                                            <a href="/admin/payout?txId=<%= p.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve</a>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">Inbox Zero.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 2: BOUNTIES -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🎯 Bounties</h3>
+                            <span class="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded text-[10px] font-mono"><%= pendingBounties ? pendingBounties.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            <% if (pendingBounties && pendingBounties.length > 0) { %>
+                                <% pendingBounties.forEach(sub => { %>
+                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex flex-col gap-1">
+                                                <span class="font-bold text-sm text-neutral-900">@<%= sub.user.username || sub.user.telegram_id || 'Unknown' %></span>
+                                                <span class="text-[10px] text-neutral-500 font-mono"><%= sub.telegram_id %></span>
+                                                <span class="text-[9px] text-neutral-400"><%= sub.bounty.title || 'Task' %> • +<%= sub.bounty.reward_pts || 0 %> PTS</span>
+                                            </div>
+                                        </div>
+                                        <div class="text-[10px] font-mono bg-neutral-100 p-2.5 rounded border border-neutral-200 break-all leading-relaxed">
+                                            <span class="font-bold text-neutral-500">Submitted Link:</span> <a href="<%= sub.proof_url %>" target="_blank" class="text-indigo-500 hover:underline"><%= sub.proof_url %></a>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 mt-1">
+                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10">Reject</a>
+                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10">Approve</a>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending tasks.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 3: STORE ORDERS -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🛒 Orders</h3>
+                            <span class="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof pendingStoreOrders !== 'undefined' ? pendingStoreOrders.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            <% if (typeof pendingStoreOrders !== 'undefined' && pendingStoreOrders.length > 0) { %>
+                                <% pendingStoreOrders.forEach(order => { %>
+                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
+                                        <div class="flex flex-col gap-1">
+                                            <span class="font-bold text-sm text-amber-400"><%= order.item_title %></span>
+                                            <span class="text-[10px] text-neutral-500">User: @<%= order.user.username || order.telegram_id %></span>
+                                        </div>
+                                        <span class="text-xs font-bold text-rose-400 font-mono"><%= order.cost.toLocaleString() %> PTS</span>
+                                        
+                                        <div class="grid grid-cols-1 gap-2 mt-1">
+                                            <form action="/admin/store-orders/action" method="POST" class="w-full">
+                                                <input type="hidden" name="order_id" value="<%= order._id %>">
+                                                <input type="hidden" name="action" value="approve">
+                                                <button class="w-full glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 border-emerald-500/30">Approve (Upgrade)</button>
+                                            </form>
+                                            <form action="/admin/store-orders/action" method="POST" class="w-full">
+                                                <input type="hidden" name="order_id" value="<%= order._id %>">
+                                                <input type="hidden" name="action" value="reject">
+                                                <button class="w-full glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 border-rose-500/30">Reject (Refund)</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending orders.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 4: DYNAMIC QUEST SUBMISSIONS PREVIEW -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🔗 Quest Submissions</h3>
+                            <span class="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof questSubmissions !== 'undefined' ? questSubmissions.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
+                            <% if (typeof questSubmissions !== 'undefined' && questSubmissions.length > 0) { %>
+                                <% questSubmissions.forEach(sub => { %>
+                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-2 hover:border-neutral-300 transition-colors">
+                                        <div class="flex justify-between items-center">
+                                            <div class="flex flex-col gap-0.5">
+                                                <span class="font-bold text-sm text-neutral-900">@<%= sub.username || sub.telegram_id %></span>
+                                                <span class="text-[9px] text-neutral-400 font-mono"><%= sub.promoKey %> • <%= new Date(sub.timestamp).toLocaleString() %></span>
+                                            </div>
+                                        </div>
+                                        <% if(sub.link) { %>
+                                            <div class="text-[10px] font-mono bg-neutral-100 p-2.5 rounded border border-neutral-200 break-all leading-relaxed">
+                                                <span class="font-bold text-neutral-500">Link:</span> <a href="<%= sub.link %>" target="_blank" class="text-cyan-500 hover:underline"><%= sub.link %></a>
+                                            </div>
+                                        <% } %>
+                                        <% if(sub.id && sub.pts) { %>
+                                            <div class="grid grid-cols-2 gap-2 mt-1 border-t border-neutral-100 pt-3">
+                                                <a href="/admin/quests/action?id=<%= sub.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
+                                                <a href="/admin/quests/action?id=<%= sub.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve (+<%= sub.pts %>)</a>
+                                            </div>
+                                        <% } %>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">No recent submissions.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 5: X VERIFICATIONS -->
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
+                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🐦 X Verification</h3>
+                            <span class="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof pendingXVerifications !== 'undefined' ? pendingXVerifications.length : 0 %></span>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            <% if (typeof pendingXVerifications !== 'undefined' && pendingXVerifications.length > 0) { %>
+                                <% pendingXVerifications.forEach(p => { %>
+                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex flex-col gap-1">
+                                                <span class="font-bold text-sm text-neutral-900">@<%= p.username || 'Anon' %></span>
+                                                <span class="text-[10px] text-neutral-500 font-mono"><%= p.telegram_id %></span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[10px] text-neutral-500 font-bold bg-neutral-100 px-2 py-1 rounded">X:</span>
+                                            <a href="https://x.com/<%= String(p.x_handle || '').replace('@', '') %>" target="_blank" class="text-[10px] text-cyan-500 hover:underline truncate w-full"><%= p.x_handle %></a>
+                                        </div>
+                                        <form action="/admin/user-x-verify" method="POST" class="flex flex-col gap-2 mt-1">
+                                            <input type="hidden" name="telegram_id" value="<%= p.telegram_id %>">
+                                            <input type="hidden" name="redirect_dashboard" value="true">
+                                            
+                                            <div class="flex gap-2">
+                                                <input type="number" name="followers" placeholder="Followers" class="w-1/2 bg-white border border-neutral-200 rounded px-2 py-1.5 text-[10px] focus:outline-none focus:border-violet-400">
+                                                <select name="tier" class="w-1/2 bg-white border border-neutral-200 rounded px-2 py-1.5 text-[10px] focus:outline-none focus:border-violet-400">
+                                                    <option value="Standard">Standard</option>
+                                                    <option value="Premium">Premium</option>
+                                                    <option value="Gold">Gold</option>
+                                                </select>
+                                            </div>
+                                            <div class="flex items-center gap-2 px-1">
+                                                <input type="checkbox" name="blue_tick" id="blue_tick_<%= p.telegram_id %>" class="rounded border-neutral-300 text-violet-500 focus:ring-violet-500">
+                                                <label for="blue_tick_<%= p.telegram_id %>" class="text-[10px] text-neutral-600 font-bold">Has Blue Tick?</label>
+                                            </div>
+                                            <button type="submit" class="bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-2 rounded-lg text-[10px] shadow-sm uppercase tracking-wider mt-1 transition-all">Verify & Assign</button>
+                                        </form>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending verifications.</p>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </section>

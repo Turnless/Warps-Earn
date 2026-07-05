@@ -1,0 +1,129 @@
+<section id="tab-dashboard" class="flex flex-col gap-8">
+                <!-- Header -->
+                <div class="flex justify-between items-end animate-fade-in stagger-1">
+                    <div class="flex flex-col gap-1">
+                        <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Mission Control</h2>
+                        <p class="text-neutral-500 text-sm">Real-time valuation, network health, and macro metrics.</p>
+                    </div>
+                </div>
+
+                <!-- Hero Valuation Card -->
+                <div class="glass-panel p-8 relative overflow-hidden animate-fade-in stagger-2 group">
+                    <div class="absolute -right-20 -top-20 w-64 h-64 bg-violet-600/20 blur-[80px] rounded-full group-hover:bg-violet-600/30 transition-all duration-700"></div>
+                    <div class="absolute -left-20 -bottom-20 w-64 h-64 bg-cyan-600/20 blur-[80px] rounded-full group-hover:bg-cyan-600/30 transition-all duration-700"></div>
+                    
+                    <div class="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs uppercase tracking-widest text-neutral-500 font-bold">Circulating Supply</span>
+                                <span class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded text-[9px] uppercase font-bold tracking-widest flex items-center gap-2"><span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span> LIVE</span>
+                            </div>
+                            <div class="flex items-baseline gap-3">
+                                <span class="text-6xl font-heading font-black text-neutral-900 tracking-tighter"><%= stats.circulatingPts.toLocaleString() %></span>
+                                <span class="text-xl font-bold text-violet-400 font-mono">PTS</span>
+                            </div>
+                            <span class="text-2xl font-semibold text-emerald-400 font-mono mt-2">≈ $<%= stats.circulatingUsd %></span>
+                        </div>
+
+                        <div class="flex gap-4">
+                            <div class="glass-panel !rounded-2xl p-6 flex flex-col items-center justify-center min-w-[140px] bg-white/5">
+                                <span class="text-3xl font-heading font-black text-neutral-900"><%= stats.users.toLocaleString() %></span>
+                                <span class="text-[10px] text-neutral-500 uppercase tracking-widest font-bold mt-1">Total Users</span>
+                            </div>
+                            <div class="glass-panel !rounded-2xl p-6 flex flex-col items-center justify-center min-w-[140px] bg-white/5">
+                                <span class="text-3xl font-heading font-black text-neutral-900"><%= stats.paidOutPts.toLocaleString() %></span>
+                                <span class="text-[10px] text-neutral-500 uppercase tracking-widest font-bold mt-1">PTS Paid Out</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-Metrics Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in stagger-3">
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-xl">📺</div>
+                            <span class="font-bold text-neutral-600">Ad Yield</span>
+                        </div>
+                        <div>
+                            <span class="text-3xl font-heading font-bold text-neutral-900"><%= stats.adEarnings.toLocaleString() %></span> <span class="text-sm font-mono text-neutral-500">PTS</span>
+                        </div>
+                        <span class="text-xs text-neutral-500"><%= stats.adsWatched.toLocaleString() %> impressions</span>
+                    </div>
+
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-xl">🎯</div>
+                            <span class="font-bold text-neutral-600">Task Yield</span>
+                        </div>
+                        <div>
+                            <span class="text-3xl font-heading font-bold text-neutral-900"><%= stats.taskEarnings.toLocaleString() %></span> <span class="text-sm font-mono text-neutral-500">PTS</span>
+                        </div>
+                        <span class="text-xs text-neutral-500">Quests & Promos</span>
+                    </div>
+
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-xl">🤝</div>
+                            <span class="font-bold text-neutral-600">Referral Yield</span>
+                        </div>
+                        <div>
+                            <span class="text-3xl font-heading font-bold text-neutral-900"><%= stats.referralEarnings.toLocaleString() %></span> <span class="text-sm font-mono text-neutral-500">PTS</span>
+                        </div>
+                        <span class="text-xs text-neutral-500">Network milestones</span>
+                    </div>
+                </div>
+
+                <!-- Telemetry & Demographics -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in stagger-4">
+                    <!-- Network Telemetry -->
+                    <div class="glass-panel p-6 flex flex-col gap-6">
+                        <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">📡 Ad Network Telemetry</h3>
+                        <div class="flex flex-col gap-3">
+                            <% const networkNames = Object.keys(telemetry || {}); %>
+                            <% if (networkNames.length > 0) { %>
+                                <% networkNames.forEach(net => { %>
+                                    <% const stat = telemetry[net]; const total = stat.success + stat.fail; const winRate = total > 0 ? Math.round((stat.success / total) * 100) : 0; %>
+                                    <div class="bg-white/60 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
+                                        <div class="flex justify-between items-center">
+                                            <span class="font-bold text-neutral-700"><%= net %></span>
+                                            <span class="px-2 py-1 rounded-md text-[10px] font-mono font-bold <%= winRate > 50 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20' %>"><%= winRate %>% WIN</span>
+                                        </div>
+                                        <div class="flex justify-between text-xs font-mono">
+                                            <span class="text-emerald-500">Succ: <%= stat.success %></span>
+                                            <span class="text-rose-500">Fail: <%= stat.fail %></span>
+                                        </div>
+                                        <% if (stat.lastError) { %>
+                                            <span class="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-1 rounded truncate border border-rose-500/20 font-mono"><%= stat.lastError %></span>
+                                        <% } else { %>
+                                            <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 font-mono w-max">Operational</span>
+                                        <% } %>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic">No telemetry data yet.</p>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- Demographics -->
+                    <div class="glass-panel p-6 flex flex-col gap-6">
+                        <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🌎 Demographics</h3>
+                        <div class="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-2">
+                            <% if (countryStats && countryStats.length > 0) { %>
+                                <% countryStats.forEach((c, index) => { %>
+                                    <div class="flex items-center justify-between bg-white/60 p-3.5 rounded-xl border border-neutral-200 hover:border-neutral-300 transition-all">
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-[10px] font-mono text-neutral-500">#<%= index + 1 %></span>
+                                            <span class="font-bold text-neutral-700 text-sm"><%= c.country %></span>
+                                        </div>
+                                        <span class="text-xs font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-md border border-cyan-500/20"><%= c.count.toLocaleString() %> Users</span>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic">No demographics data yet.</p>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </section>
