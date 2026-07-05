@@ -59,7 +59,7 @@ router.post('/login', express.urlencoded({ extended: true }), (req, res) => {
     const { password } = req.body;
     if (password === ADMIN_SECRET_SIGNATURE) {
         // Set an authentication cookie valid for 24 hours
-        res.cookie('admin_token', password, { maxAge: 24 * 60 * 60 * 1000, httpOnly: true });
+        res.cookie('admin_token', password, { maxAge: 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'strict' });
         return res.redirect('/admin');
     }
     res.render('admin_login', { error: "Invalid Passphrase." });
@@ -217,8 +217,6 @@ router.get('/', checkAdminAuth, async (req, res) => {
             enable_gold: true
         };
 
-        const globalTelemetryStr = await redis.get('admin:telemetry');
-        const globalTelemetry = globalTelemetryStr ? JSON.parse(globalTelemetryStr) : { adAttempts: 0, adSuccess: 0, activeNetworks: {} };
 
 
 

@@ -52,6 +52,11 @@
                             <label class="text-xs font-bold text-neutral-500 uppercase tracking-widest">Base Reward Per Ad (PTS)</label>
                             <input type="number" name="reward_per_ad" value="<%= settings.reward_per_ad || 3 %>" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:outline-none focus:border-violet-500 font-mono">
                         </div>
+
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs font-bold text-neutral-500 uppercase tracking-widest">Daily Streak Reward (PTS)</label>
+                            <input type="number" name="streak_reward" value="<%= settings.streak_reward || 500 %>" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:outline-none focus:border-violet-500 font-mono">
+                        </div>
                         
                         <button type="submit" class="w-full bg-violet-600 hover:bg-violet-500 text-neutral-900 font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all uppercase tracking-widest text-xs mt-2">Commit State</button>
                     </form>

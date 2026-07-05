@@ -157,7 +157,7 @@
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="text-[10px] text-neutral-500 font-bold bg-neutral-100 px-2 py-1 rounded">X:</span>
-                                            <a href="<%= p.x_handle %>" target="_blank" class="text-[10px] text-cyan-500 hover:underline truncate w-full"><%= p.x_handle %></a>
+                                            <a href="https://x.com/<%= String(p.x_handle || '').replace('@', '') %>" target="_blank" class="text-[10px] text-cyan-500 hover:underline truncate w-full"><%= p.x_handle %></a>
                                         </div>
                                         <form action="/admin/user-x-verify" method="POST" class="flex flex-col gap-2 mt-1">
                                             <input type="hidden" name="telegram_id" value="<%= p.telegram_id %>">

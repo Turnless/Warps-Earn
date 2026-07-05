@@ -189,7 +189,7 @@
                             <span class="text-sm font-bold text-neutral-900">Manual X Verification</span>
                             <span class="text-[10px] text-neutral-500">Assign tier based on follower count & blue tick.</span>
                             <% if (user.x_handle) { %>
-                                <a href="<%= user.x_handle %>" target="_blank" class="text-[10px] text-cyan-500 underline mt-1 break-all"><%= user.x_handle %></a>
+                                <a href="https://x.com/<%= String(user.x_handle || '').replace('@', '') %>" target="_blank" class="text-[10px] text-cyan-500 underline mt-1 break-all"><%= user.x_handle %></a>
                             <% } else { %>
                                 <span class="text-[10px] text-rose-500 mt-1">No X Handle Provided</span>
                             <% } %>
