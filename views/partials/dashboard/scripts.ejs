@@ -703,13 +703,31 @@
             adsgram: { enabled: false, blockId: "35947" }, // DISABLED: Adsgram temporarily disabled
             // OnClickA Rewarded Video Spots
             onclicka: { enabled: true, spotIds: ["445824", "445825", "445825"] },
-            // Monetag Smartlink (Direct Link) to prevent external browser popouts
-            monetag: { enabled: true, adUrl: "https://omg10.com/4/11188717" },
-            // Direct Smartlinks (Banner/Video pages only, no interstitial scripts)
-            adsonar: { enabled: true, adUrl: "https://adsonar.placeholder/smartlink" },
-            // Telega.io SDK Integration
-            telegaio: { enabled: true, blockId: "b891be85-b4fe-4e4c-8c40-50b885bc5852" }
+            // Monetag Smartlinks (Multiple Direct Links - rotated per ad step)
+            monetag: {
+                enabled: true,
+                adUrls: [
+                    "https://omg10.com/4/11188717",
+                    "https://omg10.com/4/11242613",
+                    "https://omg10.com/4/11242614",
+                    "https://omg10.com/4/11242615",
+                    "https://omg10.com/4/11242616",
+                    "https://omg10.com/4/11242617",
+                    "https://omg10.com/4/11242609",
+                    "https://omg10.com/4/11242610",
+                    "https://omg10.com/4/11242612",
+                    "https://omg10.com/4/11242611"
+                ]
+            }
         };
+
+        // Monetag link rotation tracker (each ad step uses a different link)
+        let monetagLinkIndex = Math.floor(Math.random() * AdConfiguration.monetag.adUrls.length);
+        function getNextMonetagUrl() {
+            const url = AdConfiguration.monetag.adUrls[monetagLinkIndex];
+            monetagLinkIndex = (monetagLinkIndex + 1) % AdConfiguration.monetag.adUrls.length;
+            return url;
+        }
 
         // ✅ FIXED: Only using standard Rewarded Video controller. 
         // AdsgramTaskController is safely omitted since we use <adsgram-task> HTML directly.
@@ -800,7 +818,7 @@
                     } catch(e) {}
                 }
 
-                const activePool = shuffleArray(['monetag', 'telegaio']); // DISABLED: Adsgram removed from pool
+                const activePool = ['monetag']; // Monetag-only pool with rotating direct links
                 let adLoadedSuccessfully = false;
 
                 for (let network of activePool) {
@@ -819,11 +837,12 @@
                             }
                         }
                         else if (network === 'monetag' && AdConfiguration.monetag.enabled) {
-                            // Open in Telegram web browser externally
+                            // Open rotating Monetag direct link in Telegram web browser
+                            const monetagUrl = getNextMonetagUrl();
                             if (window.Telegram && window.Telegram.WebApp) {
-                                window.Telegram.WebApp.openLink(AdConfiguration.monetag.adUrl);
+                                window.Telegram.WebApp.openLink(monetagUrl);
                             } else {
-                                window.open(AdConfiguration.monetag.adUrl, '_blank');
+                                window.open(monetagUrl, '_blank');
                             }
 
                             // Show a waiting modal to claim the reward
@@ -877,19 +896,7 @@
                                 showToast(`Ad ${i}/${totalChainSteps} (Monetag) completed!`, "✓", 1500);
                             }
                         }
-                        else if (network === 'telegaio' && AdConfiguration.telegaio.enabled) {
-                            if (!window.TelegaAdsController) throw new Error("Telega SDK not initialized.");
-                            
-                            // Using the correct method from Telega documentation
-                            await window.TelegaAdsController.ad_show({
-                                adBlockUuid: AdConfiguration.telegaio.blockId
-                            });
-
-                            adsCompletedCount++;
-                            adLoadedSuccessfully = true;
-                            reportAdTelemetry('telegaio', 'success');
-                            showToast(`Ad ${i}/${totalChainSteps} (Telega.io) completed!`, "✓", 1500);
-                        }
+                        // Telega.io removed - not providing enough ads
                     } catch (e) {
                         console.warn(`⚠️ Delivery node failed: ${network.toUpperCase()}. Executing next pool fallback...`);
                         reportAdTelemetry(network, 'fail', e.message || e);
@@ -1370,15 +1377,4 @@
         });
     </script>
 
-    <!-- Telega.io In-App Ad SDK -->
-    <script src="https://inapp.telega.io/sdk/v1/sdk.js"></script>
-    <script>
-        window.TelegaAdsController = null;
-        try {
-            window.TelegaAdsController = window.TelegaIn.AdsController.create_miniapp({
-                token: 'f398aaf9-5f9b-4980-93bf-a92d8cce57aa'
-            });
-        } catch (e) {
-            console.warn("Telega.io SDK Init Error:", e);
-        }
-    </script>
+    <!-- Telega.io SDK removed - migrated to Monetag multi-link rotation -->

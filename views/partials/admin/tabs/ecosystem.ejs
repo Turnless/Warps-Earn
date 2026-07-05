@@ -1,599 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Warps Control Center</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@500;700;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        :root {
-            --bg-color: #e6ddd0;
-            --glass-bg: rgba(255, 255, 255, 0.6);
-            --glass-border: rgba(0, 0, 0, 0.1);
-            --glass-glow: 0 4px 24px rgba(0, 0, 0, 0.06);
-            --accent-primary: #1a1a16;
-            --accent-cyan: #0284c7;
-        }
-
-        body {
-            font-family: 'Space Grotesk', 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: #1a1a16;
-            background-image: 
-                radial-gradient(circle at 15% 0%, rgba(255, 255, 255, 0.4) 0%, transparent 25%), 
-                radial-gradient(circle at 85% 100%, rgba(255, 255, 255, 0.3) 0%, transparent 25%);
-            background-attachment: fixed;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        h1, h2, h3, .font-heading {
-            font-family: 'Outfit', sans-serif;
-        }
-
-        .font-mono {
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        /* Glassmorphism utilities */
-        .glass-panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-glow);
-            border-radius: 24px;
-            transition: all 0.3s ease;
-        }
-
-        .glass-panel:hover {
-            border-color: rgba(0, 0, 0, 0.15);
-            background: rgba(255, 255, 255, 0.8);
-            transform: translateY(-2px);
-        }
-
-        .glass-btn {
-            background: rgba(255, 255, 255, 0.8);
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            color: #1a1a16;
-            backdrop-filter: blur(8px);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-weight: bold;
-        }
-
-        .glass-btn:hover {
-            background: rgba(0, 0, 0, 0.05);
-            border-color: rgba(0, 0, 0, 0.2);
-            transform: scale(1.02);
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
-        }
-
-        /* Animations */
-        @keyframes fadeSlideUp {
-            0% { opacity: 0; transform: translateY(20px); }
-            100% { opacity: 1; transform: translateY(0); }
-        }
-
-        .animate-fade-in {
-            animation: fadeSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
-        .stagger-1 { animation-delay: 0.1s; opacity: 0; }
-        .stagger-2 { animation-delay: 0.2s; opacity: 0; }
-        .stagger-3 { animation-delay: 0.3s; opacity: 0; }
-        .stagger-4 { animation-delay: 0.4s; opacity: 0; }
-
-        /* Floating Sidebar */
-        .sidebar {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(20px);
-            border-right: 1px solid var(--glass-border);
-        }
-
-        .nav-item {
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .nav-item::before {
-            content: '';
-            position: absolute;
-            left: -16px;
-            top: 50%;
-            transform: translateY(-50%) scaleY(0);
-            height: 60%;
-            width: 3px;
-            background: var(--accent-primary);
-            border-radius: 4px;
-            transition: transform 0.3s ease;
-        }
-
-        .nav-item.active {
-            color: #1a1a16;
-            background: rgba(0, 0, 0, 0.05);
-            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
-        }
-
-        .nav-item.active::before {
-            transform: translateY(-50%) scaleY(1);
-        }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.3); }
-
-        .hide-section { display: none !important; }
-        
-        /* Badges */
-        .badge-glow-amber { box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
-        .badge-glow-indigo { box-shadow: 0 0 10px rgba(99, 102, 241, 0.4); }
-    </style>
-</head>
-<body class="flex selection:bg-neutral-500/30 selection:text-neutral-900 bg-[#e6ddd0]">
-
-    <!-- MOBILE TOP BAR -->
-    <div class="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/60 backdrop-blur-xl border-b border-neutral-200 z-[60] flex items-center justify-between px-4">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-neutral-800 to-neutral-950 flex items-center justify-center text-neutral-900 text-sm shadow-md">
-                <span>⚡</span>
-            </div>
-            <span class="font-bold text-neutral-900 tracking-tight uppercase text-sm">Command Center</span>
-        </div>
-        <button onclick="toggleMobileSidebar()" class="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-xl text-neutral-900 shadow-sm border border-neutral-200 hover:bg-neutral-50">
-            ☰
-        </button>
-    </div>
-
-    <!-- MOBILE OVERLAY -->
-    <div id="mobile-overlay" onclick="toggleMobileSidebar()" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-[60] hidden lg:hidden transition-opacity"></div>
-
-    <!-- SIDEBAR NAVIGATION -->
-    <aside id="sidebar" class="sidebar w-64 fixed h-screen flex flex-col justify-between py-8 px-6 z-[70] transform -translate-x-full lg:translate-x-0 transition-transform duration-300 top-0 left-0">
-        <div class="flex flex-col gap-10">
-            <!-- Logo area -->
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-neutral-900 text-xl shadow-[0_0_20px_rgba(139,92,246,0.4)] relative">
-                    <div class="absolute inset-0 rounded-2xl bg-white/20 blur-sm"></div>
-                    <span class="relative z-10">⚡</span>
-                </div>
-                <div class="flex flex-col">
-                    <h1 class="text-xl font-heading font-black text-neutral-900 tracking-tight leading-none">WARPS</h1>
-                    <span class="text-xs text-indigo-400 font-semibold tracking-widest uppercase mt-1">Control</span>
-                </div>
-            </div>
-
-            <!-- Navigation Links -->
-            <nav class="flex flex-col gap-2 relative">
-                <button onclick="switchTab('tab-dashboard')" id="nav-dashboard" class="nav-item active px-4 py-3.5 rounded-xl flex items-center gap-4 text-sm font-semibold text-neutral-500 hover:text-neutral-900 group">
-                    <span class="text-lg opacity-80 group-hover:opacity-100 transition-opacity">📈</span> Overview
-                </button>
-                
-                <div class="mt-4 mb-2">
-                    <span class="text-[10px] font-bold text-neutral-600 uppercase tracking-widest px-4">Action Center</span>
-                </div>
-                
-                <button onclick="switchTab('tab-approvals')" id="nav-approvals" class="nav-item px-4 py-3.5 rounded-xl flex items-center justify-between text-sm font-semibold text-neutral-500 hover:text-neutral-900 group">
-                    <div class="flex items-center gap-4">
-                        <span class="text-lg opacity-80 group-hover:opacity-100 transition-opacity">✅</span> Approvals
-                    </div>
-                    <% const totalPending = stats.pending + (pendingBounties ? pendingBounties.length : 0) + (typeof pendingStoreOrders !== 'undefined' ? pendingStoreOrders.length : 0); %>
-                    <% if (totalPending > 0) { %>
-                        <span class="bg-amber-500/20 border border-amber-500/50 text-amber-400 px-2 py-0.5 rounded text-[10px] font-mono badge-glow-amber"><%= totalPending %></span>
-                    <% } %>
-                </button>
-
-                <div class="mt-4 mb-2">
-                    <span class="text-[10px] font-bold text-neutral-600 uppercase tracking-widest px-4">Management</span>
-                </div>
-
-                <button onclick="switchTab('tab-users')" id="nav-users" class="nav-item px-4 py-3.5 rounded-xl flex items-center gap-4 text-sm font-semibold text-neutral-500 hover:text-neutral-900 group">
-                    <span class="text-lg opacity-80 group-hover:opacity-100 transition-opacity">👥</span> Intelligence
-                </button>
-                <button onclick="switchTab('tab-ecosystem')" id="nav-ecosystem" class="nav-item px-4 py-3.5 rounded-xl flex items-center gap-4 text-sm font-semibold text-neutral-500 hover:text-neutral-900 group">
-                    <span class="text-lg opacity-80 group-hover:opacity-100 transition-opacity">⚙️</span> Ecosystem
-                </button>
-            </nav>
-        </div>
-
-        <a href="/admin/logout" class="glass-btn w-full text-center py-4 rounded-xl text-xs font-bold uppercase tracking-widest text-neutral-600 hover:text-neutral-900 flex items-center justify-center gap-2">
-            <span>⏏</span> Disconnect
-        </a>
-    </aside>
-
-    <!-- MAIN CONTENT AREA -->
-    <main class="w-full lg:ml-64 flex-1 p-6 pt-20 lg:pt-12 md:p-10 lg:p-12 min-h-screen relative z-10">
-        <div class="max-w-6xl mx-auto pb-20">
-
-            <!-- TAB: OVERVIEW (Analytics, Telemetry, Demographics) -->
-            <section id="tab-dashboard" class="flex flex-col gap-8">
-                <!-- Header -->
-                <div class="flex justify-between items-end animate-fade-in stagger-1">
-                    <div class="flex flex-col gap-1">
-                        <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Mission Control</h2>
-                        <p class="text-neutral-500 text-sm">Real-time valuation, network health, and macro metrics.</p>
-                    </div>
-                </div>
-
-                <!-- Hero Valuation Card -->
-                <div class="glass-panel p-8 relative overflow-hidden animate-fade-in stagger-2 group">
-                    <div class="absolute -right-20 -top-20 w-64 h-64 bg-violet-600/20 blur-[80px] rounded-full group-hover:bg-violet-600/30 transition-all duration-700"></div>
-                    <div class="absolute -left-20 -bottom-20 w-64 h-64 bg-cyan-600/20 blur-[80px] rounded-full group-hover:bg-cyan-600/30 transition-all duration-700"></div>
-                    
-                    <div class="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
-                        <div class="flex flex-col gap-2">
-                            <div class="flex items-center gap-3">
-                                <span class="text-xs uppercase tracking-widest text-neutral-500 font-bold">Circulating Supply</span>
-                                <span class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded text-[9px] uppercase font-bold tracking-widest flex items-center gap-2"><span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span> LIVE</span>
-                            </div>
-                            <div class="flex items-baseline gap-3">
-                                <span class="text-6xl font-heading font-black text-neutral-900 tracking-tighter"><%= stats.circulatingPts.toLocaleString() %></span>
-                                <span class="text-xl font-bold text-violet-400 font-mono">PTS</span>
-                            </div>
-                            <span class="text-2xl font-semibold text-emerald-400 font-mono mt-2">≈ $<%= stats.circulatingUsd %></span>
-                        </div>
-
-                        <div class="flex gap-4">
-                            <div class="glass-panel !rounded-2xl p-6 flex flex-col items-center justify-center min-w-[140px] bg-white/5">
-                                <span class="text-3xl font-heading font-black text-neutral-900"><%= stats.users.toLocaleString() %></span>
-                                <span class="text-[10px] text-neutral-500 uppercase tracking-widest font-bold mt-1">Total Users</span>
-                            </div>
-                            <div class="glass-panel !rounded-2xl p-6 flex flex-col items-center justify-center min-w-[140px] bg-white/5">
-                                <span class="text-3xl font-heading font-black text-neutral-900"><%= stats.paidOutPts.toLocaleString() %></span>
-                                <span class="text-[10px] text-neutral-500 uppercase tracking-widest font-bold mt-1">PTS Paid Out</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sub-Metrics Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in stagger-3">
-                    <div class="glass-panel p-6 flex flex-col gap-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-xl">📺</div>
-                            <span class="font-bold text-neutral-600">Ad Yield</span>
-                        </div>
-                        <div>
-                            <span class="text-3xl font-heading font-bold text-neutral-900"><%= stats.adEarnings.toLocaleString() %></span> <span class="text-sm font-mono text-neutral-500">PTS</span>
-                        </div>
-                        <span class="text-xs text-neutral-500"><%= stats.adsWatched.toLocaleString() %> impressions</span>
-                    </div>
-
-                    <div class="glass-panel p-6 flex flex-col gap-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-xl">🎯</div>
-                            <span class="font-bold text-neutral-600">Task Yield</span>
-                        </div>
-                        <div>
-                            <span class="text-3xl font-heading font-bold text-neutral-900"><%= stats.taskEarnings.toLocaleString() %></span> <span class="text-sm font-mono text-neutral-500">PTS</span>
-                        </div>
-                        <span class="text-xs text-neutral-500">Quests & Promos</span>
-                    </div>
-
-                    <div class="glass-panel p-6 flex flex-col gap-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-xl">🤝</div>
-                            <span class="font-bold text-neutral-600">Referral Yield</span>
-                        </div>
-                        <div>
-                            <span class="text-3xl font-heading font-bold text-neutral-900"><%= stats.referralEarnings.toLocaleString() %></span> <span class="text-sm font-mono text-neutral-500">PTS</span>
-                        </div>
-                        <span class="text-xs text-neutral-500">Network milestones</span>
-                    </div>
-                </div>
-
-                <!-- Telemetry & Demographics -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in stagger-4">
-                    <!-- Network Telemetry -->
-                    <div class="glass-panel p-6 flex flex-col gap-6">
-                        <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">📡 Ad Network Telemetry</h3>
-                        <div class="flex flex-col gap-3">
-                            <% const networkNames = Object.keys(telemetry || {}); %>
-                            <% if (networkNames.length > 0) { %>
-                                <% networkNames.forEach(net => { %>
-                                    <% const stat = telemetry[net]; const total = stat.success + stat.fail; const winRate = total > 0 ? Math.round((stat.success / total) * 100) : 0; %>
-                                    <div class="bg-white/60 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
-                                        <div class="flex justify-between items-center">
-                                            <span class="font-bold text-neutral-700"><%= net %></span>
-                                            <span class="px-2 py-1 rounded-md text-[10px] font-mono font-bold <%= winRate > 50 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20' %>"><%= winRate %>% WIN</span>
-                                        </div>
-                                        <div class="flex justify-between text-xs font-mono">
-                                            <span class="text-emerald-500">Succ: <%= stat.success %></span>
-                                            <span class="text-rose-500">Fail: <%= stat.fail %></span>
-                                        </div>
-                                        <% if (stat.lastError) { %>
-                                            <span class="text-[10px] text-rose-400 bg-rose-500/10 px-2 py-1 rounded truncate border border-rose-500/20 font-mono"><%= stat.lastError %></span>
-                                        <% } else { %>
-                                            <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 font-mono w-max">Operational</span>
-                                        <% } %>
-                                    </div>
-                                <% }) %>
-                            <% } else { %>
-                                <p class="text-xs text-neutral-500 italic">No telemetry data yet.</p>
-                            <% } %>
-                        </div>
-                    </div>
-
-                    <!-- Demographics -->
-                    <div class="glass-panel p-6 flex flex-col gap-6">
-                        <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🌎 Demographics</h3>
-                        <div class="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-2">
-                            <% if (countryStats && countryStats.length > 0) { %>
-                                <% countryStats.forEach((c, index) => { %>
-                                    <div class="flex items-center justify-between bg-white/60 p-3.5 rounded-xl border border-neutral-200 hover:border-neutral-300 transition-all">
-                                        <div class="flex items-center gap-3">
-                                            <span class="text-[10px] font-mono text-neutral-500">#<%= index + 1 %></span>
-                                            <span class="font-bold text-neutral-700 text-sm"><%= c.country %></span>
-                                        </div>
-                                        <span class="text-xs font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-md border border-cyan-500/20"><%= c.count.toLocaleString() %> Users</span>
-                                    </div>
-                                <% }) %>
-                            <% } else { %>
-                                <p class="text-xs text-neutral-500 italic">No demographics data yet.</p>
-                            <% } %>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- TAB: APPROVALS (Payouts, Bounties, Orders) -->
-            <section id="tab-approvals" class="hide-section flex flex-col gap-10">
-                <div class="flex flex-col gap-1 animate-fade-in">
-                    <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Action Center</h2>
-                    <p class="text-neutral-500 text-sm">Process pending payouts, review social bounties, and fulfill store orders.</p>
-                </div>
-
-                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-fade-in stagger-2">
-                    
-                    <!-- COLUMN 1: PAYOUTS -->
-                    <div class="glass-panel p-6 flex flex-col gap-4">
-                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
-                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">💸 Payouts</h3>
-                            <span class="bg-neutral-800 text-neutral-600 px-2 py-0.5 rounded text-[10px] font-mono"><%= pendingList ? pendingList.length : 0 %></span>
-                        </div>
-                        <div class="flex flex-col gap-3">
-                            <% if (pendingList && pendingList.length > 0) { %>
-                                <% pendingList.forEach(p => { %>
-                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
-                                        <div class="flex justify-between items-start">
-                                            <div class="flex flex-col gap-1">
-                                                <span class="font-bold text-sm text-neutral-900">@<%= p.username || 'Anon' %></span>
-                                                <span class="text-[10px] text-neutral-500 font-mono"><%= p.telegram_id %></span>
-                                            </div>
-                                            <span class="text-sm font-bold text-emerald-400 font-mono"><%= p.amount_points.toLocaleString() %> PTS</span>
-                                        </div>
-                                        <div class="text-[10px] text-neutral-600 bg-white/90 p-2.5 rounded font-mono border border-neutral-200 break-all leading-relaxed whitespace-pre-wrap"><strong>Amount:</strong> <%= p.amount_points.toLocaleString() %> PTS<br><strong>Asset:</strong> <%= p.asset %><% if (p.bank_provider) { %><br><strong>Bank/Provider:</strong> <%= p.bank_provider %><% } %><br><strong>Account Details:</strong> <%= p.destination_details %><br><strong>Status:</strong> Pending Review<br><strong>Date:</strong> <%= new Date(p.created_at).toLocaleString() %></div>
-                                        <div class="grid grid-cols-2 gap-2 mt-1">
-                                            <a href="/admin/payout?txId=<%= p.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
-                                            <a href="/admin/payout?txId=<%= p.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve</a>
-                                        </div>
-                                    </div>
-                                <% }) %>
-                            <% } else { %>
-                                <p class="text-xs text-neutral-500 italic text-center py-8">Inbox Zero.</p>
-                            <% } %>
-                        </div>
-                    </div>
-
-                    <!-- COLUMN 2: BOUNTIES -->
-                    <div class="glass-panel p-6 flex flex-col gap-4">
-                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
-                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🎯 Bounties</h3>
-                            <span class="bg-neutral-800 text-neutral-600 px-2 py-0.5 rounded text-[10px] font-mono"><%= pendingBounties ? pendingBounties.length : 0 %></span>
-                        </div>
-                        <div class="flex flex-col gap-3">
-                            <% if (pendingBounties && pendingBounties.length > 0) { %>
-                                <% pendingBounties.forEach(sub => { %>
-                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
-                                        <div class="flex justify-between items-start">
-                                            <div class="flex flex-col gap-1">
-                                                <span class="font-bold text-sm text-neutral-900">@<%= sub.user.username || sub.user.telegram_id || 'Unknown' %></span>
-                                                <span class="text-[10px] text-neutral-500 font-mono"><%= sub.telegram_id %></span>
-                                                <span class="text-[9px] text-neutral-400"><%= sub.bounty.title || 'Task' %> • +<%= sub.bounty.reward_pts || 0 %> PTS</span>
-                                            </div>
-                                        </div>
-                                        <div class="text-[10px] font-mono bg-neutral-100 p-2.5 rounded border border-neutral-200 break-all leading-relaxed">
-                                            <span class="font-bold text-neutral-500">Submitted Link:</span> <a href="<%= sub.proof_url %>" target="_blank" class="text-indigo-500 hover:underline"><%= sub.proof_url %></a>
-                                        </div>
-                                        <div class="grid grid-cols-2 gap-2 mt-1">
-                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10">Reject</a>
-                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10">Approve</a>
-                                        </div>
-                                    </div>
-                                <% }) %>
-                            <% } else { %>
-                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending tasks.</p>
-                            <% } %>
-                        </div>
-                    </div>
-
-                    <!-- COLUMN 3: STORE ORDERS -->
-                    <div class="glass-panel p-6 flex flex-col gap-4">
-                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
-                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🛒 Orders</h3>
-                            <span class="bg-neutral-800 text-neutral-600 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof pendingStoreOrders !== 'undefined' ? pendingStoreOrders.length : 0 %></span>
-                        </div>
-                        <div class="flex flex-col gap-3">
-                            <% if (typeof pendingStoreOrders !== 'undefined' && pendingStoreOrders.length > 0) { %>
-                                <% pendingStoreOrders.forEach(order => { %>
-                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
-                                        <div class="flex flex-col gap-1">
-                                            <span class="font-bold text-sm text-amber-400"><%= order.item_title %></span>
-                                            <span class="text-[10px] text-neutral-500">User: @<%= order.user.username || order.telegram_id %></span>
-                                        </div>
-                                        <span class="text-xs font-bold text-rose-400 font-mono"><%= order.cost.toLocaleString() %> PTS</span>
-                                        
-                                        <div class="grid grid-cols-1 gap-2 mt-1">
-                                            <form action="/admin/store-orders/action" method="POST" class="w-full">
-                                                <input type="hidden" name="order_id" value="<%= order._id %>">
-                                                <input type="hidden" name="action" value="approve">
-                                                <button class="w-full glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 border-emerald-500/30">Approve (Upgrade)</button>
-                                            </form>
-                                            <form action="/admin/store-orders/action" method="POST" class="w-full">
-                                                <input type="hidden" name="order_id" value="<%= order._id %>">
-                                                <input type="hidden" name="action" value="reject">
-                                                <button class="w-full glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 border-rose-500/30">Reject (Refund)</button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                <% }) %>
-                            <% } else { %>
-                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending orders.</p>
-                            <% } %>
-                        </div>
-                    </div>
-
-                    <!-- COLUMN 4: DYNAMIC QUEST SUBMISSIONS PREVIEW -->
-                    <div class="glass-panel p-6 flex flex-col gap-4">
-                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
-                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🔗 Quest Submissions</h3>
-                            <span class="bg-neutral-800 text-neutral-600 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof questSubmissions !== 'undefined' ? questSubmissions.length : 0 %></span>
-                        </div>
-                        <div class="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
-                            <% if (typeof questSubmissions !== 'undefined' && questSubmissions.length > 0) { %>
-                                <% questSubmissions.forEach(sub => { %>
-                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-2 hover:border-neutral-300 transition-colors">
-                                        <div class="flex justify-between items-center">
-                                            <div class="flex flex-col gap-0.5">
-                                                <span class="font-bold text-sm text-neutral-900">@<%= sub.username || sub.telegram_id %></span>
-                                                <span class="text-[9px] text-neutral-400 font-mono"><%= sub.promoKey %> • <%= new Date(sub.timestamp).toLocaleString() %></span>
-                                            </div>
-                                        </div>
-                                        <% if(sub.link) { %>
-                                            <div class="text-[10px] font-mono bg-neutral-100 p-2.5 rounded border border-neutral-200 break-all leading-relaxed">
-                                                <span class="font-bold text-neutral-500">Link:</span> <a href="<%= sub.link %>" target="_blank" class="text-cyan-500 hover:underline"><%= sub.link %></a>
-                                            </div>
-                                        <% } %>
-                                        <% if(sub.id && sub.pts) { %>
-                                            <div class="grid grid-cols-2 gap-2 mt-1 border-t border-neutral-100 pt-3">
-                                                <a href="/admin/quests/action?id=<%= sub.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
-                                                <a href="/admin/quests/action?id=<%= sub.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve (+<%= sub.pts %>)</a>
-                                            </div>
-                                        <% } %>
-                                    </div>
-                                <% }) %>
-                            <% } else { %>
-                                <p class="text-xs text-neutral-500 italic text-center py-8">No recent submissions.</p>
-                            <% } %>
-                        </div>
-                    </div>
-
-                    <!-- COLUMN 5: X VERIFICATIONS -->
-                    <div class="glass-panel p-6 flex flex-col gap-4">
-                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
-                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">🐦 X Verification</h3>
-                            <span class="bg-neutral-800 text-neutral-600 px-2 py-0.5 rounded text-[10px] font-mono"><%= typeof pendingXVerifications !== 'undefined' ? pendingXVerifications.length : 0 %></span>
-                        </div>
-                        <div class="flex flex-col gap-3">
-                            <% if (typeof pendingXVerifications !== 'undefined' && pendingXVerifications.length > 0) { %>
-                                <% pendingXVerifications.forEach(p => { %>
-                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
-                                        <div class="flex justify-between items-start">
-                                            <div class="flex flex-col gap-1">
-                                                <span class="font-bold text-sm text-neutral-900">@<%= p.username || 'Anon' %></span>
-                                                <span class="text-[10px] text-neutral-500 font-mono"><%= p.telegram_id %></span>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-[10px] text-neutral-500 font-bold bg-neutral-100 px-2 py-1 rounded">X:</span>
-                                            <a href="<%= p.x_handle %>" target="_blank" class="text-[10px] text-cyan-500 hover:underline truncate w-full"><%= p.x_handle %></a>
-                                        </div>
-                                        <form action="/admin/user-x-verify" method="POST" class="flex flex-col gap-2 mt-1">
-                                            <input type="hidden" name="telegram_id" value="<%= p.telegram_id %>">
-                                            <input type="hidden" name="redirect_dashboard" value="true">
-                                            
-                                            <div class="flex gap-2">
-                                                <input type="number" name="followers" placeholder="Followers" class="w-1/2 bg-white border border-neutral-200 rounded px-2 py-1.5 text-[10px] focus:outline-none focus:border-violet-400">
-                                                <select name="tier" class="w-1/2 bg-white border border-neutral-200 rounded px-2 py-1.5 text-[10px] focus:outline-none focus:border-violet-400">
-                                                    <option value="Standard">Standard</option>
-                                                    <option value="Premium">Premium</option>
-                                                    <option value="Gold">Gold</option>
-                                                </select>
-                                            </div>
-                                            <div class="flex items-center gap-2 px-1">
-                                                <input type="checkbox" name="blue_tick" id="blue_tick_<%= p.telegram_id %>" class="rounded border-neutral-300 text-violet-500 focus:ring-violet-500">
-                                                <label for="blue_tick_<%= p.telegram_id %>" class="text-[10px] text-neutral-600 font-bold">Has Blue Tick?</label>
-                                            </div>
-                                            <button type="submit" class="bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-2 rounded-lg text-[10px] shadow-sm uppercase tracking-wider mt-1 transition-all">Verify & Assign</button>
-                                        </form>
-                                    </div>
-                                <% }) %>
-                            <% } else { %>
-                                <p class="text-xs text-neutral-500 italic text-center py-8">No pending verifications.</p>
-                            <% } %>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- TAB: INTELLIGENCE (User Lookup, Leaderboard) -->
-            <section id="tab-users" class="hide-section flex flex-col gap-10">
-                <div class="flex flex-col gap-1 animate-fade-in">
-                    <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Intelligence</h2>
-                    <p class="text-neutral-500 text-sm">Database search, wealth leaderboard, and Sybil protection.</p>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in stagger-2">
-                    <!-- User Search -->
-                    <div class="glass-panel p-8 flex flex-col gap-6">
-                        <div class="flex justify-between items-center">
-                            <h3 class="font-heading font-bold text-xl text-neutral-900">Database Lookup</h3>
-                            <a href="/admin/sybil-hunter?secret=<%= secret %>" class="glass-btn text-violet-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:bg-violet-500/10">🕵️ Sybil Hunter</a>
-                        </div>
-                        <form action="/admin/user-lookup" method="GET" class="flex flex-col gap-4">
-                            <input type="text" name="q" placeholder="Enter Telegram ID or @username..." class="w-full bg-white/80 border border-neutral-300 rounded-xl px-5 py-4 text-neutral-900 focus:outline-none focus:border-violet-500 transition-colors shadow-inner font-mono text-sm">
-                            <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-neutral-900 font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all uppercase tracking-widest text-sm">Execute Search</button>
-                        </form>
-                    </div>
-
-                    <!-- PTS Calculator -->
-                    <div class="glass-panel p-8 flex flex-col gap-6 relative overflow-hidden group">
-                        <div class="absolute -right-10 -bottom-10 text-8xl opacity-5 group-hover:scale-110 transition-transform duration-500">🧮</div>
-                        <h3 class="font-heading font-bold text-xl text-neutral-900">Value Converter</h3>
-                        <div class="grid grid-cols-2 gap-4 relative z-10">
-                            <div class="flex flex-col gap-2">
-                                <label class="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Points (PTS)</label>
-                                <input type="number" id="calc-pts" placeholder="PTS" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:outline-none focus:border-cyan-500 font-mono" oninput="calcToUsd()">
-                            </div>
-                            <div class="flex flex-col gap-2">
-                                <label class="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Dollars (USD)</label>
-                                <div class="relative">
-                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500 font-bold">$</span>
-                                    <input type="number" id="calc-usd" placeholder="USD" class="w-full bg-white/80 border border-neutral-300 rounded-xl pl-8 pr-4 py-3 text-neutral-900 focus:outline-none focus:border-cyan-500 font-mono" oninput="calcToPts()">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Leaderboard -->
-                <div class="glass-panel p-8 animate-fade-in stagger-3">
-                    <h3 class="font-heading font-bold text-xl text-neutral-900 mb-6">Wealth Distribution (Top 10)</h3>
-                    <div class="flex flex-col gap-2">
-                        <% topUsers.forEach((u, index) => { %>
-                            <div class="flex items-center justify-between bg-white/60 p-4 rounded-xl border border-neutral-200 hover:border-neutral-300 hover:bg-white/5 transition-all">
-                                <div class="flex items-center gap-4">
-                                    <span class="text-sm font-heading font-black <%= index < 3 ? 'text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]' : 'text-neutral-500' %> w-6">#<%= index + 1 %></span>
-                                    <div class="flex flex-col">
-                                        <span class="font-bold text-neutral-900 text-sm">@<%= u.username || 'Anon' %></span>
-                                        <span class="text-[10px] text-neutral-500 font-mono"><%= u.telegram_id %></span>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-4">
-                                    <span class="font-mono font-bold text-emerald-400 hidden md:block"><%= u.points_balance.toLocaleString() %> PTS</span>
-                                    <a href="/admin/user-lookup?q=<%= u.telegram_id %>" class="glass-btn px-3 py-1.5 rounded-lg text-[10px] font-bold text-neutral-900 uppercase hover:text-cyan-400">Inspect</a>
-                                </div>
-                            </div>
-                        <% }) %>
-                    </div>
-                </div>
-            </section>
-
-            <!-- TAB: ECOSYSTEM (Config, Store, Quests, Broadcast) -->
-            <section id="tab-ecosystem" class="hide-section flex flex-col gap-10">
+<section id="tab-ecosystem" class="hide-section flex flex-col gap-10">
                 <div class="flex flex-col gap-1 animate-fade-in">
                     <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Ecosystem</h2>
                     <p class="text-neutral-500 text-sm">Global variables, dynamic store pricing, quests builder, and broadcasts.</p>
@@ -677,10 +82,10 @@
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 mb-3">
                                     <div class="flex flex-col gap-1">
-                                        <label class="text-[10px] text-neutral-500">1 Month (Standard)</label>
+                                        <label class="text-[10px] text-neutral-500">3 Month</label>
                                         <div class="flex gap-2">
-                                            <input type="number" name="premium_tier_1m" placeholder="PTS" value="<%= storeConfig.premium_tier_1m || 15000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
-                                            <input type="number" name="stars_premium_1m" placeholder="Stars" value="<%= storeConfig.stars_premium_1m || 15 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
+                                            <input type="number" name="premium_tier_3m" placeholder="PTS" value="<%= storeConfig.premium_tier_3m || 15000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="stars_premium_3m" placeholder="Stars" value="<%= storeConfig.stars_premium_3m || 25 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
                                         </div>
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -693,6 +98,11 @@
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
                                     <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">6 Month</label>
+                                        <div class="flex gap-2">
+                                            <input type="number" name="premium_tier_6m" placeholder="PTS" value="<%= storeConfig.premium_tier_6m || 28000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="stars_premium_6m" placeholder="Stars" value="<%= storeConfig.stars_premium_6m || 45 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
+                                        </div>
                                     </div>
                                     <div class="flex flex-col gap-1">
                                         <label class="text-[10px] text-neutral-500">6 Month + X Blue Tick</label>
@@ -712,27 +122,32 @@
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 mb-3">
                                     <div class="flex flex-col gap-1">
-                                        <label class="text-[10px] text-neutral-500">1 Month (Standard)</label>
+                                        <label class="text-[10px] text-neutral-500">3 Month</label>
                                         <div class="flex gap-2">
-                                            <input type="number" name="gold_tier_1m" placeholder="PTS" value="<%= storeConfig.gold_tier_1m || 50000 %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
-                                            <input type="number" name="stars_gold_1m" placeholder="Stars" value="<%= storeConfig.stars_gold_1m || 50 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
+                                            <input type="number" name="gold_tier_3m" placeholder="PTS" value="<%= storeConfig.gold_tier_3m %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="stars_gold_3m" placeholder="Stars" value="<%= storeConfig.stars_gold_3m || 100 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
                                         </div>
                                     </div>
                                     <div class="flex flex-col gap-1">
                                         <label class="text-[10px] text-neutral-500">3 Month + X Blue Tick</label>
                                         <div class="flex gap-2">
-                                            <input type="number" name="gold_tier_3m_blue" placeholder="PTS" value="<%= storeConfig.gold_tier_3m_blue || 80000 %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="gold_tier_3m_blue" placeholder="PTS" value="<%= storeConfig.gold_tier_3m_blue %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
                                             <input type="number" name="stars_gold_3m_blue" placeholder="Stars" value="<%= storeConfig.stars_gold_3m_blue || 120 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
                                         </div>
                                     </div>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
                                     <div class="flex flex-col gap-1">
+                                        <label class="text-[10px] text-neutral-500">6 Month</label>
+                                        <div class="flex gap-2">
+                                            <input type="number" name="gold_tier_6m" placeholder="PTS" value="<%= storeConfig.gold_tier_6m %>" class="w-full bg-white/90 border border-neutral-300 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="stars_gold_6m" placeholder="Stars" value="<%= storeConfig.stars_gold_6m || 180 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
+                                        </div>
                                     </div>
                                     <div class="flex flex-col gap-1">
                                         <label class="text-[10px] text-neutral-500">6 Month + X Blue Tick</label>
                                         <div class="flex gap-2">
-                                            <input type="number" name="gold_tier_6m_blue" placeholder="PTS" value="<%= storeConfig.gold_tier_6m_blue || 150000 %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
+                                            <input type="number" name="gold_tier_6m_blue" placeholder="PTS" value="<%= storeConfig.gold_tier_6m_blue %>" class="w-full bg-white/90 border border-amber-500/30 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="PTS Price">
                                             <input type="number" name="stars_gold_6m_blue" placeholder="Stars" value="<%= storeConfig.stars_gold_6m_blue || 220 %>" class="w-20 bg-blue-50 border border-blue-200 rounded-lg px-2 py-2 text-neutral-900 font-mono text-xs" title="Stars Price">
                                         </div>
                                     </div>
@@ -864,15 +279,17 @@
                 <div class="glass-panel p-8 animate-fade-in stagger-4 relative overflow-hidden">
                     <div class="absolute right-0 top-0 w-64 h-64 bg-rose-600/10 blur-[60px] rounded-full pointer-events-none"></div>
                     <h3 class="font-heading font-bold text-xl text-neutral-900 mb-6">Broadcast Engine</h3>
-                    <form action="/admin/broadcast" method="POST" class="flex flex-col gap-4 relative z-10">
-                        <textarea name="message_text" rows="4" placeholder="Enter HTML message payload here... (Sends to all <%= stats.users %> users)" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-5 py-4 text-neutral-900 focus:outline-none focus:border-rose-500 transition-colors font-mono text-sm resize-none"></textarea>
+                    <div class="flex flex-col gap-4 relative z-10">
+                        <form action="/admin/broadcast" method="POST" id="broadcast-form" class="w-full">
+                            <textarea name="message_text" rows="4" placeholder="Enter HTML message payload here... (Sends to all <%= stats.users %> users)" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-5 py-4 text-neutral-900 focus:outline-none focus:border-rose-500 transition-colors font-mono text-sm resize-none"></textarea>
+                        </form>
                         <div class="flex justify-end gap-4">
                             <form action="/admin/wakeup-push" method="POST">
                                 <button type="submit" onclick="return confirm('Send wake-up pings to inactive users?')" class="glass-btn text-amber-400 font-bold px-6 py-3 rounded-xl uppercase tracking-widest text-xs">Ping Inactive</button>
                             </form>
-                            <button type="submit" onclick="return confirm('WARNING: Pushing broadcast to ALL users. Execute?')" class="bg-rose-600 hover:bg-rose-500 text-neutral-900 font-bold px-8 py-3 rounded-xl shadow-[0_0_20px_rgba(225,29,72,0.4)] transition-all uppercase tracking-widest text-xs">Execute Broadcast</button>
+                            <button type="submit" form="broadcast-form" onclick="return confirm('WARNING: Pushing broadcast to ALL users. Execute?')" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-8 py-3 rounded-xl shadow-[0_0_20px_rgba(225,29,72,0.4)] transition-all uppercase tracking-widest text-xs">Execute Broadcast</button>
                         </div>
-                    </form>
+                    </div>
                 </div>
 
             </section>

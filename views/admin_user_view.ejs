@@ -149,7 +149,7 @@
                     <div class="bg-white/60 p-4 rounded-xl border border-neutral-200 flex flex-col gap-3 max-h-[300px] overflow-y-auto">
                         <% if (user.earnings_history && user.earnings_history.length > 0) { %>
                             <% user.earnings_history.forEach(tx => { %>
-                                <div class="flex justify-between items-center border-b border-neutral-200 pb-2 last:border-0 last:pb-0">
+                                <div class="flex justify-between items-center border-b border-neutral-200 pb-2 last:border-b-0 last:pb-0">
                                     <div class="flex flex-col">
                                         <span class="text-xs text-neutral-900 font-semibold"><%= tx.type %></span>
                                         <span class="text-[9px] text-neutral-500 font-mono"><%= tx.timestamp %></span>

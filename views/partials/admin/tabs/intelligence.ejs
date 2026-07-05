@@ -1,0 +1,61 @@
+<section id="tab-users" class="hide-section flex flex-col gap-10">
+                <div class="flex flex-col gap-1 animate-fade-in">
+                    <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Intelligence</h2>
+                    <p class="text-neutral-500 text-sm">Database search, wealth leaderboard, and Sybil protection.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in stagger-2">
+                    <!-- User Search -->
+                    <div class="glass-panel p-8 flex flex-col gap-6">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-heading font-bold text-xl text-neutral-900">Database Lookup</h3>
+                            <a href="/admin/sybil-hunter?secret=<%= secret %>" class="glass-btn text-violet-400 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:bg-violet-500/10">🕵️ Sybil Hunter</a>
+                        </div>
+                        <form action="/admin/user-lookup" method="GET" class="flex flex-col gap-4">
+                            <input type="text" name="q" placeholder="Enter Telegram ID or @username..." class="w-full bg-white/80 border border-neutral-300 rounded-xl px-5 py-4 text-neutral-900 focus:outline-none focus:border-violet-500 transition-colors shadow-inner font-mono text-sm">
+                            <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all uppercase tracking-widest text-sm">Execute Search</button>
+                        </form>
+                    </div>
+
+                    <!-- PTS Calculator -->
+                    <div class="glass-panel p-8 flex flex-col gap-6 relative overflow-hidden group">
+                        <div class="absolute -right-10 -bottom-10 text-8xl opacity-5 group-hover:scale-110 transition-transform duration-500">🧮</div>
+                        <h3 class="font-heading font-bold text-xl text-neutral-900">Value Converter</h3>
+                        <div class="grid grid-cols-2 gap-4 relative z-10">
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Points (PTS)</label>
+                                <input type="number" id="calc-pts" placeholder="PTS" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:outline-none focus:border-cyan-500 font-mono" oninput="calcToUsd()">
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Dollars (USD)</label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500 font-bold">$</span>
+                                    <input type="number" id="calc-usd" placeholder="USD" class="w-full bg-white/80 border border-neutral-300 rounded-xl pl-8 pr-4 py-3 text-neutral-900 focus:outline-none focus:border-cyan-500 font-mono" oninput="calcToPts()">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Leaderboard -->
+                <div class="glass-panel p-8 animate-fade-in stagger-3">
+                    <h3 class="font-heading font-bold text-xl text-neutral-900 mb-6">Wealth Distribution (Top 10)</h3>
+                    <div class="flex flex-col gap-2">
+                        <% topUsers.forEach((u, index) => { %>
+                            <div class="flex items-center justify-between bg-white/60 p-4 rounded-xl border border-neutral-200 hover:border-neutral-300 hover:bg-white/5 transition-all">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-sm font-heading font-black <%= index < 3 ? 'text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]' : 'text-neutral-500' %> w-6">#<%= index + 1 %></span>
+                                    <div class="flex flex-col">
+                                        <span class="font-bold text-neutral-900 text-sm">@<%= u.username || 'Anon' %></span>
+                                        <span class="text-[10px] text-neutral-500 font-mono"><%= u.telegram_id %></span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <span class="font-mono font-bold text-emerald-400 hidden md:block"><%= u.points_balance.toLocaleString() %> PTS</span>
+                                    <a href="/admin/user-lookup?q=<%= u.telegram_id %>" class="glass-btn px-3 py-1.5 rounded-lg text-[10px] font-bold text-neutral-900 uppercase hover:text-cyan-400">Inspect</a>
+                                </div>
+                            </div>
+                        <% }) %>
+                    </div>
+                </div>
+            </section>
