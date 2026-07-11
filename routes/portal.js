@@ -334,8 +334,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
 
     const telegramChatMap = {
         channel: "@Warpsgit",
-        group: "@warpscommunity",
-        payout_channel: "@WarpsEarn"
+        group: "@warpscommunity"
     };
 
     try {
