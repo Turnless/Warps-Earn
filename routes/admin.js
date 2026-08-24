@@ -10,7 +10,10 @@ const { sendTelegramMessageAsync, telegramQueue } = require('../services/queue')
 require('dotenv').config();
 
 // Pull system authentication values
-const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE || 'fallback_secret_for_dev';
+const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE;
+if (!ADMIN_SECRET_SIGNATURE) {
+    console.error('FATAL: ADMIN_SECRET_SIGNATURE environment variable is not set. Admin auth will fail.');
+}
 const PUBLIC_PAYOUT_CHANNEL_ID = process.env.PUBLIC_PAYOUT_CHANNEL_ID || '@WarpsEarn';
 
 // Shared business logic constants
@@ -76,12 +79,40 @@ const checkAdminAuth = async (req, res, next) => {
     if (sessionToken) {
         const sessionData = await redis.get(`admin:session:${sessionToken}`);
         if (sessionData) {
+            // Generate CSRF token for this session if not exists
+            if (!req.cookies.admin_csrf) {
+                const csrfToken = crypto.randomBytes(32).toString('hex');
+                await redis.setex(`admin:csrf:${sessionToken}`, 86400, csrfToken);
+                res.cookie('admin_csrf', csrfToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: false, sameSite: 'strict' });
+            }
             return next();
         }
     }
     
     // If not authenticated, redirect to login page
     res.redirect('/admin/login');
+};
+
+// --- 🛡️ CSRF VERIFICATION MIDDLEWARE ---
+const verifyCsrfToken = async (req, res, next) => {
+    // Only enforce CSRF on state-changing methods
+    if (req.method !== 'POST') return next();
+
+    const sessionToken = req.cookies?.admin_session;
+    const csrfToken = req.body?._csrf || req.headers['x-csrf-token'];
+
+    if (!sessionToken || !csrfToken) {
+        return res.status(403).send("Forbidden: Missing CSRF token.");
+    }
+
+    const storedToken = await redis.get(`admin:csrf:${sessionToken}`);
+    if (!storedToken || storedToken !== csrfToken) {
+        return res.status(403).send("Forbidden: Invalid CSRF token.");
+    }
+
+    // Remove CSRF from body before processing
+    delete req.body._csrf;
+    next();
 };
 
 // --- 🔐 LOGIN SYSTEM ---
@@ -91,7 +122,17 @@ router.get('/login', (req, res) => {
 
 router.post('/login', express.urlencoded({ extended: true }), async (req, res) => {
     const { password } = req.body;
+    const loginKey = `admin:login_attempts:${req.ip}`;
+
+    // Check for brute force lockout (5 failed attempts → 15 min lockout)
+    const attempts = await redis.get(loginKey);
+    if (attempts && parseInt(attempts) >= 5) {
+        return res.render('admin_login', { error: "Too many failed attempts. Try again in 15 minutes." });
+    }
+
     if (password === ADMIN_SECRET_SIGNATURE) {
+        // Clear failed attempts on successful login
+        await redis.del(loginKey);
         // Generate random session token, store in Redis with 24h TTL
         const sessionToken = crypto.randomBytes(32).toString('hex');
         await redis.setex(`admin:session:${sessionToken}`, 86400, JSON.stringify({
@@ -102,6 +143,13 @@ router.post('/login', express.urlencoded({ extended: true }), async (req, res) =
         res.cookie('admin_session', sessionToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: true, sameSite: 'strict' });
         return res.redirect('/admin');
     }
+
+    // Track failed attempt (15 min window)
+    const newAttempts = await redis.incr(loginKey);
+    if (newAttempts === 1) {
+        await redis.expire(loginKey, 900); // 15 min TTL
+    }
+
     res.render('admin_login', { error: "Invalid Passphrase." });
 });
 
@@ -284,7 +332,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
 });
 
 // --- ⚙️ GLOBAL SETTINGS CONTROLLER ---
-router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/settings', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
         const { maintenance, withdrawals, reward_per_ad, streak_reward, auto_x_verify, x_api_key } = req.body;
         const newSettings = {
@@ -303,7 +351,7 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
 });
 
 // --- 🛒 STORE CONFIG CONTROLLER ---
-router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/store-config', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
         const { 
             cooldown, multiplier, 
@@ -353,7 +401,7 @@ router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true
 });
 
 // --- 🛒 STORE ORDERS CONTROLLER ---
-router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/store-orders/action', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
         const { order_id, action } = req.body;
         const StoreOrder = require('../models/StoreOrder');
@@ -457,7 +505,7 @@ router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extende
 });
 
 // --- 🎯 DYNAMIC QUESTS ENGINE ---
-router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/quests', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
         const { action, key, title, url, pts, icon, tier_required, target_countries, is_telegram, timer, requires_comment_link, max_participants } = req.body;
         const questsStr = await redis.get('admin:dynamic_quests');
@@ -489,9 +537,9 @@ router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), a
 });
 
 // --- 🎯 APPROVE/REJECT QUEST SUBMISSION ---
-router.get('/quests/action', checkAdminAuth, async (req, res) => {
+router.post('/quests/action', checkAdminAuth, verifyCsrfToken, async (req, res) => {
     try {
-        const { id, action } = req.query;
+        const { id, action } = req.body;
         if (!id || !action) return res.status(400).send("Missing parameters");
 
         const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1);
@@ -553,12 +601,15 @@ router.get('/user-lookup', checkAdminAuth, async (req, res) => {
 
     const cleanQuery = rawQuery.replace(/^@/, ''); // Strip the @ symbol if they typed it
 
+    // Escape special regex characters to prevent ReDoS injection
+    const escapedQuery = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     try {
         // Search by Telegram ID (exact) OR Username (regex case-insensitive)
         const targetUser = await User.findOne({
             $or: [
                 { telegram_id: cleanQuery },
-                { username: new RegExp('^' + cleanQuery + '$', 'i') }
+                { username: new RegExp('^' + escapedQuery + '$', 'i') }
             ]
         }).lean();
 
@@ -575,7 +626,7 @@ router.get('/user-lookup', checkAdminAuth, async (req, res) => {
     }
 });
 
-router.post('/user-ban', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-ban', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id, action } = req.body;
     try {
         if (action === 'ban') {
@@ -589,7 +640,7 @@ router.post('/user-ban', checkAdminAuth, express.urlencoded({ extended: true }),
     }
 });
 
-router.post('/user-clear-activities', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-clear-activities', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id } = req.body;
     try {
         await User.updateOne({ telegram_id }, {
@@ -608,7 +659,7 @@ router.post('/user-clear-activities', checkAdminAuth, express.urlencoded({ exten
     }
 });
 
-router.post('/user-delete', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-delete', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id } = req.body;
     try {
         await User.deleteOne({ telegram_id });
@@ -622,7 +673,7 @@ router.post('/user-delete', checkAdminAuth, express.urlencoded({ extended: true 
 });
 
 // --- 🛠️ DYNAMIC USER MANAGEMENT CONTROLLERS ---
-router.post('/user-manage-balance', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-manage-balance', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id, amount, reason } = req.body;
     try {
         const amt = parseInt(amount);
@@ -646,7 +697,7 @@ router.post('/user-manage-balance', checkAdminAuth, express.urlencoded({ extende
     }
 });
 
-router.post('/user-x-verify', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-x-verify', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id, followers, blue_tick, tier } = req.body;
     try {
         const user = await User.findOne({ telegram_id });
@@ -678,7 +729,7 @@ router.post('/user-x-verify', checkAdminAuth, express.urlencoded({ extended: tru
     }
 });
 
-router.post('/user-reset-cooldown', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-reset-cooldown', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id } = req.body;
     try {
         const user = await User.findOne({ telegram_id });
@@ -695,7 +746,7 @@ router.post('/user-reset-cooldown', checkAdminAuth, express.urlencoded({ extende
 });
 
 // --- 📢 BROADCAST MESSAGE CONTROLLER ---
-router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/broadcast', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { message_text } = req.body;
     try {
         if (!message_text) return res.redirect('/admin');
@@ -711,7 +762,7 @@ router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true })
 });
 
 // --- ⏰ AUTOMATED WAKE-UP NOTIFICATIONS ---
-router.post('/wakeup-push', checkAdminAuth, async (req, res) => {
+router.post('/wakeup-push', checkAdminAuth, verifyCsrfToken, async (req, res) => {
     try {
         const todayStr = new Date().toISOString().split('T')[0];
         const yesterday = new Date(Date.now() - MS_PER_DAY).toISOString().split('T')[0];
@@ -929,8 +980,8 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
 });
 
 // --- 🎯 ADMIN BOUNTY DECISION ACTION ---
-router.get('/bounty/action', checkAdminAuth, async (req, res) => {
-    const { subId, action } = req.query;
+router.post('/bounty/action', checkAdminAuth, verifyCsrfToken, async (req, res) => {
+    const { subId, action } = req.body;
 
     if (!subId || !['approve', 'reject'].includes(action)) {
         return res.status(400).send("Invalid administrative payload.");

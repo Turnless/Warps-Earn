@@ -16,7 +16,10 @@ const { transactionalLimiter } = require('../middleware/rateLimiter');
 require('dotenv').config();
 
 // Pull sensitive secrets securely from system memory instead of hardcoding
-const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE || 'fallback_secret_for_dev';
+const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE;
+if (!ADMIN_SECRET_SIGNATURE) {
+    console.error('FATAL: ADMIN_SECRET_SIGNATURE environment variable is not set. Payout signing will fail.');
+}
 const PUBLIC_PAYOUT_CHANNEL_ID = process.env.PUBLIC_PAYOUT_CHANNEL_ID || '@WarpsEarn';
 
 // Shared business logic constants
@@ -429,7 +432,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
 });
 
 // --- ✅ CLAIM ADSGRAM REWARD (SECURE) ---
-router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const rewardAmount = ADSGRAM_REWARD_PTS; // Fixed amount, cannot be exploited
     const rewardType = "Adsgram Sponsored Task";
@@ -471,7 +474,7 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
 });
 
 // --- ✅ VERIFY CUSTOM PROMO TASK (PROTECTED) ---
-router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const promoKey = String(req.body.promoKey || "");
 
@@ -586,7 +589,7 @@ const Bounty = require('../models/Bounty');
 const StoreOrder = require('../models/StoreOrder');
 
 // --- 🛒 PURCHASE STORE ITEM ---
-router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const item = String(req.body.item || "");
     const hasBlueTick = req.body.blue_tick === true;
@@ -608,6 +611,13 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
 
     try {
         if (!userId || !item || !items[item]) return res.status(400).send("Invalid item payload.");
+
+        // Mutex lock to prevent double-spend on concurrent requests
+        const lockKey = `lock:store:${userId}:${item}`;
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 10));
+        if (!isLocked) {
+            return res.status(429).send("Purchase already processing. Please wait.");
+        }
 
         const storeConfigStr = await redis.get('admin:store_config');
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
@@ -757,24 +767,33 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
     } catch (e) {
         console.error("Store error:", e);
         return res.status(500).send("Purchase failed.");
+    } finally {
+        await redisWithTimeout(redis.del(lockKey));
     }
 });
 
 // --- 🌟 GENERATE INVOICE FOR TELEGRAM STARS ---
-router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const item = String(req.body.item || "");
-    const amount = parseInt(req.body.amount || 0);
     const hasBlueTick = Boolean(req.body.hasBlueTick || false);
 
-    if (!userId || !item || amount <= 0) {
+    if (!userId || !item) {
         return res.status(400).send("Invalid invoice payload.");
+    }
+
+    // CRITICAL: Validate amount server-side — never trust client-sent amount
+    const storeConfigStr = await redis.get('admin:store_config');
+    const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG };
+    const expectedAmount = storeConfig[item];
+    if (!expectedAmount || typeof expectedAmount !== 'number' || expectedAmount <= 0) {
+        return res.status(400).send("Invalid store item.");
     }
 
     try {
         const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
         
-        const payload = JSON.stringify({ userId, item, amount, hasBlueTick });
+        const payload = JSON.stringify({ userId, item, amount: expectedAmount, hasBlueTick });
         
         let title = "Store Purchase";
         if (item === 'premium_tier') title = "Premium Tier Upgrade";
@@ -788,7 +807,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
             payload: payload,
             provider_token: "", // Empty string for Stars
             currency: "XTR",
-            prices: [{ label: title, amount: amount }]
+            prices: [{ label: title, amount: expectedAmount }]
         };
 
         const response = await fetch(tgUrl, {
@@ -1036,13 +1055,20 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 });
 
 // --- 🎯 BOUNTY SUBMISSION ---
-router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const bountyId = String(req.body.bounty_id || "");
     let proofUrl = String(req.body.proof_url || "").trim();
 
     try {
         if (!userId || !bountyId) return res.status(400).send("Invalid payload.");
+
+        // Mutex lock to prevent duplicate submissions on concurrent requests
+        const lockKey = `lock:bounty:${userId}:${bountyId}`;
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 10));
+        if (!isLocked) {
+            return res.status(429).send("Submission already processing. Please wait.");
+        }
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) return res.status(404).send("User not found.");
@@ -1108,6 +1134,8 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
     } catch (e) {
         console.error("Bounty submission error:", e);
         res.status(500).send("Internal error processing submission.");
+    } finally {
+        await redisWithTimeout(redis.del(`lock:bounty:${userId}:${bountyId}`));
     }
 });
 

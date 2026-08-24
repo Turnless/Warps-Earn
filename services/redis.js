@@ -9,7 +9,9 @@ if (REDIS_URL.includes('upstash.io') && REDIS_URL.startsWith('redis://')) {
     REDIS_URL = REDIS_URL.replace('redis://', 'rediss://');
 }
 
-console.log(`📡 [Redis] Connecting to Redis at ${REDIS_URL}...`);
+// Mask password in Redis URL for safe logging
+const maskedUrl = REDIS_URL.replace(/:([^@]+)@/, ':***@');
+console.log(`📡 [Redis] Connecting to Redis at ${maskedUrl}...`);
 
 // Upstash-compatible connection options
 const REDIS_OPTS = {
@@ -24,7 +26,7 @@ const REDIS_OPTS = {
         // Auto-reconnect on transient socket resets (Upstash idles connections)
         return err.message.includes('ECONNRESET');
     },
-    tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+    tls: REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: true } : undefined,
 };
 
 const redis = new Redis(REDIS_URL, REDIS_OPTS);
