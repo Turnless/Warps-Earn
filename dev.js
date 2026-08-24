@@ -13,7 +13,7 @@ process.on('unhandledRejection', (err) => {
 const server = app.listen(PORT, async () => {
     console.log(`📡 Server running on port ${PORT}`);
     
-    if (bot) {
+    if (bot && process.env.BOT_TOKEN) {
         console.log("🤖 Launching Telegram long-polling worker...");
         
         const startBotPolling = async () => {
@@ -38,6 +38,8 @@ const server = app.listen(PORT, async () => {
         };
 
         startBotPolling();
+    } else if (!process.env.BOT_TOKEN) {
+        console.log("🔬 [Preview Mode] No BOT_TOKEN set — bot polling disabled. Web app is still functional.");
     }
 });
 

@@ -32,6 +32,20 @@ mongoose.connect(finalUri, {
   .catch(err => console.error("❌ [Database] MongoDB connection error:", err.message));
 
 
+// 🔄 AUTO-DETECT PREVIEW vs PRODUCTION
+// Render sets RENDER_GIT_BRANCH on PR preview services (e.g. "features-branches")
+// Production services have RENDER_GIT_BRANCH = "main" or it's not set
+const isPreview = process.env.RENDER_GIT_BRANCH && process.env.RENDER_GIT_BRANCH !== 'main';
+if (isPreview) {
+    console.log(`🔬 [Preview Mode] Detected PR preview on branch: ${process.env.RENDER_GIT_BRANCH}`);
+    if (process.env.PREVIEW_BOT_TOKEN) {
+        process.env.BOT_TOKEN = process.env.PREVIEW_BOT_TOKEN;
+        console.log("🔬 [Preview Mode] Using PREVIEW_BOT_TOKEN for test bot");
+    } else {
+        console.warn("⚠️ [Preview Mode] PREVIEW_BOT_TOKEN not set — bot will not start");
+    }
+}
+
 // Use process.cwd() to dynamically locate modular dependencies safely
 const bot = require(path.join(process.cwd(), "bot"));
 const sybil = require(path.join(process.cwd(), "security", "sybil")); // Resolved to security folder

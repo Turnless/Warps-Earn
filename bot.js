@@ -2,11 +2,12 @@ const { Telegraf } = require('telegraf');
 const path = require('path');
 const database = require('./database'); // Point to your database helper
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = process.env.BOT_TOKEN ? new Telegraf(process.env.BOT_TOKEN) : null;
 
 // DYNAMIC ROUTING: Prioritizes local testing tunnels over production Vercel deployment
 const SERVER_URL = process.env.SERVER_URL || `https://turnless.vercel.app`;
 
+if (bot) {
 bot.command('start', async (ctx) => {
     const telegramId = String(ctx.from.id);
     const username = ctx.from.username || 'Anonymous';
@@ -200,5 +201,7 @@ bot.on('successful_payment', async (ctx) => {
         console.error("❌ Successful payment processing failed:", e);
     }
 });
+
+} // end if (bot)
 
 module.exports = bot;
