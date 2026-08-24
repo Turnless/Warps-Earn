@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
 const redis = require('../services/redis');
@@ -41,19 +42,42 @@ function getFormattedDateTime() {
 }
 
 // --- 🛡️ AUTHENTICATION MIDDLEWARE ---
-const checkAdminAuth = (req, res, next) => {
-    // Support legacy secret query strings (like from the Telegram inline buttons) OR session cookies
-    const secret = req.query.secret || req.headers['x-admin-secret'];
-    let cookieSecret = null;
-    
+// Session-based auth: verify random token from Redis, never raw password
+const checkAdminAuth = async (req, res, next) => {
+    // 1. Check for HMAC-signed payout token (from Telegram inline buttons)
+    const signedToken = req.query.token;
+    if (signedToken) {
+        try {
+            const [payload, sig] = signedToken.split('.');
+            const expectedSig = crypto
+                .createHmac('sha256', ADMIN_SECRET_SIGNATURE)
+                .update(payload)
+                .digest('hex');
+            const sigBuf = Buffer.from(sig, 'hex');
+            const expectedBuf = Buffer.from(expectedSig, 'hex');
+            if (sigBuf.length === expectedBuf.length && crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+                const data = JSON.parse(Buffer.from(payload, 'base64').toString());
+                if (data.exp && Date.now() < data.exp) {
+                    req.signedPayoutAction = data;
+                    return next();
+                }
+            }
+        } catch (e) { /* fall through to session check */ }
+    }
+
+    // 2. Check session cookie (random token stored in Redis)
+    let sessionToken = null;
     if (req.headers.cookie) {
         const cookies = req.headers.cookie.split(';').map(c => c.trim());
-        const match = cookies.find(c => c.startsWith('admin_token='));
-        if (match) cookieSecret = match.split('=')[1];
+        const match = cookies.find(c => c.startsWith('admin_session='));
+        if (match) sessionToken = match.split('=')[1];
     }
     
-    if (secret === ADMIN_SECRET_SIGNATURE || cookieSecret === ADMIN_SECRET_SIGNATURE) {
-        return next();
+    if (sessionToken) {
+        const sessionData = await redis.get(`admin:session:${sessionToken}`);
+        if (sessionData) {
+            return next();
+        }
     }
     
     // If not authenticated, redirect to login page
@@ -65,18 +89,33 @@ router.get('/login', (req, res) => {
     res.render('admin_login');
 });
 
-router.post('/login', express.urlencoded({ extended: true }), (req, res) => {
+router.post('/login', express.urlencoded({ extended: true }), async (req, res) => {
     const { password } = req.body;
     if (password === ADMIN_SECRET_SIGNATURE) {
-        // Set an authentication cookie valid for 24 hours
-        res.cookie('admin_token', password, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: true, sameSite: 'strict' });
+        // Generate random session token, store in Redis with 24h TTL
+        const sessionToken = crypto.randomBytes(32).toString('hex');
+        await redis.setex(`admin:session:${sessionToken}`, 86400, JSON.stringify({
+            loginAt: new Date().toISOString(),
+            ip: req.ip
+        }));
+        // Set session cookie (not the password!)
+        res.cookie('admin_session', sessionToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: true, sameSite: 'strict' });
         return res.redirect('/admin');
     }
     res.render('admin_login', { error: "Invalid Passphrase." });
 });
 
-router.get('/logout', (req, res) => {
-    res.clearCookie('admin_token');
+router.get('/logout', async (req, res) => {
+    // Invalidate session in Redis
+    if (req.headers.cookie) {
+        const cookies = req.headers.cookie.split(';').map(c => c.trim());
+        const match = cookies.find(c => c.startsWith('admin_session='));
+        if (match) {
+            const token = match.split('=')[1];
+            await redis.del(`admin:session:${token}`);
+        }
+    }
+    res.clearCookie('admin_session');
     res.redirect('/admin/login');
 });
 
@@ -214,7 +253,6 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const questSubmissions = questSubmissionsRaw.map(s => JSON.parse(s));
 
         res.render('admin_dashboard', { 
-            secret: ADMIN_SECRET_SIGNATURE,
             stats: {
                 users: totalUsers,
                 pending: pendingCount,
@@ -755,7 +793,6 @@ router.get('/sybil-hunter', checkAdminAuth, async (req, res) => {
         ]);
 
         res.render('admin_sybil_hunter', {
-            secret: ADMIN_SECRET_SIGNATURE,
             clusters: sybilClusters
         });
     } catch (err) {
@@ -780,7 +817,6 @@ router.get('/queues', checkAdminAuth, async (req, res) => {
         }));
 
         res.render('admin_queues', {
-            secret: ADMIN_SECRET_SIGNATURE,
             counts: counts,
             failedJobs: failedList
         });
@@ -792,7 +828,15 @@ router.get('/queues', checkAdminAuth, async (req, res) => {
 // --- ⚡ EXCLUSIVE ADMINISTRATIVE PAYOUT DECISION CONTROL ENDPOINT ---
 router.get('/payout', checkAdminAuth, async (req, res) => {
     try {
-        const { txId, action, secret } = req.query;
+        // Extract txId and action from signed token (Telegram buttons) or query params (dashboard)
+        let txId, action;
+        if (req.signedPayoutAction) {
+            txId = req.signedPayoutAction.txId;
+            action = req.signedPayoutAction.action;
+        } else {
+            txId = req.query.txId;
+            action = req.query.action;
+        }
 
         if (!txId || !action) {
             return res.status(400).send("Incomplete routing parameters.");

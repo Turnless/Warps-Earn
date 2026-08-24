@@ -18,7 +18,10 @@ function verifyTelegramSignature(initDataString, botToken) {
         const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
         const localHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-        return localHash === hash;
+        // Constant-time comparison to prevent timing attacks
+        const localBuf = Buffer.from(localHash, 'hex');
+        const providedBuf = Buffer.from(hash, 'hex');
+        return localBuf.length === providedBuf.length && crypto.timingSafeEqual(localBuf, providedBuf);
     } catch (e) {
         return false;
     }

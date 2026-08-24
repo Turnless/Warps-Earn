@@ -32,8 +32,10 @@ function verifyTelegramWebAppData(req, res, next) {
     // 3. Compute expected hash signature
     const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-    // 4. Compare calculated hash signature with the client's provided hash
-    if (computedHash !== hash) {
+    // 4. Compare calculated hash signature with the client's provided hash (constant-time to prevent timing attacks)
+    const computedBuf = Buffer.from(computedHash, 'hex');
+    const providedBuf = Buffer.from(hash, 'hex');
+    if (computedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(computedBuf, providedBuf)) {
         return res.status(403).send("Forbidden: Cryptographic signature mismatch. Session tampered.");
     }
 

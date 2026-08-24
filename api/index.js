@@ -132,7 +132,7 @@ app.post("/api/webhook", async (req, res) => {
 app.get("/", (req, res) => res.redirect("/auth"));
 
 // 🔒 ONBOARDING SECURITY GATEWAY VIEW
-app.get("/onboarding", (req, res) => {
+app.get("/onboarding", async (req, res) => {
     const telegramId = req.query.id;
     if (!telegramId) return res.status(400).send("Missing Telegram ID.");
     
@@ -143,6 +143,10 @@ app.get("/onboarding", (req, res) => {
         captcha += characters.charAt(Math.floor(Math.random() * characters.length));
     }
 
+    // Store CAPTCHA server-side in Redis (5 min TTL) — never trust client-sent answers
+    const redis = require('../services/redis');
+    await redis.setex(`captcha:${telegramId}`, 300, captcha.toUpperCase());
+
     // Render the premium onboarding view passing all expected layout variables
     res.render("onboarding", { 
         user: { telegram_id: telegramId },
@@ -151,49 +155,23 @@ app.get("/onboarding", (req, res) => {
     });
 });
 
-// ⚡ SERVER-SIDE AD LOOP VERIFIER
-app.post('/portal/claim-ad-reward', async (req, res) => {
-    try {
-        const { id } = req.body;
-        
-        if (!id) {
-            return res.status(400).send("Invalid request.");
-        }
-
-        const db = require(path.join(process.cwd(), 'database')); 
-        
-        const userProfile = await db.getUser(id);
-        if (!userProfile) {
-            return res.status(404).send("User not found.");
-        }
-
-        if (userProfile.cooldown_until && userProfile.cooldown_until > Date.now()) {
-            const structuralRemainingSecs = Math.ceil((userProfile.cooldown_until - Date.now()) / 1000);
-            return res.status(429).send(`Cooling down. Please wait ${structuralRemainingSecs} seconds.`);
-        }
-
-        const operationResult = await db.watchAdRound(id);
-
-        return res.status(200).json({
-            success: true,
-            meta: operationResult
-        });
-
-    } catch (serverRouteError) {
-        console.error("Critical error clearing ad asset verification route execution:", serverRouteError);
-        return res.status(500).send("Connection error. Try again.");
-    }
-});
-
 // 🛡️ CLIENT-TO-SERVER SYBIL DETECTION HANDSHAKE PROCESSOR
 app.post("/portal/verify-sybil", async (req, res) => {
-    const { id, fingerprint, solution, expectedCaptcha, country, xHandle } = req.body;
+    const { id, fingerprint, solution, country, xHandle } = req.body;
     if (!id || !fingerprint || !country || !xHandle) {
         return res.status(400).json({ error: "Missing credentials or profile information." });
     }
 
-    // Securely validate the CAPTCHA solution matching check on the backend
-    if (!solution || solution.trim().toUpperCase() !== expectedCaptcha.trim().toUpperCase()) {
+    // Verify CAPTCHA against server-side stored answer (never trust client-sent expectedCaptcha)
+    const redis = require('../services/redis');
+    const storedCaptcha = await redis.get(`captcha:${id}`);
+    if (!storedCaptcha) {
+        return res.status(400).json({ error: "CAPTCHA expired. Please refresh the page and try again." });
+    }
+    // Delete after use (one-time attempt)
+    await redis.del(`captcha:${id}`);
+
+    if (!solution || solution.trim().toUpperCase() !== storedCaptcha.trim().toUpperCase()) {
         return res.status(400).json({ error: "Invalid code. Please try again." });
     }
 

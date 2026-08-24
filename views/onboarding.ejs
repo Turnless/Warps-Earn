@@ -212,7 +212,6 @@
                         id: explicitId,
                         fingerprint: getDeviceFingerprint(), // Dynamically generated unique hardware tracking token
                         solution: solutionValue,
-                        expectedCaptcha: "<%= captchaCode %>",
                         upline: "<%= upline %>",
                         country: countryValue,
                         xHandle: xHandleValue
@@ -231,7 +230,7 @@
                     status.innerText = "✓ Verified! Redirecting...";
                     
                     setTimeout(() => {
-                        window.location.href = `/dashboard?id=${explicitId}`;
+                        window.location.href = `/dashboard?id=${explicitId}&initData=${encodeURIComponent(window.Telegram?.WebApp?.initData || '')}`;
                     }, 1000);
                 } else {
                     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {

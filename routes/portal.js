@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const fetch = require('node-fetch');
 const db = require('../database');
 const User = require('../models/User');
@@ -90,9 +91,42 @@ const globalEcosystemCheck = async (req, res, next) => {
     }
 };
 
+// 🛡️ IDOR PROTECTION: Verify initData query param for GET routes
+// Extracts verified telegram ID — never trusts raw ?id= parameter
+function verifyInitDataParam(req, res, next) {
+    const initData = req.query.initData;
+    if (!initData) {
+        return res.status(401).send("Unauthorized: Missing verification token.");
+    }
+    try {
+        const params = new URLSearchParams(initData);
+        const hash = params.get('hash');
+        if (!hash) return res.status(401).send("Unauthorized: Invalid token.");
+
+        const keys = Array.from(params.keys()).filter(k => k !== 'hash').sort();
+        const dataCheckString = keys.map(k => `${k}=${params.get(k)}`).join('\n');
+
+        const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+        const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+        const computedBuf = Buffer.from(computedHash, 'hex');
+        const providedBuf = Buffer.from(hash, 'hex');
+        if (computedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(computedBuf, providedBuf)) {
+            return res.status(403).send("Forbidden: Invalid signature.");
+        }
+
+        const userObj = JSON.parse(params.get('user'));
+        req.verifiedTelegramId = String(userObj.id);
+        next();
+    } catch (e) {
+        return res.status(403).send("Forbidden: Verification failed.");
+    }
+}
+
 // --- 📊 CORE DASHBOARD CONTROLLER ---
-router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
-    const userId = String(req.query.id || "");
+router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, res) => {
+    const userId = req.verifiedTelegramId;
 
     try {
         if (!userId) {
@@ -163,8 +197,8 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
 });
 
 // --- 📺 AD GATEWAY INTERFACE CONTROLLER ---
-router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
-    const userId = String(req.query.id || "");
+router.get('/watch-ads', globalEcosystemCheck, verifyInitDataParam, async (req, res) => {
+    const userId = req.verifiedTelegramId;
     if (!userId) return res.status(400).send("Identity validation parameter missing.");
 
     try {
@@ -967,8 +1001,14 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
             valuationString = `$${(debitedPoints * PTS_TO_USD_RATE).toFixed(2)} USD (₦${nairaValue.toLocaleString('en-US', {minimumFractionDigits: 2})})`;
         }
 
-        const approvalUrl = `${hostUrl}/admin/payout?txId=${uniqueTxId}&action=approve&secret=${ADMIN_SECRET_SIGNATURE}`;
-        const rejectionUrl = `${hostUrl}/admin/payout?txId=${uniqueTxId}&action=reject&secret=${ADMIN_SECRET_SIGNATURE}`;
+        // Generate HMAC-signed tokens for payout approval/rejection (1 hour expiry)
+        function generatePayoutToken(txId, action) {
+            const payload = Buffer.from(JSON.stringify({ txId, action, exp: Date.now() + 3600000 })).toString('base64');
+            const sig = crypto.createHmac('sha256', ADMIN_SECRET_SIGNATURE).update(payload).digest('hex');
+            return `${payload}.${sig}`;
+        }
+        const approvalUrl = `${hostUrl}/admin/payout?token=${generatePayoutToken(uniqueTxId, 'approve')}`;
+        const rejectionUrl = `${hostUrl}/admin/payout?token=${generatePayoutToken(uniqueTxId, 'reject')}`;
 
         const adminMessageText = `🚨 <b>NEW WITHDRAWAL REQUEST</b> 🚨\n\n` +
             `👤 <b>User:</b> ${escapeTelegramHtml(user.first_name || 'N/A')} (@${escapeTelegramHtml(user.username || 'Anonymous')})\n` +
