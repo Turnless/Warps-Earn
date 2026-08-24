@@ -323,7 +323,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const questKey = String(req.body.quest || "");
-    const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "8631881085:AAHTPWtPuA6x64z7rj4rMwiX5NCZe5uW1VY";
+    const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 
     const rewardMap = {
         channel: 100,
@@ -334,8 +334,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
 
     const telegramChatMap = {
         channel: "@Warpsgit",
-        group: "@warpscommunity",
-        payout_channel: "@WarpsEarn"
+        group: "@warpscommunity"
     };
 
     try {
@@ -1081,7 +1080,7 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         }
 
         try {
-            const redis = require('../database/redis'); // or similar
+            const redis = require('../services/redis');
             if (redis) await redis.del(`user:${userId}:profile`);
         } catch (e) {}
 

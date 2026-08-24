@@ -9,10 +9,10 @@ require('dotenv').config();
 
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ad-earn-bot";
 const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
-const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "8631881085:AAHTPWtPuA6x64z7rj4rMwiX5NCZe5uW1VY";
+const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 
 const MOCK_USER_ID = "999999999";
-const LOCAL_SERVER = "http://localhost:3000";
+const LOCAL_SERVER = "https://warps-earn.onrender.com";
 
 
 // Helper to generate a cryptographically valid Telegram initData signature
@@ -49,7 +49,11 @@ async function runStressTest() {
         redis = new Redis(REDIS_URL, {
             maxRetriesPerRequest: null
         });
+        redis.on('error', (err) => {
+            // Silently absorb ECONNRESET/disconnect logs from Upstash concurrent limits
+        });
         const pong = await redis.ping();
+
 
         console.log(`✅ Redis Connection: STABLE (Ping: ${pong})`);
 
