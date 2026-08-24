@@ -3,6 +3,7 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const mongoose = require("mongoose");
+const { ONBOARDING_REWARD_PTS, ADMIN_TELEGRAM_CHAT_ID, CAPTCHA_LENGTH } = require('../constants');
 
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ad-earn-bot";
 
@@ -138,7 +139,7 @@ app.get("/onboarding", (req, res) => {
     // Generate a secure, highly legible 5-character alphanumeric token
     const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoids easily confused characters like O, 0, I, 1
     let captcha = '';
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < CAPTCHA_LENGTH; i++) {
         captcha += characters.charAt(Math.floor(Math.random() * characters.length));
     }
 
@@ -214,7 +215,7 @@ app.post("/portal/verify-sybil", async (req, res) => {
         user.onboarding_passed = true;
         user.device_fingerprint = fingerprint;
         user.device_hardware_hash = req.validatedHardwareHash || "legacy-hash";
-        user.points_balance = (user.points_balance || 0) + 100; // +100 PTS onboarding reward
+        user.points_balance = (user.points_balance || 0) + ONBOARDING_REWARD_PTS; // +PTS onboarding reward
         
         user.country = country;
         
@@ -237,7 +238,7 @@ app.post("/portal/verify-sybil", async (req, res) => {
         }
         user.earnings_history.unshift({
             type: "Sybil Protection Reward",
-            amount: 100,
+            amount: ONBOARDING_REWARD_PTS,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         });
 
@@ -245,7 +246,7 @@ app.post("/portal/verify-sybil", async (req, res) => {
 
         try {
             const msg = `🚨 *New User Onboarded* 🚨\n\nUser: @${user.username || user.telegram_id}\nCountry: ${user.country}\nX Handle: ${user.x_handle}\n\nPlease check the Admin Dashboard to manually verify their account tier.`;
-            await sendTelegramMessageAsync('6314427516', msg, { parse_mode: 'Markdown' });
+            await sendTelegramMessageAsync(ADMIN_TELEGRAM_CHAT_ID, msg, { parse_mode: 'Markdown' });
         } catch (err) {
             console.error("Failed to notify admin on Telegram:", err);
         }

@@ -1,9 +1,5 @@
 const crypto = require('crypto');
-const path = require('path');
 const User = require('../models/User');
-
-// Memory anchor tracking device sessions across account switches
-const activeDeviceRegistry = new Map();
 
 function verifyTelegramSignature(initDataString, botToken) {
     if (!initDataString) return false;

@@ -32,9 +32,7 @@ const userSchema = new mongoose.Schema({
     onboarding_passed: { type: Boolean, default: false },
     is_banned: { type: Boolean, default: false },
     
-    // Referral tracking fields (supporting various naming styles across the legacy codebase)
-    upline: { type: String, default: null },
-    referred_by: { type: String, default: null },
+    // Referral tracking field
     referrer_id: { type: String, default: null },
     
     cooldown_until: { type: Number, default: 0 },

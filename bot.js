@@ -1,6 +1,7 @@
 const { Telegraf } = require('telegraf');
 const path = require('path');
 const database = require('./database'); // Point to your database helper
+const { ADMIN_TELEGRAM_CHAT_ID } = require('./constants');
 
 const bot = process.env.BOT_TOKEN ? new Telegraf(process.env.BOT_TOKEN) : null;
 
@@ -185,7 +186,7 @@ bot.on('successful_payment', async (ctx) => {
                 await fetch(tgUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: '6314427516', text: msg, parse_mode: 'Markdown' })
+                    body: JSON.stringify({ chat_id: ADMIN_TELEGRAM_CHAT_ID, text: msg, parse_mode: 'Markdown' })
                 });
             } catch (err) {
                 console.error("Failed to notify admin on Telegram:", err);

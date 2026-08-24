@@ -12,6 +12,16 @@ require('dotenv').config();
 const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE || 'fallback_secret_for_dev';
 const PUBLIC_PAYOUT_CHANNEL_ID = process.env.PUBLIC_PAYOUT_CHANNEL_ID || '@WarpsEarn';
 
+// Shared business logic constants
+const {
+    PTS_TO_USD_RATE, USD_TO_NGN_RATE, MS_PER_DAY, QUEST_REWARD_PTS,
+    DEFAULT_REWARD_PER_AD, STREAK_BONUS_REWARD, ADMIN_TELEGRAM_CHAT_ID,
+    ADMIN_SESSION_MAX_AGE_MS, ADMIN_PENDING_WITHDRAWALS_LIMIT, ADMIN_LEADERBOARD_LIMIT,
+    ADMIN_SYBIL_CLUSTERS_LIMIT, ADMIN_QUEUE_DEBUG_LIMIT, MAX_QUEST_SUBMISSIONS_LOG,
+    DEFAULT_QUEST_TIMER_HOURS, BROADCAST_DELAY_MS_PER_USER, WAKEUP_PUSH_DELAY_MS_PER_USER,
+    MAX_BOUNTY_STRIKES, DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG
+} = require('../constants');
+
 // 🛡️ HTML SANITIZER FOR TELEGRAM COMPATIBILITY
 function escapeTelegramHtml(text) {
     if (!text) return '';
@@ -59,7 +69,7 @@ router.post('/login', express.urlencoded({ extended: true }), (req, res) => {
     const { password } = req.body;
     if (password === ADMIN_SECRET_SIGNATURE) {
         // Set an authentication cookie valid for 24 hours
-        res.cookie('admin_token', password, { maxAge: 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'strict' });
+        res.cookie('admin_token', password, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: true, sameSite: 'strict' });
         return res.redirect('/admin');
     }
     res.render('admin_login', { error: "Invalid Passphrase." });
@@ -77,7 +87,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const totalUsers = await User.countDocuments();
         
         // Full pending list
-        const pendingList = await Withdrawal.find({ status: 'Pending' }).sort({ created_at: -1 }).limit(50).lean();
+        const pendingList = await Withdrawal.find({ status: 'Pending' }).sort({ created_at: -1 }).limit(ADMIN_PENDING_WITHDRAWALS_LIMIT).lean();
         const pendingCount = await Withdrawal.countDocuments({ status: 'Pending' });
 
         // Aggregate Financial Data
@@ -128,7 +138,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const totalPaidOut = payoutStats.length > 0 ? payoutStats[0].totalPaidOut : 0;
 
         // Fetch top 10 whales (Leaderboard feature)
-        const topUsers = await User.find({}).sort({ points_balance: -1 }).limit(10).lean();
+        const topUsers = await User.find({}).sort({ points_balance: -1 }).limit(ADMIN_LEADERBOARD_LIMIT).lean();
 
         // 📊 NEW: Aggregate Country Stats
         const countryStatsRaw = await User.aggregate([
@@ -155,8 +165,8 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const settings = settingsStr ? JSON.parse(settingsStr) : {
             maintenance: false,
             withdrawals: true,
-            reward_per_ad: 3,
-            streak_reward: 500
+            reward_per_ad: DEFAULT_REWARD_PER_AD,
+            streak_reward: STREAK_BONUS_REWARD
         };
 
         const questsStr = await redis.get('admin:dynamic_quests');
@@ -173,7 +183,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const pendingStoreOrders = await StoreOrder.find({ status: 'pending' }).sort({ created_at: -1 }).lean();
         
         // Fetch pending X verifications
-        const pendingXVerifications = await User.find({ x_verification_status: 'pending' }).sort({ _id: -1 }).limit(50).lean();
+        const pendingXVerifications = await User.find({ x_verification_status: 'pending' }).sort({ _id: -1 }).limit(ADMIN_PENDING_WITHDRAWALS_LIMIT).lean();
         
         // Populate user details and bounty details manually for the view since it's NoSQL without direct population setup
         const Bounty = require('../models/Bounty');
@@ -188,29 +198,8 @@ router.get('/', checkAdminAuth, async (req, res) => {
 
         const storeConfigStr = await redis.get('admin:store_config');
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
-            cooldown: 500,
-            multiplier: 3000,
-            premium_tier_1m: 15000,
-            premium_tier_3m: 15000,
-            premium_tier_6m: 28000,
-            premium_tier_3m_blue: 45000,
-            premium_tier_6m_blue: 85000,
-            gold_tier_1m: 50000,
-            gold_tier_3m: 50000,
-            gold_tier_6m: 90000,
-            gold_tier_3m_blue: 80000,
-            gold_tier_6m_blue: 150000,
-            stars_premium_1m: 15,
-            stars_premium_3m: 25,
-            stars_premium_6m: 45,
-            stars_premium_3m_blue: 50,
-            stars_premium_6m_blue: 95,
-            stars_gold_1m: 50,
-            stars_gold_3m: 100,
-            stars_gold_6m: 180,
-            stars_gold_3m_blue: 120,
-            stars_gold_6m_blue: 220,
-            stars_x_verify: 100,
+            ...DEFAULT_STORE_CONFIG,
+            ...DEFAULT_STARS_CONFIG,
             enable_cooldown: true,
             enable_multiplier: true,
             enable_premium: true,
@@ -221,7 +210,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
 
 
         // Fetch recent quest submissions
-        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, 199);
+        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1);
         const questSubmissions = questSubmissionsRaw.map(s => JSON.parse(s));
 
         res.render('admin_dashboard', { 
@@ -230,13 +219,13 @@ router.get('/', checkAdminAuth, async (req, res) => {
                 users: totalUsers,
                 pending: pendingCount,
                 circulatingPts: totalCirculating,
-                circulatingUsd: (totalCirculating * 0.0008).toFixed(2),
+                circulatingUsd: (totalCirculating * PTS_TO_USD_RATE).toFixed(2),
                 adsWatched: totalAdsWatched,
                 adEarnings: adEarnings,
                 taskEarnings: taskEarnings,
                 referralEarnings: referralEarnings,
                 paidOutPts: totalPaidOut,
-                paidOutUsd: (totalPaidOut * 0.0008).toFixed(2)
+                paidOutUsd: (totalPaidOut * PTS_TO_USD_RATE).toFixed(2)
             },
             pendingList: pendingList,
             pendingBounties: pendingBounties,
@@ -265,8 +254,8 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
             withdrawals: withdrawals === 'on',
             auto_x_verify: auto_x_verify === 'on',
             x_api_key: x_api_key || '',
-            reward_per_ad: parseInt(reward_per_ad) || 3,
-            streak_reward: parseInt(streak_reward) || 500
+            reward_per_ad: parseInt(reward_per_ad) || DEFAULT_REWARD_PER_AD,
+            streak_reward: parseInt(streak_reward) || STREAK_BONUS_REWARD
         };
         await redis.set('global_settings', JSON.stringify(newSettings));
         res.redirect('/admin');
@@ -288,6 +277,8 @@ router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true
             enable_cooldown, enable_multiplier, enable_premium, enable_gold 
         } = req.body;
         const newConfig = {
+            ...DEFAULT_STORE_CONFIG,
+            ...DEFAULT_STARS_CONFIG,
             cooldown: parseInt(cooldown) || 500,
             multiplier: parseInt(multiplier) || 3000,
             premium_tier_1m: parseInt(premium_tier_1m) || 15000,
@@ -443,7 +434,7 @@ router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), a
                 tier_required: tier_required || "Any",
                 target_countries: target_countries ? target_countries.split(',').map(c => c.trim().toUpperCase()) : [],
                 is_telegram: is_telegram === 'on',
-                timer: parseInt(timer) || 8,
+                timer: parseInt(timer) || DEFAULT_QUEST_TIMER_HOURS,
                 requires_comment_link: requires_comment_link === 'on',
                 max_participants: parseInt(max_participants) || 0,
                 current_participants: 0
@@ -465,7 +456,7 @@ router.get('/quests/action', checkAdminAuth, async (req, res) => {
         const { id, action } = req.query;
         if (!id || !action) return res.status(400).send("Missing parameters");
 
-        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, 199);
+        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1);
         let targetSub = null;
         let subIndex = -1;
         
@@ -673,7 +664,7 @@ router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true })
         const users = await User.find({}, { telegram_id: 1 }).lean();
         // Queue messages slightly spaced out to avoid Telegram API limits
         users.forEach((user, index) => {
-            sendTelegramMessageAsync(user.telegram_id, message_text, {}, index * 50);
+            sendTelegramMessageAsync(user.telegram_id, message_text, {}, index * BROADCAST_DELAY_MS_PER_USER);
         });
         res.redirect('/admin');
     } catch (e) {
@@ -685,7 +676,7 @@ router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true })
 router.post('/wakeup-push', checkAdminAuth, async (req, res) => {
     try {
         const todayStr = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - MS_PER_DAY).toISOString().split('T')[0];
         
         // Find users who haven't logged in today or yesterday
         const inactiveUsers = await User.find({
@@ -694,7 +685,7 @@ router.post('/wakeup-push', checkAdminAuth, async (req, res) => {
 
         inactiveUsers.forEach((user, index) => {
             const message = `👋 Hey @${user.username || 'there'}!\n\nIt's been a while since we saw you. You have ${user.points_balance || 0} PTS waiting for you! Come back and watch a few ads to claim your next payout! 💸`;
-            sendTelegramMessageAsync(user.telegram_id, message, {}, index * 100);
+            sendTelegramMessageAsync(user.telegram_id, message, {}, index * WAKEUP_PUSH_DELAY_MS_PER_USER);
         });
         
         res.redirect('/admin');
@@ -760,7 +751,7 @@ router.get('/sybil-hunter', checkAdminAuth, async (req, res) => {
             }},
             { $match: { count: { $gt: 1 } } },
             { $sort: { count: -1 } },
-            { $limit: 50 }
+            { $limit: ADMIN_SYBIL_CLUSTERS_LIMIT }
         ]);
 
         res.render('admin_sybil_hunter', {
@@ -779,7 +770,7 @@ router.get('/queues', checkAdminAuth, async (req, res) => {
         const counts = await telegramQueue.getJobCounts();
         
         // Fetch up to 10 recently failed jobs for debugging
-        const failedJobs = await telegramQueue.getFailed(0, 10);
+        const failedJobs = await telegramQueue.getFailed(0, ADMIN_QUEUE_DEBUG_LIMIT);
         
         const failedList = failedJobs.map(job => ({
             id: job.id,
@@ -828,13 +819,13 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
             await targetUser.save();
 
             // Update global withdrawal document
-            await Withdrawal.updateOne({ id: txId }, { status: 'Successful' });
+            await Withdrawal.updateOne({ ticket_id: txId }, { status: 'Successful' });
 
             const totalDebitedPoints = targetTx.amount;
-            let valuationStr = `$${(totalDebitedPoints * 0.0008).toFixed(2)} USD`;
+            let valuationStr = `$${(totalDebitedPoints * PTS_TO_USD_RATE).toFixed(2)} USD`;
             if (targetTx.type.includes('NAIRA')) {
-                const nairaValue = totalDebitedPoints * 0.0008 * 1600;
-                valuationStr = `$${(totalDebitedPoints * 0.0008).toFixed(2)} USD (₦${nairaValue.toLocaleString('en-US', {minimumFractionDigits: 2})})`;
+                const nairaValue = totalDebitedPoints * PTS_TO_USD_RATE * USD_TO_NGN_RATE;
+                valuationStr = `$${(totalDebitedPoints * PTS_TO_USD_RATE).toFixed(2)} USD (₦${nairaValue.toLocaleString('en-US', {minimumFractionDigits: 2})})`;
             }
 
             // --- 📢 Post direct proof to Telegram Channel via Bull Queue ---
@@ -870,7 +861,7 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
             await targetUser.save();
 
             // Update global withdrawal document
-            await Withdrawal.updateOne({ id: txId }, { status: 'Rejected' });
+            await Withdrawal.updateOne({ ticket_id: txId }, { status: 'Rejected' });
 
             // Notify user of rejection reason via Bull Queue
             const userRejectionText = `❌ <b>Withdrawal Rejected</b>\n\nYour withdrawal request for <b>${targetTx.amount.toLocaleString()} PTS</b> was declined. Your points have been refunded to your balance.`;
@@ -948,7 +939,7 @@ router.get('/bounty/action', checkAdminAuth, async (req, res) => {
             submission.reviewed_at = new Date();
             
             targetUser.bounty_strikes = (targetUser.bounty_strikes || 0) + 1;
-            if (targetUser.bounty_strikes >= 3) {
+            if (targetUser.bounty_strikes >= MAX_BOUNTY_STRIKES) {
                 targetUser.bounty_banned = true;
             }
             
@@ -958,7 +949,7 @@ router.get('/bounty/action', checkAdminAuth, async (req, res) => {
             // Notify user of rejection
             let warningText = targetUser.bounty_banned ? 
                 "\n\n🚨 <b>ACCOUNT BANNED FROM BOUNTIES</b>\nYou have received 3 strikes for fraudulent submissions. You can no longer participate in social tasks." :
-                `\n\n⚠️ <b>Strike Added (${targetUser.bounty_strikes}/3)</b>\nSubmit valid links only to avoid being banned from tasks.`;
+                `\n\n⚠️ <b>Strike Added (${targetUser.bounty_strikes}/${MAX_BOUNTY_STRIKES})</b>\nSubmit valid links only to avoid being banned from tasks.`;
                 
             await sendTelegramMessageAsync(targetUser.telegram_id, `❌ <b>Bounty Rejected</b>\n\nYour submission for <b>${targetBounty.title}</b> was marked as invalid.` + warningText);
             

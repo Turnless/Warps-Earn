@@ -44,5 +44,17 @@ const server = app.listen(PORT, async () => {
 });
 
 // Prevent process drop-offs on interrupt flags
-process.once('SIGINT', () => { if(bot) bot.stop('SIGINT'); server.close(); });
-process.once('SIGTERM', () => { if(bot) bot.stop('SIGTERM'); server.close(); });
+process.once('SIGINT', () => {
+    if(bot) bot.stop('SIGINT');
+    server.close(() => {
+        console.log('🛑 Server shut down gracefully (SIGINT)');
+        process.exit(0);
+    });
+});
+process.once('SIGTERM', () => {
+    if(bot) bot.stop('SIGTERM');
+    server.close(() => {
+        console.log('🛑 Server shut down gracefully (SIGTERM)');
+        process.exit(0);
+    });
+});

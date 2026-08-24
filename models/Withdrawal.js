@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const withdrawalSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true, index: true },
+    ticket_id: { type: String, required: true, unique: true, index: true },
     telegram_id: { type: String, required: true, index: true },
     username: { type: String, default: 'Anonymous' },
     amount_points: { type: Number, required: true },
