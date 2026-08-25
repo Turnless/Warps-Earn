@@ -588,7 +588,7 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
             }
         }
 
-        res.sendStatus(200);
+        res.json({ success: true, title: campaign.title, pts: campaign.pts, requiresCommentLink: !!submittedLink });
     } catch (e) {
         console.error("Custom Promo Error:", e);
         res.status(500).send("Internal error.");
