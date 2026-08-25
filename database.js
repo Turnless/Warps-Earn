@@ -68,39 +68,52 @@ async function setupUser(userId, username, uplineId = null) {
     return user.toObject();
 }
 
+// --- DAILY LOGIN STREAK TRACKER ---
+// Call this when user opens the app (dashboard load), NOT when watching ads
+async function trackDailyLogin(userId) {
+    let user = await User.findOne({ telegram_id: String(userId) });
+    if (!user) return null;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - MS_PER_DAY).toISOString().split('T')[0];
+
+    // Already tracked today
+    if (user.last_login_date === todayStr) return user.toObject();
+
+    if (user.last_login_date === yesterday) {
+        user.login_streak = (user.login_streak || 0) + 1;
+    } else {
+        user.login_streak = 1; // Reset streak
+    }
+    user.last_login_date = todayStr;
+
+    // Give PTS bonus for every 7 days
+    if (user.login_streak > 0 && user.login_streak % STREAK_BONUS_INTERVAL_DAYS === 0) {
+        const settingsStr = await redis.get('global_settings');
+        const settings = settingsStr ? JSON.parse(settingsStr) : {};
+        const streakReward = settings.streak_reward || STREAK_BONUS_REWARD;
+
+        user.points_balance += streakReward;
+        if (!user.earnings_history) user.earnings_history = [];
+        user.earnings_history.unshift({
+            type: "7-Day Login Streak Bonus",
+            amount: streakReward,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        console.log(`[STREAK] User ${userId} hit a 7-day streak! Awarded ${streakReward} PTS.`);
+    }
+
+    await user.save();
+    return user.toObject();
+}
+
 async function watchAdRound(userId) {
     console.log(`📡 [Database] watchAdRound: Processing ads loop reward for user ${userId}`);
     let user = await User.findOne({ telegram_id: String(userId) });
     
     if (!user) throw new Error("User profile not found");
     
-    // --- DAILY LOGIN STREAK SYSTEM ---
     const todayStr = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - MS_PER_DAY).toISOString().split('T')[0];
-    if (user.last_login_date !== todayStr) {
-        if (user.last_login_date === yesterday) {
-            user.login_streak = (user.login_streak || 0) + 1;
-        } else {
-            user.login_streak = 1; // Reset streak
-        }
-        user.last_login_date = todayStr;
-
-        // Give PTS bonus for every 7 days
-        if (user.login_streak > 0 && user.login_streak % STREAK_BONUS_INTERVAL_DAYS === 0) {
-            const settingsStr = await redis.get('global_settings');
-            const settings = settingsStr ? JSON.parse(settingsStr) : {};
-            const streakReward = settings.streak_reward || STREAK_BONUS_REWARD;
-
-            user.points_balance += streakReward;
-            if (!user.earnings_history) user.earnings_history = [];
-            user.earnings_history.unshift({
-                type: "7-Day Login Streak Bonus",
-                amount: streakReward,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            });
-            console.log(`[STREAK] User ${userId} hit a 7-day streak! Awarded ${streakReward} PTS.`);
-        }
-    }
 
     if (!user.daily_tracker || user.daily_tracker.date !== todayStr) {
         user.daily_tracker = { date: todayStr, count: 0 };
@@ -241,6 +254,7 @@ async function verifyQuest(userId, questKey) {
 module.exports = {
     getUser,
     setupUser,
+    trackDailyLogin,
     watchAdRound,
     verifyQuest
 };

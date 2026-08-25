@@ -136,6 +136,10 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
             return res.status(400).send("Missing identity context parameter.");
         }
 
+        // Track daily login streak when user opens the app
+        await db.trackDailyLogin(userId);
+        await invalidateUserCache(userId);
+
         const redisKey = `user:${userId}:profile`;
         let user = null;
 
