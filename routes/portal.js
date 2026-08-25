@@ -5,6 +5,7 @@ const fetch = require('node-fetch');
 const db = require('../database');
 const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
+const BountySubmission = require('../models/BountySubmission');
 const redis = require('../services/redis');
 const { sendTelegramMessageAsync } = require('../services/queue');
 
@@ -1106,8 +1107,8 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         if (!bounty || bounty.status !== 'active') return res.status(404).send("Bounty not available.");
 
         // Check tier limits
-        if (bounty.tier_required === 'Premium' && user.account_tier === 'Standard') return res.status(403).send("Requires Premium tier.");
-        if (bounty.tier_required === 'Gold' && user.account_tier !== 'Gold') return res.status(403).send("Requires Gold tier.");
+        if (bounty.required_tier === 'Premium' && user.account_tier === 'Standard') return res.status(403).send("Requires Premium tier.");
+        if (bounty.required_tier === 'Gold' && user.account_tier !== 'Gold') return res.status(403).send("Requires Gold tier.");
 
         // Check geo
         if (bounty.target_countries && bounty.target_countries.length > 0 && !bounty.target_countries.includes(user.country)) {

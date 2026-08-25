@@ -160,6 +160,7 @@ app.get("/onboarding", async (req, res) => {
 
 // 🛡️ CLIENT-TO-SERVER SYBIL DETECTION HANDSHAKE PROCESSOR
 app.post("/portal/verify-sybil", async (req, res) => {
+    const redis = require('../services/redis');
     // Rate limit: 5 attempts per IP per 15 minutes
     const rateLimitKey = `rl:sybil:${req.ip}`;
     const attempts = await redis.incr(rateLimitKey);
@@ -174,7 +175,6 @@ app.post("/portal/verify-sybil", async (req, res) => {
     }
 
     // Verify CAPTCHA against server-side stored answer (never trust client-sent expectedCaptcha)
-    const redis = require('../services/redis');
     const storedCaptcha = await redis.get(`captcha:${id}`);
     if (!storedCaptcha) {
         return res.status(400).json({ error: "CAPTCHA expired. Please refresh the page and try again." });
