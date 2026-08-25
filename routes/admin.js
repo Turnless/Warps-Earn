@@ -446,6 +446,11 @@ router.post('/store-orders/action', checkAdminAuth, verifyCsrfToken, express.url
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + months);
                 user.tier_expiry = expDate;
+                
+                // Gold tier gets auto 2x multiplier
+                if (isGold && (user.ad_multiplier || 1) < 2) {
+                    user.ad_multiplier = 2;
+                }
             }
             
             if (order.blue_tick || itemKey.includes('blue') || isXVerify) {
@@ -726,6 +731,11 @@ router.post('/user-x-verify', checkAdminAuth, verifyCsrfToken, express.urlencode
             user.x_blue_tick = blue_tick === 'on';
             user.account_tier = tier || 'Standard';
             user.x_verification_status = 'verified';
+            
+            // Gold tier gets auto 2x multiplier
+            if (tier === 'Gold' && (user.ad_multiplier || 1) < 2) {
+                user.ad_multiplier = 2;
+            }
             
             await user.save();
             await redis.del(`user:${telegram_id}:profile`);

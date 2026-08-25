@@ -29,7 +29,9 @@
 
                             <% 
                                 const hasPendingPremium = locals.pendingOrders && locals.pendingOrders.some(o => o.item_key.startsWith('premium_tier'));
-                                if (user.account_tier === 'Standard' && !hasPendingPremium) { 
+                                // Show to Standard (upgrade) and Premium (extend) users
+                                const canBuyPremium = (user.account_tier === 'Standard' || user.account_tier === 'Premium') && !hasPendingPremium;
+                                if (canBuyPremium) { 
                             %>
                                 <div class="flex items-center gap-2 mt-3 bg-indigo-400/20 p-2.5 rounded-lg border border-indigo-300/40 relative z-10">
                                     <label class="relative inline-flex items-center cursor-pointer">
@@ -61,12 +63,9 @@
                                 <button disabled class="w-full bg-violet-900/50 text-violet-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-violet-700/50 mt-4">
                                     Upgrade Pending Verification ⏳
                                 </button>
-                            <% } else { 
-                                const daysLeft = user.tier_expiry ? Math.ceil((new Date(user.tier_expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
-                            %>
+                            <% } else if (user.account_tier === 'Gold') { %>
                                 <button disabled class="w-full bg-violet-900/50 text-violet-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-violet-700/50 mt-4">
-                                    You are already Premium (or Gold)
-                                    <% if (daysLeft > 0) { %><br><span class="text-[10px] text-violet-400"><%= daysLeft %> days left</span><% } %>
+                                    You are Gold — Premium not needed
                                 </button>
                             <% } %>
                         </div>
@@ -82,7 +81,8 @@
 
                             <% 
                                 const hasPendingGold = locals.pendingOrders && locals.pendingOrders.some(o => o.item_key.startsWith('gold_tier'));
-                                if (user.account_tier !== 'Gold' && !hasPendingGold) { 
+                                // Show to all users (Standard upgrade, Premium upgrade, Gold extend)
+                                if (!hasPendingGold) { 
                             %>
                             <div class="flex items-center gap-2 mt-3 bg-amber-500/20 p-2.5 rounded-lg border border-amber-500/30 relative z-10">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -119,13 +119,6 @@
                             <% } else if (hasPendingGold) { %>
                                 <button disabled class="w-full bg-amber-900/50 text-amber-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-amber-700/50 mt-4">
                                     Upgrade Pending Verification ⏳
-                                </button>
-                            <% } else { 
-                                const daysLeft = user.tier_expiry ? Math.ceil((new Date(user.tier_expiry) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
-                            %>
-                                <button disabled class="w-full bg-amber-900/50 text-amber-300 font-bold text-xs py-3 rounded-xl shadow-inner cursor-not-allowed border border-amber-700/50 mt-4">
-                                    You are already Gold
-                                    <% if (daysLeft > 0) { %><br><span class="text-[10px] text-amber-400"><%= daysLeft %> days left</span><% } %>
                                 </button>
                             <% } %>
                         </div>

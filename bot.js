@@ -173,6 +173,7 @@ bot.on('successful_payment', async (ctx) => {
             } else {
                 user.account_tier = 'Gold';
                 user.x_blue_tick = false;
+                user.ad_multiplier = 2; // Gold gets auto 2x
                 const expDate = new Date();
                 const months = item.includes('6m') ? 6 : (item.includes('3m') ? 3 : 1);
                 expDate.setMonth(expDate.getMonth() + months);

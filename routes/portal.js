@@ -649,6 +649,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             user.tier_expiry = expDate;
         } else if (item === 'gold_tier_1m') {
             user.account_tier = 'Gold';
+            user.ad_multiplier = AD_MULTIPLIER_PREMIUM; // Gold gets auto 2x
             const expDate = new Date();
             expDate.setMonth(expDate.getMonth() + 1);
             user.tier_expiry = expDate;
@@ -684,6 +685,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             } else {
                 user.account_tier = 'Gold';
                 user.x_blue_tick = false;
+                user.ad_multiplier = AD_MULTIPLIER_PREMIUM; // Gold gets auto 2x
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + 3);
                 user.tier_expiry = expDate;
@@ -694,6 +696,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             } else {
                 user.account_tier = 'Gold';
                 user.x_blue_tick = false;
+                user.ad_multiplier = AD_MULTIPLIER_PREMIUM; // Gold gets auto 2x
                 const expDate = new Date();
                 expDate.setMonth(expDate.getMonth() + 6);
                 user.tier_expiry = expDate;
@@ -879,16 +882,27 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
             user.daily_withdrawals = { date: todayStr, count: 0 };
         }
 
-        if (user.daily_withdrawals.count >= 2) {
+        // Tier-based daily withdrawal limits
+        const tierDailyLimits = { Standard: 1, Premium: 2, Gold: 3 };
+        const dailyLimit = tierDailyLimits[user.account_tier] || 1;
+
+        if (user.daily_withdrawals.count >= dailyLimit) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(403).send("Daily Limit Reached: You can only withdraw up to 2 times per day.");
+            return res.status(403).send(`Daily Limit Reached: You can only withdraw up to ${dailyLimit} time(s) per day.`);
         }
 
         const withdrawalsMade = user.withdrawals_count || 0;
         const qualifiedCount = (user.referrals || []).filter(r => r.qualified).length;
         const isUplinePromoter = (qualifiedCount >= 10);
 
-        const thresholdLimit = (withdrawalsMade === 0) ? 1500 : 1250;
+        // Tier-based withdrawal minimums
+        let thresholdLimit;
+        if (user.account_tier === 'Gold') {
+            thresholdLimit = 1000; // Gold: flat 1,000 PTS min
+        } else {
+            // Standard & Premium: 1,500 first, then 1,250
+            thresholdLimit = (withdrawalsMade === 0) ? FIRST_WITHDRAWAL_MIN_PTS : MIN_WITHDRAWAL_PTS;
+        }
 
         if (!isUplinePromoter && requestedAmount < thresholdLimit) {
             await redisWithTimeout(redis.del(lockKey));
