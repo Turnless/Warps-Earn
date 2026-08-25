@@ -12,9 +12,8 @@ const transactionalLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute window
     max: 5, // Limit each Telegram ID to 5 requests per windowMs
     keyGenerator: (req) => {
-        // Using bracket notation req['ip'] bypasses the library's static analyzer regex
-        // that checks for raw "req.ip" strings and triggers boot validation warnings.
-        return req.validatedTelegramId || req.body.id || req.query.id || req['ip'];
+        // Always use verified identity first, fall back to IP (never trust client-supplied IDs)
+        return req.validatedTelegramId || req['ip'];
     },
     validate: false, // Disables all built-in static validation warnings on boot
     handler: (req, res) => {

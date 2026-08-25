@@ -324,14 +324,15 @@
                             }, 300);
                         }
 
-                        // Add to activity history instantly
+                        // Add to activity history with label matching backend
+                        const questLabels = { channel: 'Warps Channel', group: 'Warps Group', payout_channel: 'WarpsEarn Payouts', x_account: 'X Follow' };
                         const listActivity = document.getElementById('list-activity');
                         if (listActivity) {
                             const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                             const historyHtml = `
                                 <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
                                     <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-neutral-800">Task: ${questKey}</span>
+                                        <span class="text-xs font-bold text-neutral-800">${questLabels[questKey] || questKey} Quest</span>
                                         <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
                                     </div>
                                     <span class="text-xs font-bold text-emerald-700 mono-text">+100</span>
@@ -953,18 +954,19 @@
                             adsCountElement.innerText = (currentAdsCount + 3).toString();
                         }
 
-                        // Auto-sync Activity History
+                        // Add to activity history with label matching backend
                         const listActivity = document.getElementById('list-activity');
                         if (listActivity) {
                             const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                             const loopDisplay = updatedData.loopIndex === 0 ? 3 : updatedData.loopIndex;
+                            const rewardPts = <%= ((locals.globalSettings?.reward_per_ad || 3) * 3) * (user.ad_multiplier || 1) %>;
                             const historyHtml = `
                                 <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
                                     <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-neutral-800">Ad Reward #${loopDisplay}</span>
+                                        <span class="text-xs font-bold text-neutral-800">Ad Loop ${loopDisplay} Reward</span>
                                         <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
                                     </div>
-                                    <span class="text-xs font-bold text-emerald-700 mono-text">+3</span>
+                                    <span class="text-xs font-bold text-emerald-700 mono-text">+${rewardPts}</span>
                                 </div>`;
                             listActivity.insertAdjacentHTML('afterbegin', historyHtml);
                         }
@@ -1098,7 +1100,8 @@
                     });
 
                     if (response.ok) {
-                        if (requiresCommentLink) {
+                        const result = await response.json();
+                        if (result.requiresCommentLink || requiresCommentLink) {
                             showToast(`Proof submitted! Pending approval.`, "✅");
                             setTimeout(() => window.location.reload(), 1500);
                         } else {
@@ -1129,15 +1132,15 @@
                             const newUsdVal = (currentVal + rewardPts) * 0.0008;
                             const userValEl = document.getElementById('user-value');
                             if(userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
-                            
-                            // Add to activity history instantly
+
+                            // Add to activity history with label from backend
                             const listActivity = document.getElementById('list-activity');
-                            if (listActivity) {
+                            if (listActivity && result.title) {
                                 const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                                 const historyHtml = `
                                     <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
                                         <div class="flex flex-col">
-                                            <span class="text-xs font-bold text-neutral-800">Bonus Task: ${promoKey}</span>
+                                            <span class="text-xs font-bold text-neutral-800">${result.title}</span>
                                             <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
                                         </div>
                                         <span class="text-xs font-bold text-emerald-700 mono-text">+${rewardPts}</span>
@@ -1307,73 +1310,6 @@
             // DISABLED: Adsgram temporarily disabled
             // initAdsgram(); 
             initOnClickA();
-
-            // DISABLED: Adsgram task element initialization skipped
-            // The entire Adsgram task card and ecosystem container remain hidden by default.
-            // To re-enable, uncomment initAdsgram() above and the block below.
-            /*
-            const taskAdElement = document.getElementById('adsgram-task-element');
-            const taskAdWrapper = document.getElementById('adsgram-task-wrapper');
-            const ecoContainer = document.getElementById('ecosystem-container');
-
-            if (taskAdElement && taskAdWrapper) {
-                if (ecoContainer) {
-                    ecoContainer.classList.remove('hidden');
-                    ecoContainer.classList.add('flex');
-                }
-                taskAdWrapper.classList.remove('hidden');
-                taskAdWrapper.classList.add('flex');
-
-                taskAdElement.addEventListener('onBannerNotFound', () => {
-                    console.log("📡 Adsgram Task Ad: No active campaign matched. Hiding wrapper card.");
-                    if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
-                    taskAdWrapper.classList.remove('flex');
-                    taskAdWrapper.classList.add('hidden');
-                });
-
-                taskAdElement.addEventListener('onError', () => {
-                    console.warn("⚠️ Adsgram Task Ad: Execution failed or empty. Hiding wrapper card.");
-                    if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
-                    taskAdWrapper.classList.remove('flex');
-                    taskAdWrapper.classList.add('hidden');
-                });
-
-                taskAdElement.addEventListener('reward', async () => {
-                    showToast("Sponsored task completed! +50 PTS Added.", "🎉");
-                    try {
-                        const telegramInitData = window.Telegram?.WebApp?.initData || "";
-                        const response = await fetch('/portal/claim-adsgram-reward', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `WebApp ${telegramInitData}`
-                            },
-                            body: JSON.stringify({
-                                id: "<%= user.telegram_id %>"
-                            })
-                        });
-
-                        if (response.ok) {
-                            const data = await response.json();
-                            const userBalanceEl = document.getElementById('user-balance');
-                            const walletBalanceEl = document.getElementById('wallet-balance');
-                            if (userBalanceEl) userBalanceEl.innerText = data.newBalance.toLocaleString();
-                            if (walletBalanceEl) walletBalanceEl.innerText = data.newBalance.toLocaleString();
-                            
-                            const newUsdVal = data.newBalance * 0.0008;
-                            const userValEl = document.getElementById('user-value');
-                            const walletValEl = document.getElementById('wallet-valuation');
-                            if (userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
-                            if (walletValEl) walletValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
-                        }
-                    } catch (err) {
-                        console.error("Adsgram secure claim failed:", err);
-                    }
-                    if (ecoContainer) { ecoContainer.classList.remove('flex'); ecoContainer.classList.add('hidden'); }
-                    taskAdWrapper.classList.add('hidden'); 
-                });
-            }
-            */
         });
     </script>
 

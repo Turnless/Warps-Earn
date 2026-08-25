@@ -126,7 +126,7 @@
             
             const wantToExit = confirm("⚠️ Wait! If you leave now, you'll lose your progress and won't get your reward. Leave anyway?");
             if (wantToExit) {
-                window.location.href = `/dashboard?id=<%= userId %>`;
+                window.location.href = `/dashboard?id=<%= userId %>&initData=${encodeURIComponent(window.Telegram?.WebApp?.initData || '')}`;
             }
         }
 
@@ -152,7 +152,7 @@
                 });
 
                 if (response.ok) {
-                    window.location.href = `/dashboard?id=<%= userId %>`;
+                    window.location.href = `/dashboard?id=<%= userId %>&initData=${encodeURIComponent(window.Telegram?.WebApp?.initData || '')}`;
                 } else {
                     alert("Claim rejected. Please try again.");
                     claimBtn.disabled = false;

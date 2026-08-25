@@ -26,14 +26,16 @@ function verifyTelegramWebAppData(req, res, next) {
     const dataCheckString = keys.map(key => `${key}=${params.get(key)}`).join('\n');
 
     // 2. Derive secret key by hashing the Bot Token using "WebAppData" constant salt
-    const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "8631881085:AAHTPWtPuA6x64z7rj4rMwiX5NCZe5uW1VY";
+    const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
     const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
 
     // 3. Compute expected hash signature
     const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-    // 4. Compare calculated hash signature with the client's provided hash
-    if (computedHash !== hash) {
+    // 4. Compare calculated hash signature with the client's provided hash (constant-time to prevent timing attacks)
+    const computedBuf = Buffer.from(computedHash, 'hex');
+    const providedBuf = Buffer.from(hash, 'hex');
+    if (computedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(computedBuf, providedBuf)) {
         return res.status(403).send("Forbidden: Cryptographic signature mismatch. Session tampered.");
     }
 

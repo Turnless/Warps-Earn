@@ -3,9 +3,6 @@ const router = express.Router();
 const crypto = require('crypto');
 const User = require('../models/User');
 
-// Destructure your security helper features
-const { verifyTelegramSignature } = require('../security/sybil');
-
 // 🔑 CENTRAL TRAFFIC CHECKPOINT (Triggers when user opens any Mini App button instance)
 router.get('/', async (req, res) => {
     let telegramId = req.query.id;
@@ -68,8 +65,6 @@ router.get('/', async (req, res) => {
                 total_ads_watched: 0,
                 onboarding_passed: false, // 🔒 SECURED: Forced Sybil Validation
                 device_hardware_hash: hardwareHash,
-                referred_by: upline,
-                upline: upline,
                 referrer_id: upline,
                 cooldown_until: 0,
                 current_session_loop: 0,
@@ -94,7 +89,7 @@ router.get('/', async (req, res) => {
 
         // 🔒 SECURITY CHECKPOINT: Enforce Sybil Validation
         if (!user.onboarding_passed) {
-            return res.redirect(`/onboarding?id=${telegramId}&upline=${user.upline || 'none'}`);
+            return res.redirect(`/onboarding?id=${telegramId}&upline=${user.referrer_id || 'none'}`);
         }
 
         return res.redirect(`/dashboard?id=${telegramId}`);

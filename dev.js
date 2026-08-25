@@ -5,15 +5,15 @@ const PORT = process.env.PORT || 3000;
 // Grab the Telegraf bot instance attached to Express settings
 const bot = app.get('bot');
 
-// Safety net: prevent ANY unhandled promise rejection from crashing the server
+// Safety net: log unhandled promise rejections with stack trace for debugging
 process.on('unhandledRejection', (err) => {
-    console.error('⚠️ [Process] Unhandled promise rejection (caught):', err.message || err);
+    console.error('⚠️ [Process] Unhandled promise rejection:', err.stack || err.message || err);
 });
 
 const server = app.listen(PORT, async () => {
     console.log(`📡 Server running on port ${PORT}`);
     
-    if (bot) {
+    if (bot && process.env.BOT_TOKEN) {
         console.log("🤖 Launching Telegram long-polling worker...");
         
         const startBotPolling = async () => {
@@ -38,9 +38,23 @@ const server = app.listen(PORT, async () => {
         };
 
         startBotPolling();
+    } else if (!process.env.BOT_TOKEN) {
+        console.log("🔬 [Preview Mode] No BOT_TOKEN set — bot polling disabled. Web app is still functional.");
     }
 });
 
 // Prevent process drop-offs on interrupt flags
-process.once('SIGINT', () => { if(bot) bot.stop('SIGINT'); server.close(); });
-process.once('SIGTERM', () => { if(bot) bot.stop('SIGTERM'); server.close(); });
+process.once('SIGINT', () => {
+    if(bot) bot.stop('SIGINT');
+    server.close(() => {
+        console.log('🛑 Server shut down gracefully (SIGINT)');
+        process.exit(0);
+    });
+});
+process.once('SIGTERM', () => {
+    if(bot) bot.stop('SIGTERM');
+    server.close(() => {
+        console.log('🛑 Server shut down gracefully (SIGTERM)');
+        process.exit(0);
+    });
+});

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
 const redis = require('../services/redis');
@@ -9,8 +10,21 @@ const { sendTelegramMessageAsync, telegramQueue } = require('../services/queue')
 require('dotenv').config();
 
 // Pull system authentication values
-const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE || 'fallback_secret_for_dev';
+const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE;
+if (!ADMIN_SECRET_SIGNATURE) {
+    console.error('FATAL: ADMIN_SECRET_SIGNATURE environment variable is not set. Admin auth will fail.');
+}
 const PUBLIC_PAYOUT_CHANNEL_ID = process.env.PUBLIC_PAYOUT_CHANNEL_ID || '@WarpsEarn';
+
+// Shared business logic constants
+const {
+    PTS_TO_USD_RATE, USD_TO_NGN_RATE, MS_PER_DAY, QUEST_REWARD_PTS,
+    DEFAULT_REWARD_PER_AD, STREAK_BONUS_REWARD, ADMIN_TELEGRAM_CHAT_ID,
+    ADMIN_SESSION_MAX_AGE_MS, ADMIN_PENDING_WITHDRAWALS_LIMIT, ADMIN_LEADERBOARD_LIMIT,
+    ADMIN_SYBIL_CLUSTERS_LIMIT, ADMIN_QUEUE_DEBUG_LIMIT, MAX_QUEST_SUBMISSIONS_LOG,
+    DEFAULT_QUEST_TIMER_HOURS, BROADCAST_DELAY_MS_PER_USER, WAKEUP_PUSH_DELAY_MS_PER_USER,
+    MAX_BOUNTY_STRIKES, DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG
+} = require('../constants');
 
 // 🛡️ HTML SANITIZER FOR TELEGRAM COMPATIBILITY
 function escapeTelegramHtml(text) {
@@ -31,42 +45,141 @@ function getFormattedDateTime() {
 }
 
 // --- 🛡️ AUTHENTICATION MIDDLEWARE ---
-const checkAdminAuth = (req, res, next) => {
-    // Support legacy secret query strings (like from the Telegram inline buttons) OR session cookies
-    const secret = req.query.secret || req.headers['x-admin-secret'];
-    let cookieSecret = null;
-    
+// Session-based auth: verify random token from Redis, never raw password
+const checkAdminAuth = async (req, res, next) => {
+    // 1. Check for HMAC-signed payout token (from Telegram inline buttons)
+    const signedToken = req.query.token;
+    if (signedToken) {
+        try {
+            const [payload, sig] = signedToken.split('.');
+            const expectedSig = crypto
+                .createHmac('sha256', ADMIN_SECRET_SIGNATURE)
+                .update(payload)
+                .digest('hex');
+            const sigBuf = Buffer.from(sig, 'hex');
+            const expectedBuf = Buffer.from(expectedSig, 'hex');
+            if (sigBuf.length === expectedBuf.length && crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+                const data = JSON.parse(Buffer.from(payload, 'base64').toString());
+                if (data.exp && Date.now() < data.exp) {
+                    req.signedPayoutAction = data;
+                    return next();
+                }
+            }
+        } catch (e) { /* fall through to session check */ }
+    }
+
+    // 2. Check session cookie (random token stored in Redis)
+    let sessionToken = null;
     if (req.headers.cookie) {
         const cookies = req.headers.cookie.split(';').map(c => c.trim());
-        const match = cookies.find(c => c.startsWith('admin_token='));
-        if (match) cookieSecret = match.split('=')[1];
+        const match = cookies.find(c => c.startsWith('admin_session='));
+        if (match) sessionToken = match.split('=')[1];
     }
     
-    if (secret === ADMIN_SECRET_SIGNATURE || cookieSecret === ADMIN_SECRET_SIGNATURE) {
-        return next();
+    if (sessionToken) {
+        const sessionData = await redis.get(`admin:session:${sessionToken}`);
+        if (sessionData) {
+            // Generate CSRF token for this session if not exists
+            if (!req.cookies.admin_csrf) {
+                const csrfToken = crypto.randomBytes(32).toString('hex');
+                await redis.setex(`admin:csrf:${sessionToken}`, 86400, csrfToken);
+                res.cookie('admin_csrf', csrfToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: false, sameSite: 'strict' });
+            }
+            return next();
+        }
     }
     
     // If not authenticated, redirect to login page
     res.redirect('/admin/login');
 };
 
+// --- 🛡️ CSRF VERIFICATION MIDDLEWARE ---
+const verifyCsrfToken = async (req, res, next) => {
+    // Only enforce CSRF on state-changing methods
+    if (req.method !== 'POST') return next();
+
+    const sessionToken = req.cookies?.admin_session;
+    const csrfToken = req.body?._csrf || req.headers['x-csrf-token'];
+
+    if (!sessionToken || !csrfToken) {
+        return res.status(403).send("Forbidden: Missing CSRF token.");
+    }
+
+    const storedToken = await redis.get(`admin:csrf:${sessionToken}`);
+    if (!storedToken || storedToken !== csrfToken) {
+        return res.status(403).send("Forbidden: Invalid CSRF token.");
+    }
+
+    // Remove CSRF from body before processing
+    delete req.body._csrf;
+    next();
+};
+
+// --- 📝 ADMIN AUDIT LOGGING ---
+async function logAdminAction(action, details = {}) {
+    try {
+        const entry = JSON.stringify({
+            action,
+            ...details,
+            timestamp: new Date().toISOString()
+        });
+        await redis.lpush('admin:audit_log', entry);
+        await redis.ltrim('admin:audit_log', 0, 499); // Keep last 500 entries
+    } catch (e) {
+        console.warn('[Audit Log] Failed to write:', e.message);
+    }
+}
+
 // --- 🔐 LOGIN SYSTEM ---
 router.get('/login', (req, res) => {
     res.render('admin_login');
 });
 
-router.post('/login', express.urlencoded({ extended: true }), (req, res) => {
+router.post('/login', express.urlencoded({ extended: true }), async (req, res) => {
     const { password } = req.body;
+    const loginKey = `admin:login_attempts:${req.ip}`;
+
+    // Check for brute force lockout (5 failed attempts → 15 min lockout)
+    const attempts = await redis.get(loginKey);
+    if (attempts && parseInt(attempts) >= 5) {
+        return res.render('admin_login', { error: "Too many failed attempts. Try again in 15 minutes." });
+    }
+
     if (password === ADMIN_SECRET_SIGNATURE) {
-        // Set an authentication cookie valid for 24 hours
-        res.cookie('admin_token', password, { maxAge: 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'strict' });
+        // Clear failed attempts on successful login
+        await redis.del(loginKey);
+        // Generate random session token, store in Redis with 24h TTL
+        const sessionToken = crypto.randomBytes(32).toString('hex');
+        await redis.setex(`admin:session:${sessionToken}`, 86400, JSON.stringify({
+            loginAt: new Date().toISOString(),
+            ip: req.ip
+        }));
+        // Set session cookie (not the password!)
+        res.cookie('admin_session', sessionToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+        await logAdminAction('login', { ip: req.ip });
         return res.redirect('/admin');
     }
+
+    // Track failed attempt (15 min window)
+    const newAttempts = await redis.incr(loginKey);
+    if (newAttempts === 1) {
+        await redis.expire(loginKey, 900); // 15 min TTL
+    }
+
     res.render('admin_login', { error: "Invalid Passphrase." });
 });
 
-router.get('/logout', (req, res) => {
-    res.clearCookie('admin_token');
+router.get('/logout', async (req, res) => {
+    // Invalidate session in Redis
+    if (req.headers.cookie) {
+        const cookies = req.headers.cookie.split(';').map(c => c.trim());
+        const match = cookies.find(c => c.startsWith('admin_session='));
+        if (match) {
+            const token = match.split('=')[1];
+            await redis.del(`admin:session:${token}`);
+        }
+    }
+    res.clearCookie('admin_session');
     res.redirect('/admin/login');
 });
 
@@ -77,7 +190,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const totalUsers = await User.countDocuments();
         
         // Full pending list
-        const pendingList = await Withdrawal.find({ status: 'Pending' }).sort({ created_at: -1 }).limit(50).lean();
+        const pendingList = await Withdrawal.find({ status: 'Pending' }).sort({ created_at: -1 }).limit(ADMIN_PENDING_WITHDRAWALS_LIMIT).lean();
         const pendingCount = await Withdrawal.countDocuments({ status: 'Pending' });
 
         // Aggregate Financial Data
@@ -128,7 +241,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const totalPaidOut = payoutStats.length > 0 ? payoutStats[0].totalPaidOut : 0;
 
         // Fetch top 10 whales (Leaderboard feature)
-        const topUsers = await User.find({}).sort({ points_balance: -1 }).limit(10).lean();
+        const topUsers = await User.find({}).sort({ points_balance: -1 }).limit(ADMIN_LEADERBOARD_LIMIT).lean();
 
         // 📊 NEW: Aggregate Country Stats
         const countryStatsRaw = await User.aggregate([
@@ -155,8 +268,8 @@ router.get('/', checkAdminAuth, async (req, res) => {
         const settings = settingsStr ? JSON.parse(settingsStr) : {
             maintenance: false,
             withdrawals: true,
-            reward_per_ad: 3,
-            streak_reward: 500
+            reward_per_ad: DEFAULT_REWARD_PER_AD,
+            streak_reward: STREAK_BONUS_REWARD
         };
 
         const questsStr = await redis.get('admin:dynamic_quests');
@@ -169,11 +282,11 @@ router.get('/', checkAdminAuth, async (req, res) => {
         // Fetch pending bounty submissions
         const BountySubmission = require('../models/BountySubmission');
         const StoreOrder = require('../models/StoreOrder');
-        const pendingBounties = await BountySubmission.find({ status: 'pending' }).sort({ submitted_at: -1 }).lean();
+        const pendingBounties = await BountySubmission.find({ status: 'pending' }).sort({ created_at: -1 }).lean();
         const pendingStoreOrders = await StoreOrder.find({ status: 'pending' }).sort({ created_at: -1 }).lean();
         
         // Fetch pending X verifications
-        const pendingXVerifications = await User.find({ x_verification_status: 'pending' }).sort({ _id: -1 }).limit(50).lean();
+        const pendingXVerifications = await User.find({ x_verification_status: 'pending' }).sort({ _id: -1 }).limit(ADMIN_PENDING_WITHDRAWALS_LIMIT).lean();
         
         // Populate user details and bounty details manually for the view since it's NoSQL without direct population setup
         const Bounty = require('../models/Bounty');
@@ -188,29 +301,8 @@ router.get('/', checkAdminAuth, async (req, res) => {
 
         const storeConfigStr = await redis.get('admin:store_config');
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
-            cooldown: 500,
-            multiplier: 3000,
-            premium_tier_1m: 15000,
-            premium_tier_3m: 15000,
-            premium_tier_6m: 28000,
-            premium_tier_3m_blue: 45000,
-            premium_tier_6m_blue: 85000,
-            gold_tier_1m: 50000,
-            gold_tier_3m: 50000,
-            gold_tier_6m: 90000,
-            gold_tier_3m_blue: 80000,
-            gold_tier_6m_blue: 150000,
-            stars_premium_1m: 15,
-            stars_premium_3m: 25,
-            stars_premium_6m: 45,
-            stars_premium_3m_blue: 50,
-            stars_premium_6m_blue: 95,
-            stars_gold_1m: 50,
-            stars_gold_3m: 100,
-            stars_gold_6m: 180,
-            stars_gold_3m_blue: 120,
-            stars_gold_6m_blue: 220,
-            stars_x_verify: 100,
+            ...DEFAULT_STORE_CONFIG,
+            ...DEFAULT_STARS_CONFIG,
             enable_cooldown: true,
             enable_multiplier: true,
             enable_premium: true,
@@ -221,22 +313,21 @@ router.get('/', checkAdminAuth, async (req, res) => {
 
 
         // Fetch recent quest submissions
-        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, 199);
+        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1);
         const questSubmissions = questSubmissionsRaw.map(s => JSON.parse(s));
 
         res.render('admin_dashboard', { 
-            secret: ADMIN_SECRET_SIGNATURE,
             stats: {
                 users: totalUsers,
                 pending: pendingCount,
                 circulatingPts: totalCirculating,
-                circulatingUsd: (totalCirculating * 0.0008).toFixed(2),
+                circulatingUsd: (totalCirculating * PTS_TO_USD_RATE).toFixed(2),
                 adsWatched: totalAdsWatched,
                 adEarnings: adEarnings,
                 taskEarnings: taskEarnings,
                 referralEarnings: referralEarnings,
                 paidOutPts: totalPaidOut,
-                paidOutUsd: (totalPaidOut * 0.0008).toFixed(2)
+                paidOutUsd: (totalPaidOut * PTS_TO_USD_RATE).toFixed(2)
             },
             pendingList: pendingList,
             pendingBounties: pendingBounties,
@@ -257,7 +348,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
 });
 
 // --- ⚙️ GLOBAL SETTINGS CONTROLLER ---
-router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/settings', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
         const { maintenance, withdrawals, reward_per_ad, streak_reward, auto_x_verify, x_api_key } = req.body;
         const newSettings = {
@@ -265,8 +356,8 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
             withdrawals: withdrawals === 'on',
             auto_x_verify: auto_x_verify === 'on',
             x_api_key: x_api_key || '',
-            reward_per_ad: parseInt(reward_per_ad) || 3,
-            streak_reward: parseInt(streak_reward) || 500
+            reward_per_ad: parseInt(reward_per_ad) || DEFAULT_REWARD_PER_AD,
+            streak_reward: parseInt(streak_reward) || STREAK_BONUS_REWARD
         };
         await redis.set('global_settings', JSON.stringify(newSettings));
         res.redirect('/admin');
@@ -276,7 +367,7 @@ router.post('/settings', checkAdminAuth, express.urlencoded({ extended: true }),
 });
 
 // --- 🛒 STORE CONFIG CONTROLLER ---
-router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/store-config', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
         const { 
             cooldown, multiplier, 
@@ -288,6 +379,8 @@ router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true
             enable_cooldown, enable_multiplier, enable_premium, enable_gold 
         } = req.body;
         const newConfig = {
+            ...DEFAULT_STORE_CONFIG,
+            ...DEFAULT_STARS_CONFIG,
             cooldown: parseInt(cooldown) || 500,
             multiplier: parseInt(multiplier) || 3000,
             premium_tier_1m: parseInt(premium_tier_1m) || 15000,
@@ -324,7 +417,7 @@ router.post('/store-config', checkAdminAuth, express.urlencoded({ extended: true
 });
 
 // --- 🛒 STORE ORDERS CONTROLLER ---
-router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/store-orders/action', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
         const { order_id, action } = req.body;
         const StoreOrder = require('../models/StoreOrder');
@@ -428,7 +521,7 @@ router.post('/store-orders/action', checkAdminAuth, express.urlencoded({ extende
 });
 
 // --- 🎯 DYNAMIC QUESTS ENGINE ---
-router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/quests', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
         const { action, key, title, url, pts, icon, tier_required, target_countries, is_telegram, timer, requires_comment_link, max_participants } = req.body;
         const questsStr = await redis.get('admin:dynamic_quests');
@@ -443,7 +536,7 @@ router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), a
                 tier_required: tier_required || "Any",
                 target_countries: target_countries ? target_countries.split(',').map(c => c.trim().toUpperCase()) : [],
                 is_telegram: is_telegram === 'on',
-                timer: parseInt(timer) || 8,
+                timer: parseInt(timer) || DEFAULT_QUEST_TIMER_HOURS,
                 requires_comment_link: requires_comment_link === 'on',
                 max_participants: parseInt(max_participants) || 0,
                 current_participants: 0
@@ -460,12 +553,12 @@ router.post('/quests', checkAdminAuth, express.urlencoded({ extended: true }), a
 });
 
 // --- 🎯 APPROVE/REJECT QUEST SUBMISSION ---
-router.get('/quests/action', checkAdminAuth, async (req, res) => {
+router.post('/quests/action', checkAdminAuth, verifyCsrfToken, async (req, res) => {
     try {
-        const { id, action } = req.query;
+        const { id, action } = req.body;
         if (!id || !action) return res.status(400).send("Missing parameters");
 
-        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, 199);
+        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1);
         let targetSub = null;
         let subIndex = -1;
         
@@ -524,12 +617,15 @@ router.get('/user-lookup', checkAdminAuth, async (req, res) => {
 
     const cleanQuery = rawQuery.replace(/^@/, ''); // Strip the @ symbol if they typed it
 
+    // Escape special regex characters to prevent ReDoS injection
+    const escapedQuery = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     try {
         // Search by Telegram ID (exact) OR Username (regex case-insensitive)
         const targetUser = await User.findOne({
             $or: [
                 { telegram_id: cleanQuery },
-                { username: new RegExp('^' + cleanQuery + '$', 'i') }
+                { username: new RegExp('^' + escapedQuery + '$', 'i') }
             ]
         }).lean();
 
@@ -546,13 +642,15 @@ router.get('/user-lookup', checkAdminAuth, async (req, res) => {
     }
 });
 
-router.post('/user-ban', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-ban', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id, action } = req.body;
     try {
         if (action === 'ban') {
             await User.updateOne({ telegram_id }, { is_banned: true });
+            await logAdminAction('user_ban', { target: telegram_id });
         } else if (action === 'unban') {
             await User.updateOne({ telegram_id }, { is_banned: false });
+            await logAdminAction('user_unban', { target: telegram_id });
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {
@@ -560,7 +658,7 @@ router.post('/user-ban', checkAdminAuth, express.urlencoded({ extended: true }),
     }
 });
 
-router.post('/user-clear-activities', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-clear-activities', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id } = req.body;
     try {
         await User.updateOne({ telegram_id }, {
@@ -579,13 +677,14 @@ router.post('/user-clear-activities', checkAdminAuth, express.urlencoded({ exten
     }
 });
 
-router.post('/user-delete', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-delete', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id } = req.body;
     try {
         await User.deleteOne({ telegram_id });
         await redis.del(`user:${telegram_id}:profile`);
         await redis.del(`lock:claim:${telegram_id}`);
         await redis.del(`lock:payout:${telegram_id}`);
+        await logAdminAction('user_delete', { target: telegram_id });
         res.redirect('/admin');
     } catch (e) {
         res.status(500).send("Action failed");
@@ -593,7 +692,7 @@ router.post('/user-delete', checkAdminAuth, express.urlencoded({ extended: true 
 });
 
 // --- 🛠️ DYNAMIC USER MANAGEMENT CONTROLLERS ---
-router.post('/user-manage-balance', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-manage-balance', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id, amount, reason } = req.body;
     try {
         const amt = parseInt(amount);
@@ -610,6 +709,7 @@ router.post('/user-manage-balance', checkAdminAuth, express.urlencoded({ extende
             });
             await user.save();
             await redis.del(`user:${telegram_id}:profile`);
+            await logAdminAction('balance_adjustment', { target: telegram_id, amount: amt, reason: reason || 'Manual' });
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {
@@ -617,7 +717,7 @@ router.post('/user-manage-balance', checkAdminAuth, express.urlencoded({ extende
     }
 });
 
-router.post('/user-x-verify', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-x-verify', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id, followers, blue_tick, tier } = req.body;
     try {
         const user = await User.findOne({ telegram_id });
@@ -649,7 +749,7 @@ router.post('/user-x-verify', checkAdminAuth, express.urlencoded({ extended: tru
     }
 });
 
-router.post('/user-reset-cooldown', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/user-reset-cooldown', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { telegram_id } = req.body;
     try {
         const user = await User.findOne({ telegram_id });
@@ -666,14 +766,14 @@ router.post('/user-reset-cooldown', checkAdminAuth, express.urlencoded({ extende
 });
 
 // --- 📢 BROADCAST MESSAGE CONTROLLER ---
-router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/broadcast', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     const { message_text } = req.body;
     try {
         if (!message_text) return res.redirect('/admin');
         const users = await User.find({}, { telegram_id: 1 }).lean();
         // Queue messages slightly spaced out to avoid Telegram API limits
         users.forEach((user, index) => {
-            sendTelegramMessageAsync(user.telegram_id, message_text, {}, index * 50);
+            sendTelegramMessageAsync(user.telegram_id, message_text, {}, index * BROADCAST_DELAY_MS_PER_USER);
         });
         res.redirect('/admin');
     } catch (e) {
@@ -682,10 +782,10 @@ router.post('/broadcast', checkAdminAuth, express.urlencoded({ extended: true })
 });
 
 // --- ⏰ AUTOMATED WAKE-UP NOTIFICATIONS ---
-router.post('/wakeup-push', checkAdminAuth, async (req, res) => {
+router.post('/wakeup-push', checkAdminAuth, verifyCsrfToken, async (req, res) => {
     try {
         const todayStr = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - MS_PER_DAY).toISOString().split('T')[0];
         
         // Find users who haven't logged in today or yesterday
         const inactiveUsers = await User.find({
@@ -694,7 +794,7 @@ router.post('/wakeup-push', checkAdminAuth, async (req, res) => {
 
         inactiveUsers.forEach((user, index) => {
             const message = `👋 Hey @${user.username || 'there'}!\n\nIt's been a while since we saw you. You have ${user.points_balance || 0} PTS waiting for you! Come back and watch a few ads to claim your next payout! 💸`;
-            sendTelegramMessageAsync(user.telegram_id, message, {}, index * 100);
+            sendTelegramMessageAsync(user.telegram_id, message, {}, index * WAKEUP_PUSH_DELAY_MS_PER_USER);
         });
         
         res.redirect('/admin');
@@ -760,11 +860,10 @@ router.get('/sybil-hunter', checkAdminAuth, async (req, res) => {
             }},
             { $match: { count: { $gt: 1 } } },
             { $sort: { count: -1 } },
-            { $limit: 50 }
+            { $limit: ADMIN_SYBIL_CLUSTERS_LIMIT }
         ]);
 
         res.render('admin_sybil_hunter', {
-            secret: ADMIN_SECRET_SIGNATURE,
             clusters: sybilClusters
         });
     } catch (err) {
@@ -779,7 +878,7 @@ router.get('/queues', checkAdminAuth, async (req, res) => {
         const counts = await telegramQueue.getJobCounts();
         
         // Fetch up to 10 recently failed jobs for debugging
-        const failedJobs = await telegramQueue.getFailed(0, 10);
+        const failedJobs = await telegramQueue.getFailed(0, ADMIN_QUEUE_DEBUG_LIMIT);
         
         const failedList = failedJobs.map(job => ({
             id: job.id,
@@ -789,7 +888,6 @@ router.get('/queues', checkAdminAuth, async (req, res) => {
         }));
 
         res.render('admin_queues', {
-            secret: ADMIN_SECRET_SIGNATURE,
             counts: counts,
             failedJobs: failedList
         });
@@ -801,7 +899,15 @@ router.get('/queues', checkAdminAuth, async (req, res) => {
 // --- ⚡ EXCLUSIVE ADMINISTRATIVE PAYOUT DECISION CONTROL ENDPOINT ---
 router.get('/payout', checkAdminAuth, async (req, res) => {
     try {
-        const { txId, action, secret } = req.query;
+        // Extract txId and action from signed token (Telegram buttons) or query params (dashboard)
+        let txId, action;
+        if (req.signedPayoutAction) {
+            txId = req.signedPayoutAction.txId;
+            action = req.signedPayoutAction.action;
+        } else {
+            txId = req.query.txId;
+            action = req.query.action;
+        }
 
         if (!txId || !action) {
             return res.status(400).send("Incomplete routing parameters.");
@@ -828,13 +934,13 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
             await targetUser.save();
 
             // Update global withdrawal document
-            await Withdrawal.updateOne({ id: txId }, { status: 'Successful' });
+            await Withdrawal.updateOne({ ticket_id: txId }, { status: 'Successful' });
 
             const totalDebitedPoints = targetTx.amount;
-            let valuationStr = `$${(totalDebitedPoints * 0.0008).toFixed(2)} USD`;
+            let valuationStr = `$${(totalDebitedPoints * PTS_TO_USD_RATE).toFixed(2)} USD`;
             if (targetTx.type.includes('NAIRA')) {
-                const nairaValue = totalDebitedPoints * 0.0008 * 1600;
-                valuationStr = `$${(totalDebitedPoints * 0.0008).toFixed(2)} USD (₦${nairaValue.toLocaleString('en-US', {minimumFractionDigits: 2})})`;
+                const nairaValue = totalDebitedPoints * PTS_TO_USD_RATE * USD_TO_NGN_RATE;
+                valuationStr = `$${(totalDebitedPoints * PTS_TO_USD_RATE).toFixed(2)} USD (₦${nairaValue.toLocaleString('en-US', {minimumFractionDigits: 2})})`;
             }
 
             // --- 📢 Post direct proof to Telegram Channel via Bull Queue ---
@@ -870,7 +976,7 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
             await targetUser.save();
 
             // Update global withdrawal document
-            await Withdrawal.updateOne({ id: txId }, { status: 'Rejected' });
+            await Withdrawal.updateOne({ ticket_id: txId }, { status: 'Rejected' });
 
             // Notify user of rejection reason via Bull Queue
             const userRejectionText = `❌ <b>Withdrawal Rejected</b>\n\nYour withdrawal request for <b>${targetTx.amount.toLocaleString()} PTS</b> was declined. Your points have been refunded to your balance.`;
@@ -894,8 +1000,8 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
 });
 
 // --- 🎯 ADMIN BOUNTY DECISION ACTION ---
-router.get('/bounty/action', checkAdminAuth, async (req, res) => {
-    const { subId, action } = req.query;
+router.post('/bounty/action', checkAdminAuth, verifyCsrfToken, async (req, res) => {
+    const { subId, action } = req.body;
 
     if (!subId || !['approve', 'reject'].includes(action)) {
         return res.status(400).send("Invalid administrative payload.");
@@ -948,7 +1054,7 @@ router.get('/bounty/action', checkAdminAuth, async (req, res) => {
             submission.reviewed_at = new Date();
             
             targetUser.bounty_strikes = (targetUser.bounty_strikes || 0) + 1;
-            if (targetUser.bounty_strikes >= 3) {
+            if (targetUser.bounty_strikes >= MAX_BOUNTY_STRIKES) {
                 targetUser.bounty_banned = true;
             }
             
@@ -958,7 +1064,7 @@ router.get('/bounty/action', checkAdminAuth, async (req, res) => {
             // Notify user of rejection
             let warningText = targetUser.bounty_banned ? 
                 "\n\n🚨 <b>ACCOUNT BANNED FROM BOUNTIES</b>\nYou have received 3 strikes for fraudulent submissions. You can no longer participate in social tasks." :
-                `\n\n⚠️ <b>Strike Added (${targetUser.bounty_strikes}/3)</b>\nSubmit valid links only to avoid being banned from tasks.`;
+                `\n\n⚠️ <b>Strike Added (${targetUser.bounty_strikes}/${MAX_BOUNTY_STRIKES})</b>\nSubmit valid links only to avoid being banned from tasks.`;
                 
             await sendTelegramMessageAsync(targetUser.telegram_id, `❌ <b>Bounty Rejected</b>\n\nYour submission for <b>${targetBounty.title}</b> was marked as invalid.` + warningText);
             

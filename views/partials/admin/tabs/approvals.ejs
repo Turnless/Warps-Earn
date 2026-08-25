@@ -57,8 +57,18 @@
                                             <span class="font-bold text-neutral-500">Submitted Link:</span> <a href="<%= sub.proof_url %>" target="_blank" class="text-indigo-500 hover:underline"><%= sub.proof_url %></a>
                                         </div>
                                         <div class="grid grid-cols-2 gap-2 mt-1">
-                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10">Reject</a>
-                                            <a href="/admin/bounty/action?subId=<%= sub._id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10">Approve</a>
+                                            <form action="/admin/bounty/action" method="POST" style="display:inline">
+                                                <input type="hidden" name="_csrf" value="">
+                                                <input type="hidden" name="subId" value="<%= sub._id %>">
+                                                <input type="hidden" name="action" value="reject">
+                                                <button type="submit" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 w-full">Reject</button>
+                                            </form>
+                                            <form action="/admin/bounty/action" method="POST" style="display:inline">
+                                                <input type="hidden" name="_csrf" value="">
+                                                <input type="hidden" name="subId" value="<%= sub._id %>">
+                                                <input type="hidden" name="action" value="approve">
+                                                <button type="submit" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 w-full">Approve</button>
+                                            </form>
                                         </div>
                                     </div>
                                 <% }) %>
@@ -86,11 +96,13 @@
                                         
                                         <div class="grid grid-cols-1 gap-2 mt-1">
                                             <form action="/admin/store-orders/action" method="POST" class="w-full">
+                                                <input type="hidden" name="_csrf" value="">
                                                 <input type="hidden" name="order_id" value="<%= order._id %>">
                                                 <input type="hidden" name="action" value="approve">
                                                 <button class="w-full glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 border-emerald-500/30">Approve (Upgrade)</button>
                                             </form>
                                             <form action="/admin/store-orders/action" method="POST" class="w-full">
+                                                <input type="hidden" name="_csrf" value="">
                                                 <input type="hidden" name="order_id" value="<%= order._id %>">
                                                 <input type="hidden" name="action" value="reject">
                                                 <button class="w-full glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 border-rose-500/30">Reject (Refund)</button>
@@ -127,8 +139,18 @@
                                         <% } %>
                                         <% if(sub.id && sub.pts) { %>
                                             <div class="grid grid-cols-2 gap-2 mt-1 border-t border-neutral-100 pt-3">
-                                                <a href="/admin/quests/action?id=<%= sub.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
-                                                <a href="/admin/quests/action?id=<%= sub.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve (+<%= sub.pts %>)</a>
+                                                <form action="/admin/quests/action" method="POST" style="display:inline">
+                                                    <input type="hidden" name="_csrf" value="">
+                                                    <input type="hidden" name="id" value="<%= sub.id %>">
+                                                    <input type="hidden" name="action" value="reject">
+                                                    <button type="submit" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30 w-full">Reject</button>
+                                                </form>
+                                                <form action="/admin/quests/action" method="POST" style="display:inline">
+                                                    <input type="hidden" name="_csrf" value="">
+                                                    <input type="hidden" name="id" value="<%= sub.id %>">
+                                                    <input type="hidden" name="action" value="approve">
+                                                    <button type="submit" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30 w-full">Approve (+<%= sub.pts %>)</button>
+                                                </form>
                                             </div>
                                         <% } %>
                                     </div>
@@ -160,6 +182,7 @@
                                             <a href="https://x.com/<%= String(p.x_handle || '').replace('@', '') %>" target="_blank" class="text-[10px] text-cyan-500 hover:underline truncate w-full"><%= p.x_handle %></a>
                                         </div>
                                         <form action="/admin/user-x-verify" method="POST" class="flex flex-col gap-2 mt-1">
+                                            <input type="hidden" name="_csrf" value="">
                                             <input type="hidden" name="telegram_id" value="<%= p.telegram_id %>">
                                             <input type="hidden" name="redirect_dashboard" value="true">
                                             

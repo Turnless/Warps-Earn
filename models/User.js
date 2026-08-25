@@ -32,15 +32,13 @@ const userSchema = new mongoose.Schema({
     onboarding_passed: { type: Boolean, default: false },
     is_banned: { type: Boolean, default: false },
     
-    // Referral tracking fields (supporting various naming styles across the legacy codebase)
-    upline: { type: String, default: null },
-    referred_by: { type: String, default: null },
+    // Referral tracking field
     referrer_id: { type: String, default: null },
     
     cooldown_until: { type: Number, default: 0 },
     current_session_loop: { type: Number, default: 0 },
     
-    earnings_history: [earningsHistorySchema],
+    earnings_history: { type: [earningsHistorySchema], default: [] },
     
     daily_tracker: {
         date: { type: String, default: null },
@@ -64,6 +62,7 @@ const userSchema = new mongoose.Schema({
     // Social Bounty & Tier System Fields
     country: { type: String, default: null },
     x_handle: { type: String, default: null },
+    x_verification_status: { type: String, enum: ['none', 'pending', 'verified', 'rejected'], default: 'none' },
     x_followers: { type: Number, default: 0 },
     x_blue_tick: { type: Boolean, default: false },
     account_tier: { type: String, enum: ['Standard', 'Premium', 'Gold'], default: 'Standard' },
@@ -96,6 +95,14 @@ const userSchema = new mongoose.Schema({
     registered_timestamp: { type: Number, default: () => Date.now() }
 }, {
     timestamps: true
+});
+
+// Cap earnings_history to last 200 entries to prevent unbounded growth
+userSchema.pre('save', function(next) {
+    if (this.earnings_history && this.earnings_history.length > 200) {
+        this.earnings_history = this.earnings_history.slice(0, 200);
+    }
+    next();
 });
 
 module.exports = mongoose.model('User', userSchema);
