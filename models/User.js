@@ -98,11 +98,10 @@ const userSchema = new mongoose.Schema({
 });
 
 // Cap earnings_history to last 200 entries to prevent unbounded growth
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function() {
     if (this.earnings_history && this.earnings_history.length > 200) {
         this.earnings_history = this.earnings_history.slice(0, 200);
     }
-    next();
 });
 
 module.exports = mongoose.model('User', userSchema);
