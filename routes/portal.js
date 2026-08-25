@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const fetch = require('node-fetch');
 const db = require('../database');
 const User = require('../models/User');
@@ -15,8 +16,24 @@ const { transactionalLimiter } = require('../middleware/rateLimiter');
 require('dotenv').config();
 
 // Pull sensitive secrets securely from system memory instead of hardcoding
-const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE || 'fallback_secret_for_dev';
+const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE;
+if (!ADMIN_SECRET_SIGNATURE) {
+    console.error('FATAL: ADMIN_SECRET_SIGNATURE environment variable is not set. Payout signing will fail.');
+}
 const PUBLIC_PAYOUT_CHANNEL_ID = process.env.PUBLIC_PAYOUT_CHANNEL_ID || '@WarpsEarn';
+
+// Shared business logic constants
+const {
+    DAILY_AD_LIMIT, ADS_PER_ROUND, SHORT_COOLDOWN_MS, LONG_COOLDOWN_MS,
+    PTS_TO_USD_RATE, USD_TO_NGN_RATE, ADSGRAM_REWARD_PTS, QUEST_REWARD_PTS,
+    ONBOARDING_REWARD_PTS, REFERRAL_ACTIVATION_REWARD, REFERRAL_MILESTONES,
+    SHORT_COOLDOWN_SECONDS_THRESHOLD, AD_CLAIM_LOCK_TTL_SECONDS,
+    PAYOUT_LOCK_TTL_SECONDS, NAIRA_ACCOUNT_NUMBER_LENGTH, MAX_DAILY_WITHDRAWALS,
+    FIRST_WITHDRAWAL_MIN_PTS, MIN_WITHDRAWAL_PTS, UPLINE_PROMOTER_REFERRAL_THRESHOLD,
+    ADMIN_TELEGRAM_CHAT_ID, MS_PER_DAY, AD_MULTIPLIER_PREMIUM,
+    REDIS_OPERATION_TIMEOUT_MS, USER_CACHE_TTL_SECONDS, MAX_QUEST_SUBMISSIONS_LOG,
+    DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG
+} = require('../constants');
 
 // 🛡️ HTML SANITIZER FOR TELEGRAM COMPATIBILITY
 function escapeTelegramHtml(text) {
@@ -48,7 +65,7 @@ async function invalidateUserCache(userId) {
 
 // Timeout wrapper for Redis operations to prevent infinite hangs
 // when Redis is in a broken/reconnecting state (EPIPE, ECONNRESET).
-function redisWithTimeout(promise, timeoutMs = 3000) {
+function redisWithTimeout(promise, timeoutMs = REDIS_OPERATION_TIMEOUT_MS) {
     return Promise.race([
         promise,
         new Promise((_, reject) =>
@@ -77,14 +94,51 @@ const globalEcosystemCheck = async (req, res, next) => {
     }
 };
 
+// 🛡️ IDOR PROTECTION: Verify initData query param for GET routes
+// Extracts verified telegram ID — never trusts raw ?id= parameter
+function verifyInitDataParam(req, res, next) {
+    const initData = req.query.initData;
+    if (!initData) {
+        return res.status(401).send("Unauthorized: Missing verification token.");
+    }
+    try {
+        const params = new URLSearchParams(initData);
+        const hash = params.get('hash');
+        if (!hash) return res.status(401).send("Unauthorized: Invalid token.");
+
+        const keys = Array.from(params.keys()).filter(k => k !== 'hash').sort();
+        const dataCheckString = keys.map(k => `${k}=${params.get(k)}`).join('\n');
+
+        const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+        const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+        const computedBuf = Buffer.from(computedHash, 'hex');
+        const providedBuf = Buffer.from(hash, 'hex');
+        if (computedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(computedBuf, providedBuf)) {
+            return res.status(403).send("Forbidden: Invalid signature.");
+        }
+
+        const userObj = JSON.parse(params.get('user'));
+        req.verifiedTelegramId = String(userObj.id);
+        next();
+    } catch (e) {
+        return res.status(403).send("Forbidden: Verification failed.");
+    }
+}
+
 // --- 📊 CORE DASHBOARD CONTROLLER ---
-router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
-    const userId = String(req.query.id || "");
+router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, res) => {
+    const userId = req.verifiedTelegramId;
 
     try {
         if (!userId) {
             return res.status(400).send("Missing identity context parameter.");
         }
+
+        // Track daily login streak when user opens the app
+        await db.trackDailyLogin(userId);
+        await invalidateUserCache(userId);
 
         const redisKey = `user:${userId}:profile`;
         let user = null;
@@ -105,7 +159,7 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
 
             if (user) {
                 try {
-                    await redisWithTimeout(redis.setex(redisKey, 300, JSON.stringify(user)));
+                    await redisWithTimeout(redis.setex(redisKey, USER_CACHE_TTL_SECONDS, JSON.stringify(user)));
                 } catch (redisError) {
                     console.error("⚠️ Redis cache write failure:", redisError.message);
                 }
@@ -132,31 +186,7 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
 
         const storeConfigStr = await redis.get('admin:store_config');
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
-            cooldown: 500,
-            multiplier: 3000,
-            premium_tier_1m: 15000,
-            premium_tier_3m: 15000,
-            premium_tier_6m: 28000,
-            premium_tier_3m_blue: 45000,
-            premium_tier_6m_blue: 85000,
-            gold_tier_1m: 50000,
-            gold_tier_3m: 50000,
-            gold_tier_6m: 90000,
-            gold_tier_3m_blue: 80000,
-            gold_tier_6m_blue: 150000,
-            stars_premium_3m: 25,
-            stars_premium_6m: 45,
-            stars_premium_3m_blue: 50,
-            stars_premium_6m_blue: 95,
-            stars_gold_3m: 100,
-            stars_gold_6m: 180,
-            stars_gold_3m_blue: 120,
-            stars_gold_6m_blue: 220,
-            stars_x_verify: 100,
-            enable_cooldown: true,
-            enable_multiplier: true,
-            enable_premium: true,
-            enable_gold: true
+            ...DEFAULT_STORE_CONFIG,
         };
 
         const StoreOrder = require('../models/StoreOrder');
@@ -174,8 +204,8 @@ router.get('/dashboard', globalEcosystemCheck, async (req, res) => {
 });
 
 // --- 📺 AD GATEWAY INTERFACE CONTROLLER ---
-router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
-    const userId = String(req.query.id || "");
+router.get('/watch-ads', globalEcosystemCheck, verifyInitDataParam, async (req, res) => {
+    const userId = req.verifiedTelegramId;
     if (!userId) return res.status(400).send("Identity validation parameter missing.");
 
     try {
@@ -195,13 +225,13 @@ router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
             await invalidateUserCache(userId);
         }
 
-        if (user.daily_tracker.count >= 100) {
+        if (user.daily_tracker.count >= DAILY_AD_LIMIT) {
             return res.send(`
                 <body style="background-color: #e6ddd0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; padding: 20px; color: #1a1a16;">
                     <div style="background: white; padding: 30px; border-radius: 24px; max-width: 340px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
                         <span style="font-size: 40px;">🛑</span>
                         <h2 style="margin-top: 10px; font-size: 18px;">Daily Limit Reached</h2>
-                        <p style="font-size: 13px; color: #666; line-height: 1.5;">You have completed your 100 ads for today. Come back tomorrow!</p>
+                        <p style="font-size: 13px; color: #666; line-height: 1.5;">You have completed your ${DAILY_AD_LIMIT} ads for today. Come back tomorrow!</p>
                         <button onclick="location.href='/dashboard?id=${userId}'" style="background: #1a1a16; color: #e6ddd0; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; font-size: 13px; cursor: pointer; width: 100%; margin-top: 10px;">Return to Dashboard</button>
                     </div>
                 </body>
@@ -214,7 +244,7 @@ router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
             const seconds = secondsLeft % 60;
             const timeString = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
-            const isMacro = secondsLeft > 60; 
+            const isMacro = secondsLeft > SHORT_COOLDOWN_SECONDS_THRESHOLD;
             const statusTitle = isMacro ? "Cooling Down" : "Quick Break";
             const statusDesc = isMacro 
                 ? "Please wait a moment before watching more ads." 
@@ -240,8 +270,8 @@ router.get('/watch-ads', globalEcosystemCheck, async (req, res) => {
         const loopDisplay = (user.current_session_loop || 0) + 1;
         res.render('ads', { 
             userId: userId, 
-            adsRemaining: 100 - user.daily_tracker.count,
-            loopDisplay: loopDisplay > 3 ? 3 : loopDisplay
+            adsRemaining: DAILY_AD_LIMIT - user.daily_tracker.count,
+            loopDisplay: loopDisplay > ADS_PER_ROUND ? ADS_PER_ROUND : loopDisplay
         });
 
     } catch (e) {
@@ -261,7 +291,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 
         // 🛡️ Redis Mutex Lock to block concurrent reward farming race conditions
         const lockKey = `lock:claim:${userId}`;
-        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 5));
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", AD_CLAIM_LOCK_TTL_SECONDS));
         if (!isLocked) {
             console.log(`⚠️ [Rate Limit] Rejected concurrent ad claim attempt for user: ${userId}`);
             return res.status(429).send("Too many concurrent requests. Please wait.");
@@ -279,7 +309,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
         }
 
         const todayStr = new Date().toISOString().split('T')[0];
-        if (user.daily_tracker && user.daily_tracker.date === todayStr && user.daily_tracker.count >= 100) {
+        if (user.daily_tracker && user.daily_tracker.date === todayStr && user.daily_tracker.count >= DAILY_AD_LIMIT) {
             await redisWithTimeout(redis.del(lockKey));
             return res.status(400).send("Daily limit exceeded.");
         }
@@ -323,13 +353,13 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const questKey = String(req.body.quest || "");
-    const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "8631881085:AAHTPWtPuA6x64z7rj4rMwiX5NCZe5uW1VY";
+    const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 
     const rewardMap = {
-        channel: 100,
-        group: 100,
-        payout_channel: 100,
-        x_account: 100
+        channel: QUEST_REWARD_PTS,
+        group: QUEST_REWARD_PTS,
+        payout_channel: QUEST_REWARD_PTS,
+        x_account: QUEST_REWARD_PTS
     };
 
     const telegramChatMap = {
@@ -406,9 +436,9 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
 });
 
 // --- ✅ CLAIM ADSGRAM REWARD (SECURE) ---
-router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
-    const rewardAmount = 50; // Fixed amount, cannot be exploited
+    const rewardAmount = ADSGRAM_REWARD_PTS; // Fixed amount, cannot be exploited
     const rewardType = "Adsgram Sponsored Task";
 
     try {
@@ -416,7 +446,7 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
 
         // 🛡️ Redis Mutex Lock to block concurrent reward farming race conditions
         const lockKey = `lock:adsgram:${userId}`;
-        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 5));
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", AD_CLAIM_LOCK_TTL_SECONDS));
         if (!isLocked) {
             return res.status(429).send("Too many requests.");
         }
@@ -448,7 +478,7 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
 });
 
 // --- ✅ VERIFY CUSTOM PROMO TASK (PROTECTED) ---
-router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const promoKey = String(req.body.promoKey || "");
 
@@ -464,7 +494,8 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         if (!user.custom_promos) user.custom_promos = new Map();
         
         // If already verified and we have a truthy value, reject (unless it's an object with verified: true)
-        const currentPromo = user.custom_promos.get(promoKey);
+        // Handle both Mongoose Map and plain object (from Redis cache)
+        const currentPromo = user.custom_promos instanceof Map ? user.custom_promos.get(promoKey) : user.custom_promos[promoKey];
         if (currentPromo === true || (currentPromo && currentPromo.verified)) {
             return res.status(400).send("Already verified.");
         }
@@ -490,7 +521,6 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
             }
             
             try {
-                const fetch = require('node-fetch');
                 const tgToken = process.env.BOT_TOKEN;
                 const tgUrl = `https://api.telegram.org/bot${tgToken}/getChatMember?chat_id=${channelUsername}&user_id=${userId}`;
                 const resp = await fetch(tgUrl);
@@ -515,7 +545,12 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         }
 
         if (submittedLink) {
-            user.custom_promos.set(promoKey, { verified: false, status: 'pending', link: submittedLink, pts: rewardPts, title: campaign.title });
+            const promoData = { verified: false, status: 'pending', link: submittedLink, pts: rewardPts, title: campaign.title };
+            if (user.custom_promos instanceof Map) {
+                user.custom_promos.set(promoKey, promoData);
+            } else {
+                user.custom_promos[promoKey] = promoData;
+            }
             try {
                 const subId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
                 await redis.lpush('admin:quest_submissions', JSON.stringify({
@@ -527,7 +562,7 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
                     pts: rewardPts,
                     timestamp: new Date().toISOString()
                 }));
-                await redis.ltrim('admin:quest_submissions', 0, 199); // keep last 200
+                await redis.ltrim('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1); // keep last 200
             } catch(e) { console.warn("Redis log fail", e); }
         } else {
             user.points_balance = (user.points_balance || 0) + rewardPts;
@@ -537,7 +572,11 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
                 amount: campaign.pts,
                 timestamp: getFormattedDateTime()
             });
-            user.custom_promos.set(promoKey, true);
+            if (user.custom_promos instanceof Map) {
+                user.custom_promos.set(promoKey, true);
+            } else {
+                user.custom_promos[promoKey] = true;
+            }
         }
 
         await user.save();
@@ -553,7 +592,7 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
             }
         }
 
-        res.sendStatus(200);
+        res.json({ success: true, title: campaign.title, pts: campaign.pts, requiresCommentLink: !!submittedLink });
     } catch (e) {
         console.error("Custom Promo Error:", e);
         res.status(500).send("Internal error.");
@@ -564,7 +603,7 @@ const Bounty = require('../models/Bounty');
 const StoreOrder = require('../models/StoreOrder');
 
 // --- 🛒 PURCHASE STORE ITEM ---
-router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const item = String(req.body.item || "");
     const hasBlueTick = req.body.blue_tick === true;
@@ -587,16 +626,16 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
     try {
         if (!userId || !item || !items[item]) return res.status(400).send("Invalid item payload.");
 
+        // Mutex lock to prevent double-spend on concurrent requests
+        const lockKey = `lock:store:${userId}:${item}`;
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 10));
+        if (!isLocked) {
+            return res.status(429).send("Purchase already processing. Please wait.");
+        }
+
         const storeConfigStr = await redis.get('admin:store_config');
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
-            cooldown: 500,
-            multiplier: 3000,
-            premium_tier: 15000,
-            gold_tier_1m: 50000,
-            gold_tier_3m: 50000,
-            gold_tier_6m: 90000,
-            gold_tier_3m_blue: 80000,
-            gold_tier_6m_blue: 150000
+            ...DEFAULT_STORE_CONFIG,
         };
 
         const user = await User.findOne({ telegram_id: userId });
@@ -620,8 +659,8 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         }
 
         // Block multiplier re-purchase while still active (check before deducting)
-        if (item === 'multiplier' && user.ad_multiplier === 2 && user.multiplier_expires_at && new Date(user.multiplier_expires_at) > new Date()) {
-            const daysLeft = Math.ceil((new Date(user.multiplier_expires_at) - new Date()) / (1000 * 60 * 60 * 24));
+        if (item === 'multiplier' && user.ad_multiplier === AD_MULTIPLIER_PREMIUM && user.multiplier_expires_at && new Date(user.multiplier_expires_at) > new Date()) {
+            const daysLeft = Math.ceil((new Date(user.multiplier_expires_at) - new Date()) / MS_PER_DAY);
             return res.status(400).send(`Multiplier already active. ${daysLeft} day(s) remaining.`);
         }
 
@@ -637,7 +676,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             user.cooldown_until = 0;
             user.current_session_loop = 0;
         } else if (item === 'multiplier') {
-            user.ad_multiplier = 2;
+            user.ad_multiplier = AD_MULTIPLIER_PREMIUM;
             const expDate = new Date();
             expDate.setMonth(expDate.getMonth() + 1);
             user.multiplier_expires_at = expDate;
@@ -728,14 +767,13 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         // Notify Admin via Telegram if it's a Blue Tick request
         if (isPending) {
             try {
-                const fetch = require('node-fetch');
                 const tgToken = process.env.BOT_TOKEN;
                 const msg = `🚨 *New Gold Tier + Blue Tick Request* 🚨\n\nUser: @${user.username || user.telegram_id}\nItem: ${title}\nCost: ${cost.toLocaleString()} PTS\n\nCheck the Admin Dashboard to fulfill the X Blue Tick verification and approve the upgrade.`;
                 const tgUrl = `https://api.telegram.org/bot${tgToken}/sendMessage`;
                 await fetch(tgUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: '6314427516', text: msg, parse_mode: 'Markdown' })
+                    body: JSON.stringify({ chat_id: ADMIN_TELEGRAM_CHAT_ID, text: msg, parse_mode: 'Markdown' })
                 });
             } catch (err) {
                 console.error("Failed to notify admin on Telegram:", err);
@@ -746,25 +784,33 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
     } catch (e) {
         console.error("Store error:", e);
         return res.status(500).send("Purchase failed.");
+    } finally {
+        await redisWithTimeout(redis.del(lockKey));
     }
 });
 
 // --- 🌟 GENERATE INVOICE FOR TELEGRAM STARS ---
-router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const item = String(req.body.item || "");
-    const amount = parseInt(req.body.amount || 0);
     const hasBlueTick = Boolean(req.body.hasBlueTick || false);
 
-    if (!userId || !item || amount <= 0) {
+    if (!userId || !item) {
         return res.status(400).send("Invalid invoice payload.");
+    }
+
+    // CRITICAL: Validate amount server-side — never trust client-sent amount
+    const storeConfigStr = await redis.get('admin:store_config');
+    const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG };
+    const expectedAmount = storeConfig[item];
+    if (!expectedAmount || typeof expectedAmount !== 'number' || expectedAmount <= 0) {
+        return res.status(400).send("Invalid store item.");
     }
 
     try {
         const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
-        const fetch = require('node-fetch');
         
-        const payload = JSON.stringify({ userId, item, amount, hasBlueTick });
+        const payload = JSON.stringify({ userId, item, amount: expectedAmount, hasBlueTick });
         
         let title = "Store Purchase";
         if (item === 'premium_tier') title = "Premium Tier Upgrade";
@@ -778,7 +824,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
             payload: payload,
             provider_token: "", // Empty string for Stars
             currency: "XTR",
-            prices: [{ label: title, amount: amount }]
+            prices: [{ label: title, amount: expectedAmount }]
         };
 
         const response = await fetch(tgUrl, {
@@ -802,7 +848,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
 });
 
 // --- 📊 AD TELEMETRY REPORTING ---
-router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData, globalEcosystemCheck, async (req, res) => {
     try {
         const { network, status, errorMsg } = req.body;
         if (!network || !status) return res.status(400).send("Invalid payload");
@@ -850,7 +896,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
         // 🛡️ Redis Mutex Lock to block payout double spending / parallel clicks
         const lockKey = `lock:payout:${userId}`;
-        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 10));
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", PAYOUT_LOCK_TTL_SECONDS));
         if (!isLocked) {
             console.log(`⚠️ [Rate Limit] Rejected concurrent payout request for user: ${userId}`);
             return res.status(429).send("A transaction is already in progress. Please wait.");
@@ -872,7 +918,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
             return res.status(400).send("Insufficient points balance.");
         }
 
-        if (chosenAsset === 'NAIRA' && !/^\d{10}$/.test(destination)) {
+        if (chosenAsset === 'NAIRA' && !new RegExp(`^\\d{${NAIRA_ACCOUNT_NUMBER_LENGTH}}$`).test(destination)) {
             await redisWithTimeout(redis.del(lockKey));
             return res.status(400).send("Naira bank transfers require a precise 10-digit account details profile.");
         }
@@ -893,7 +939,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
         const withdrawalsMade = user.withdrawals_count || 0;
         const qualifiedCount = (user.referrals || []).filter(r => r.qualified).length;
-        const isUplinePromoter = (qualifiedCount >= 10);
+        const isUplinePromoter = (qualifiedCount >= UPLINE_PROMOTER_REFERRAL_THRESHOLD);
 
         // Tier-based withdrawal minimums
         let thresholdLimit;
@@ -929,7 +975,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         });
 
         // Handle referral updates if this is the user's first withdrawal
-        const referrerTelegramId = user.referrer_id || user.referred_by || user.upline;
+        const referrerTelegramId = user.referrer_id;
         if (withdrawalsMade === 0 && referrerTelegramId && referrerTelegramId !== userId) {
             const referrer = await User.findOne({ telegram_id: referrerTelegramId });
             if (referrer) {
@@ -940,10 +986,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
                 const referrerQualifiedCount = referrer.referrals.filter(r => r.qualified).length;
 
                 const milestones = [
-                    { n: 10, pts: 6250, label: "Contest Milestone Tier 1 (10 Refs)" },
-                    { n: 20, pts: 6250, label: "Contest Milestone Tier 2 (20 Refs)" },
-                    { n: 50, pts: 18750, label: "Contest Milestone Tier 3 (50 Refs)" },
-                    { n: 100, pts: 31250, label: "Contest Milestone Tier 4 (100 Refs)" }
+                    ...REFERRAL_MILESTONES
                 ];
 
                 if (!referrer.milestones_claimed) {
@@ -966,7 +1009,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
                         referrerNeedsSave = true;
 
                         // Enqueue milestone reached message to referrer via Bull Queue
-                        const milestoneMsg = `🎉 <b>Referral Milestone Reached!</b>\n\nYou have successfully unlocked <b>${m.label}</b> with ${referrerQualifiedCount} qualified referrals.\n\n⚡ <b>+${m.pts.toLocaleString()} PTS ($${(m.pts * 0.0008).toFixed(2)} USD)</b> has been added to your balance!`;
+                        const milestoneMsg = `🎉 <b>Referral Milestone Reached!</b>\n\nYou have successfully unlocked <b>${m.label}</b> with ${referrerQualifiedCount} qualified referrals.\n\n⚡ <b>+${m.pts.toLocaleString()} PTS ($${(m.pts * PTS_TO_USD_RATE).toFixed(2)} USD)</b> has been added to your balance!`;
                         await sendTelegramMessageAsync(referrer.telegram_id, milestoneMsg);
                     }
                 }
@@ -981,7 +1024,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
         // 3. Create structural Withdrawal database ticket entry for administrative logging
         const ticket = new Withdrawal({
-            id: uniqueTxId,
+            ticket_id: uniqueTxId,
             telegram_id: String(userId),
             username: user.username,
             amount_points: debitedPoints,
@@ -996,17 +1039,23 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         await invalidateUserCache(userId);
         await redisWithTimeout(redis.del(lockKey)); // releaseMutex
 
-        const adminChatId = "6314427516";
+        const adminChatId = ADMIN_TELEGRAM_CHAT_ID;
         const hostUrl = `${req.protocol}://${req.get('host')}`;
         
-        let valuationString = `$${(debitedPoints * 0.0008).toFixed(2)} USD`;
+        let valuationString = `$${(debitedPoints * PTS_TO_USD_RATE).toFixed(2)} USD`;
         if (chosenAsset === 'NAIRA') {
-            const nairaValue = debitedPoints * 0.0008 * 1600;
-            valuationString = `$${(debitedPoints * 0.0008).toFixed(2)} USD (₦${nairaValue.toLocaleString('en-US', {minimumFractionDigits: 2})})`;
+            const nairaValue = debitedPoints * PTS_TO_USD_RATE * USD_TO_NGN_RATE;
+            valuationString = `$${(debitedPoints * PTS_TO_USD_RATE).toFixed(2)} USD (₦${nairaValue.toLocaleString('en-US', {minimumFractionDigits: 2})})`;
         }
 
-        const approvalUrl = `${hostUrl}/admin/payout?txId=${uniqueTxId}&action=approve&secret=${ADMIN_SECRET_SIGNATURE}`;
-        const rejectionUrl = `${hostUrl}/admin/payout?txId=${uniqueTxId}&action=reject&secret=${ADMIN_SECRET_SIGNATURE}`;
+        // Generate HMAC-signed tokens for payout approval/rejection (1 hour expiry)
+        function generatePayoutToken(txId, action) {
+            const payload = Buffer.from(JSON.stringify({ txId, action, exp: Date.now() + 3600000 })).toString('base64');
+            const sig = crypto.createHmac('sha256', ADMIN_SECRET_SIGNATURE).update(payload).digest('hex');
+            return `${payload}.${sig}`;
+        }
+        const approvalUrl = `${hostUrl}/admin/payout?token=${generatePayoutToken(uniqueTxId, 'approve')}`;
+        const rejectionUrl = `${hostUrl}/admin/payout?token=${generatePayoutToken(uniqueTxId, 'reject')}`;
 
         const adminMessageText = `🚨 <b>NEW WITHDRAWAL REQUEST</b> 🚨\n\n` +
             `👤 <b>User:</b> ${escapeTelegramHtml(user.first_name || 'N/A')} (@${escapeTelegramHtml(user.username || 'Anonymous')})\n` +
@@ -1034,13 +1083,20 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 });
 
 // --- 🎯 BOUNTY SUBMISSION ---
-router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const bountyId = String(req.body.bounty_id || "");
     let proofUrl = String(req.body.proof_url || "").trim();
 
     try {
         if (!userId || !bountyId) return res.status(400).send("Invalid payload.");
+
+        // Mutex lock to prevent duplicate submissions on concurrent requests
+        const lockKey = `lock:bounty:${userId}:${bountyId}`;
+        const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 10));
+        if (!isLocked) {
+            return res.status(429).send("Submission already processing. Please wait.");
+        }
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) return res.status(404).send("User not found.");
@@ -1094,7 +1150,7 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         }
 
         try {
-            const redis = require('../database/redis'); // or similar
+            const redis = require('../services/redis');
             if (redis) await redis.del(`user:${userId}:profile`);
         } catch (e) {}
 
@@ -1106,6 +1162,8 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
     } catch (e) {
         console.error("Bounty submission error:", e);
         res.status(500).send("Internal error processing submission.");
+    } finally {
+        await redisWithTimeout(redis.del(`lock:bounty:${userId}:${bountyId}`));
     }
 });
 
