@@ -324,21 +324,6 @@
                             }, 300);
                         }
 
-                        // Add to activity history instantly
-                        const listActivity = document.getElementById('list-activity');
-                        if (listActivity) {
-                            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                            const historyHtml = `
-                                <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-neutral-800">Task: ${questKey}</span>
-                                        <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
-                                    </div>
-                                    <span class="text-xs font-bold text-emerald-700 mono-text">+100</span>
-                                </div>`;
-                            listActivity.insertAdjacentHTML('afterbegin', historyHtml);
-                        }
-
                         const userBalanceEl = document.getElementById('user-balance');
                         const walletBalanceEl = document.getElementById('wallet-balance');
 
@@ -953,22 +938,6 @@
                             adsCountElement.innerText = (currentAdsCount + 3).toString();
                         }
 
-                        // Auto-sync Activity History
-                        const listActivity = document.getElementById('list-activity');
-                        if (listActivity) {
-                            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                            const loopDisplay = updatedData.loopIndex === 0 ? 3 : updatedData.loopIndex;
-                            const historyHtml = `
-                                <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-neutral-800">Ad Reward #${loopDisplay}</span>
-                                        <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
-                                    </div>
-                                    <span class="text-xs font-bold text-emerald-700 mono-text">+3</span>
-                                </div>`;
-                            listActivity.insertAdjacentHTML('afterbegin', historyHtml);
-                        }
-
                         resetAdButton();
                     } else {
                         const errorMsg = await response.text();
@@ -1129,21 +1098,6 @@
                             const newUsdVal = (currentVal + rewardPts) * 0.0008;
                             const userValEl = document.getElementById('user-value');
                             if(userValEl) userValEl.innerText = `$${newUsdVal.toFixed(2)} USD`;
-                            
-                            // Add to activity history instantly
-                            const listActivity = document.getElementById('list-activity');
-                            if (listActivity) {
-                                const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                                const historyHtml = `
-                                    <div class="flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0">
-                                        <div class="flex flex-col">
-                                            <span class="text-xs font-bold text-neutral-800">Bonus Task: ${promoKey}</span>
-                                            <span class="text-[9px] text-neutral-400 mono-text">${timeNow}</span>
-                                        </div>
-                                        <span class="text-xs font-bold text-emerald-700 mono-text">+${rewardPts}</span>
-                                    </div>`;
-                                listActivity.insertAdjacentHTML('afterbegin', historyHtml);
-                            }
                             
                             // Decrement the task badge
                             const taskBadge = document.getElementById('task-nav-badge');
