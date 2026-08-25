@@ -137,6 +137,17 @@ async function watchAdRound(userId) {
         user.account_tier = 'Standard';
         user.tier_expiry = null;
         user.x_blue_tick = false;
+        // Revert multiplier to 1x on tier expiry (unless VIP from referrals)
+        const refCount = (user.referrals || []).length;
+        if (refCount < VIP_REFERRAL_THRESHOLD) {
+            user.ad_multiplier = 1;
+        }
+    }
+
+    // --- GOLD TIER AUTO 2x MULTIPLIER ---
+    if (user.account_tier === 'Gold' && (user.ad_multiplier || 1) < AD_MULTIPLIER_PREMIUM) {
+        user.ad_multiplier = AD_MULTIPLIER_PREMIUM;
+        console.log(`[GOLD TIER] User ${userId} auto-upgraded to 2x Multiplier via Gold tier.`);
     }
 
     // --- TIERED VIP ACCOUNTS (50+ Referrals) ---
