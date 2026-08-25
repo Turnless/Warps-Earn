@@ -25,12 +25,25 @@ function ensureDbName(uri) {
 
 const finalUri = ensureDbName(MONGODB_URI);
 console.log("📡 [Database] Connecting to MongoDB...");
-mongoose.connect(finalUri, {
+
+// Track connection state so middleware can block requests until ready
+let mongoConnected = false;
+let mongoConnectionError = null;
+
+const mongoReady = mongoose.connect(finalUri, {
     serverSelectionTimeoutMS: 10000,   // Fail fast if Atlas is unreachable
     socketTimeoutMS: 45000,            // Kill idle sockets after 45s
 })
-  .then(() => console.log("📡 [Database] MongoDB connection established successfully."))
-  .catch(err => console.error("❌ [Database] MongoDB connection error:", err.message));
+  .then(() => {
+      mongoConnected = true;
+      console.log("📡 [Database] MongoDB connection established successfully.");
+  })
+  .catch(err => {
+      mongoConnectionError = err.message;
+      console.error("❌ [Database] MongoDB connection error:", err.message);
+  });
+
+// Expose connection state for dev.js (attached to app after it's created)
 
 
 // 🔄 AUTO-DETECT PREVIEW vs PRODUCTION
@@ -61,6 +74,32 @@ app.set("bot", bot);
 
 // Serve static assets (images, css, etc.) from the public folder
 app.use("/public", express.static(path.join(process.cwd(), "public")));
+
+// ==========================================
+// 🛡️ DATABASE READINESS GATEWAY
+// ==========================================
+// Block all requests until MongoDB is connected.
+// Prevents "Authentication engine tracking fault" caused by querying a disconnected database.
+app.use(async (req, res, next) => {
+    // Allow static assets and webhook through without waiting
+    if (req.path.startsWith('/public') || req.path.startsWith('/static') || req.path === '/api/webhook' || req.path === '/favicon.ico') {
+        return next();
+    }
+
+    if (mongoConnected) return next();
+
+    // Wait up to 15 seconds for the initial connection
+    try {
+        await Promise.race([
+            mongoReady,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('MongoDB connection timed out')), 15000))
+        ]);
+        next();
+    } catch (err) {
+        console.error("❌ [Gateway] MongoDB not available:", err.message);
+        res.status(503).send("Database is connecting. Please refresh in a moment.");
+    }
+});
 
 // ==========================================
 // 🛡️ LOOP-PROOF ROUTE EXEMPTION MIDDLEWARE
@@ -248,5 +287,8 @@ app.post("/portal/verify-sybil", async (req, res) => {
     }
 });
 
+
+// Attach MongoDB connection state to the app for dev.js to await
+app.mongoReady = mongoReady;
 
 module.exports = app;

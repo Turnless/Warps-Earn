@@ -10,51 +10,64 @@ process.on('unhandledRejection', (err) => {
     console.error('⚠️ [Process] Unhandled promise rejection:', err.stack || err.message || err);
 });
 
-const server = app.listen(PORT, async () => {
-    console.log(`📡 Server running on port ${PORT}`);
-    
-    if (bot && process.env.BOT_TOKEN) {
-        console.log("🤖 Launching Telegram long-polling worker...");
-        
-        const startBotPolling = async () => {
-            try {
-                // Force delete any active production webhooks so long-polling works
-                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-                
-                bot.launch().catch((botErr) => {
-                    console.error("⚠️ Bot long-polling stopped:", botErr.message);
-                    if (botErr.message && botErr.message.includes('409: Conflict')) {
-                        console.log("🔄 Retrying bot connection in 5 seconds... (Waiting for old instance to shut down)");
-                        setTimeout(startBotPolling, 5000);
-                    } else {
-                        console.log("📡 HTTP server remains online. Web app is still functional.");
-                    }
-                });
-                console.log("✅ Bot listener is active. The event loop is locked online.");
-            } catch (botError) {
-                console.error("⚠️ Failed to boot bot long-polling daemon:", botError.message);
-                console.log("📡 HTTP server remains online. Web app is still functional.");
-            }
-        };
-
-        startBotPolling();
-    } else if (!process.env.BOT_TOKEN) {
-        console.log("🔬 [Preview Mode] No BOT_TOKEN set — bot polling disabled. Web app is still functional.");
+// Wait for MongoDB to connect before accepting traffic
+async function startServer() {
+    if (app.mongoReady) {
+        console.log("⏳ [Startup] Waiting for MongoDB connection...");
+        await app.mongoReady;
     }
-});
 
-// Prevent process drop-offs on interrupt flags
-process.once('SIGINT', () => {
-    if(bot) bot.stop('SIGINT');
-    server.close(() => {
-        console.log('🛑 Server shut down gracefully (SIGINT)');
-        process.exit(0);
+    const server = app.listen(PORT, async () => {
+        console.log(`📡 Server running on port ${PORT}`);
+        
+        if (bot && process.env.BOT_TOKEN) {
+            console.log("🤖 Launching Telegram long-polling worker...");
+            
+            const startBotPolling = async () => {
+                try {
+                    // Force delete any active production webhooks so long-polling works
+                    await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+                    
+                    bot.launch().catch((botErr) => {
+                        console.error("⚠️ Bot long-polling stopped:", botErr.message);
+                        if (botErr.message && botErr.message.includes('409: Conflict')) {
+                            console.log("🔄 Retrying bot connection in 5 seconds... (Waiting for old instance to shut down)");
+                            setTimeout(startBotPolling, 5000);
+                        } else {
+                            console.log("📡 HTTP server remains online. Web app is still functional.");
+                        }
+                    });
+                    console.log("✅ Bot listener is active. The event loop is locked online.");
+                } catch (botError) {
+                    console.error("⚠️ Failed to boot bot long-polling daemon:", botError.message);
+                    console.log("📡 HTTP server remains online. Web app is still functional.");
+                }
+            };
+
+            startBotPolling();
+        } else if (!process.env.BOT_TOKEN) {
+            console.log("🔬 [Preview Mode] No BOT_TOKEN set — bot polling disabled. Web app is still functional.");
+        }
     });
-});
-process.once('SIGTERM', () => {
-    if(bot) bot.stop('SIGTERM');
-    server.close(() => {
-        console.log('🛑 Server shut down gracefully (SIGTERM)');
-        process.exit(0);
+
+    // Prevent process drop-offs on interrupt flags
+    process.once('SIGINT', () => {
+        if(bot) bot.stop('SIGINT');
+        server.close(() => {
+            console.log('🛑 Server shut down gracefully (SIGINT)');
+            process.exit(0);
+        });
     });
+    process.once('SIGTERM', () => {
+        if(bot) bot.stop('SIGTERM');
+        server.close(() => {
+            console.log('🛑 Server shut down gracefully (SIGTERM)');
+            process.exit(0);
+        });
+    });
+}
+
+startServer().catch(err => {
+    console.error("❌ [Startup] Failed to start server:", err.message);
+    process.exit(1);
 });

@@ -96,7 +96,9 @@ router.get('/', async (req, res) => {
 
     } catch (err) {
         console.error("Authentication mapping engine failure:", err);
-        return res.status(500).send("Authentication engine tracking fault.");
+        // Surface the actual error in logs and response for debugging
+        const detail = err.message || 'Unknown error';
+        return res.status(500).send(`Authentication engine tracking fault: ${detail}`);
     }
 });
 
