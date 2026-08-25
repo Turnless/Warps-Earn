@@ -17,6 +17,7 @@
     "express-rate-limit": "^8.5.2",
     "ioredis": "^5.11.1",
     "mongoose": "^9.7.1",
+    "node-fetch": "^2.7.0",
     "rate-limit-redis": "^5.0.0",
     "telegraf": "^4.16.3"
   },
