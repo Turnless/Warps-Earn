@@ -216,6 +216,12 @@
                 ptsInput.value = '';
             }
         }
+
+        // Populate all _csrf hidden fields from admin_csrf cookie
+        document.querySelectorAll('input[name="_csrf"]').forEach(el => {
+            const match = document.cookie.match(/admin_csrf=([^;]+)/);
+            if (match) el.value = match[1];
+        });
     </script>
 </body>
 </html>

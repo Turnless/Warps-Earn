@@ -42,7 +42,7 @@ router.get('/', async (req, res) => {
                 user.photo_url = parsedUser.photo_url || user.photo_url || null;
                 await user.save();
             }
-            return res.redirect(`/dashboard?id=${telegramId}`);
+            return res.redirect(`/dashboard?id=${telegramId}&initData=${encodeURIComponent(rawInitData || '')}`);
         }
 
         // 🔓 Brand new profile? Create them and forward to onboarding challenge route

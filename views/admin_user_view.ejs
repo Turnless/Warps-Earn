@@ -62,6 +62,7 @@
             </a>
             
             <form action="/admin/user-ban" method="POST" class="inline">
+                <input type="hidden" name="_csrf" value="">
                 <input type="hidden" name="telegram_id" value="<%= user.telegram_id %>">
                 <% if (user.is_banned) { %>
                     <input type="hidden" name="action" value="unban">
@@ -171,6 +172,7 @@
                     
                     <!-- Adjust Balance -->
                     <form action="/admin/user-manage-balance" method="POST" class="bg-white/60 p-5 rounded-xl border border-neutral-200 flex flex-col gap-4">
+                        <input type="hidden" name="_csrf" value="">
                         <div class="flex flex-col gap-1">
                             <span class="text-sm font-bold text-neutral-900">Adjust Ledger Balance</span>
                             <span class="text-[10px] text-neutral-500">Add or deduct PTS manually.</span>
@@ -185,6 +187,7 @@
                     
                     <!-- X Verification Manual -->
                     <form action="/admin/user-x-verify" method="POST" class="bg-white/60 p-5 rounded-xl border border-neutral-200 flex flex-col gap-4">
+                        <input type="hidden" name="_csrf" value="">
                         <div class="flex flex-col gap-1">
                             <span class="text-sm font-bold text-neutral-900">Manual X Verification</span>
                             <span class="text-[10px] text-neutral-500">Assign tier based on follower count & blue tick.</span>
@@ -212,6 +215,7 @@
 
                     <!-- Reset Activities -->
                     <form action="/admin/user-clear-activities" method="POST" class="bg-white/60 p-5 rounded-xl border border-neutral-200 flex flex-col gap-4">
+                        <input type="hidden" name="_csrf" value="">
                         <div class="flex flex-col gap-1">
                             <span class="text-sm font-bold text-neutral-900">Clear Daily Metrics</span>
                             <span class="text-[10px] text-neutral-500">Resets today's ad limits & cooldowns.</span>
@@ -222,6 +226,7 @@
 
                     <!-- Delete User -->
                     <form action="/admin/user-delete" method="POST" class="bg-rose-500/10 p-5 rounded-xl border border-rose-500/30 flex flex-col gap-4">
+                        <input type="hidden" name="_csrf" value="">
                         <div class="flex flex-col gap-1">
                             <span class="text-sm font-bold text-rose-600">Eradicate User</span>
                             <span class="text-[10px] text-rose-500/80">Permanently deletes account from database.</span>
@@ -235,5 +240,12 @@
             </div>
         </div>
     </div>
+    <script>
+        // Populate all _csrf hidden fields from admin_csrf cookie
+        document.querySelectorAll('input[name="_csrf"]').forEach(el => {
+            const match = document.cookie.match(/admin_csrf=([^;]+)/);
+            if (match) el.value = match[1];
+        });
+    </script>
 </body>
 </html>
