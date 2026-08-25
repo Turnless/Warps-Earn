@@ -7,12 +7,10 @@ const User = require('../models/User');
 router.get('/', async (req, res) => {
     let telegramId = req.query.id;
     let parsedUser = null;
+    let rawInitData = req.query.tgWebAppInitData || req.headers['x-telegram-init-data'];
 
     // 💡 THE GLOBAL BUTTON FIX: If id parameter is missing from the query string
     try {
-        // Check if Telegram passed the native secure headers signature string
-        const rawInitData = req.query.tgWebAppInitData || req.headers['x-telegram-init-data'];
-
         if (rawInitData) {
             const urlParams = new URLSearchParams(rawInitData);
             const userObj = JSON.parse(urlParams.get('user'));
