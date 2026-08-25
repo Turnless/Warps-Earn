@@ -371,35 +371,6 @@
                             }
                         }
 
-                        const activityList = document.getElementById('list-activity');
-                        const emptyPlaceholder = document.getElementById('empty-history');
-                        if (emptyPlaceholder) {
-                            emptyPlaceholder.remove();
-                        }
-
-                        let questLabel = "X Follow";
-                        if (questKey === 'channel') questLabel = "Warps Channel";
-                        if (questKey === 'group') questLabel = "Warps Group";
-                        if (questKey === 'payout_channel') questLabel = "WarpsEarn Payouts";
-
-                        const optionsDate = { month: 'short', day: 'numeric', year: 'numeric' };
-                        const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: true };
-                        const dateStr = new Date().toLocaleDateString('en-US', optionsDate);
-                        const timeStr = new Date().toLocaleTimeString('en-US', optionsTime);
-                        const currentFormattedTimestamp = `${dateStr} • ${timeStr}`;
-
-                        const newRow = document.createElement('div');
-                        newRow.className = "flex justify-between items-center pb-2.5 border-b border-neutral-200/50 last:border-0 last:pb-0";
-                        newRow.innerHTML = `
-                        <div class="flex flex-col">
-                            <span class="text-xs font-bold text-neutral-800">${questLabel} Quest</span>
-                            <span class="text-[9px] text-neutral-400 mono-text">${currentFormattedTimestamp}</span>
-                        </div>
-                        <span class="text-xs font-bold text-emerald-700 mono-text">+100</span>
-                        `;
-
-                        activityList.insertBefore(newRow, activityList.firstChild);
-
                         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
                             window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
                         }
