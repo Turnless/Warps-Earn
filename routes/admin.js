@@ -80,10 +80,15 @@ const checkAdminAuth = async (req, res, next) => {
         const sessionData = await redis.get(`admin:session:${sessionToken}`);
         if (sessionData) {
             // Generate CSRF token for this session if not exists
-            if (!req.cookies.admin_csrf) {
+            let csrfCookie = null;
+            if (req.headers.cookie) {
+                const csrfMatch = req.headers.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('admin_csrf='));
+                if (csrfMatch) csrfCookie = csrfMatch.split('=')[1];
+            }
+            if (!csrfCookie) {
                 const csrfToken = crypto.randomBytes(32).toString('hex');
                 await redis.setex(`admin:csrf:${sessionToken}`, 86400, csrfToken);
-                res.cookie('admin_csrf', csrfToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: false, sameSite: 'strict' });
+                res.cookie('admin_csrf', csrfToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: false, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
             }
             return next();
         }
@@ -98,7 +103,12 @@ const verifyCsrfToken = async (req, res, next) => {
     // Only enforce CSRF on state-changing methods
     if (req.method !== 'POST') return next();
 
-    const sessionToken = req.cookies?.admin_session;
+    // Parse cookies manually (no cookie-parser middleware)
+    let sessionToken = null;
+    if (req.headers.cookie) {
+        const sessionMatch = req.headers.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('admin_session='));
+        if (sessionMatch) sessionToken = sessionMatch.split('=')[1];
+    }
     const csrfToken = req.body?._csrf || req.headers['x-csrf-token'];
 
     if (!sessionToken || !csrfToken) {
