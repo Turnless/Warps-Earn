@@ -107,6 +107,11 @@ async function watchAdRound(userId) {
         user.current_session_loop = 0;
     }
 
+    // Enforce daily ad cap
+    if (user.daily_tracker.count >= DAILY_AD_LIMIT) {
+        throw new Error("Daily ad limit reached. Come back tomorrow.");
+    }
+
     // --- MULTIPLIER EXPIRATION CHECK ---
     if (user.multiplier_expires_at && new Date() > new Date(user.multiplier_expires_at)) {
         user.ad_multiplier = 1;
@@ -170,16 +175,33 @@ async function watchAdRound(userId) {
             refEntry.ads_viewed = (refEntry.ads_viewed || 0) + ADS_PER_ROUND;
 
             if (refEntry.ads_viewed >= REFERRAL_ACTIVATION_THRESHOLD && !refEntry.reward_issued) {
-                referrerProfile.points_balance = (referrerProfile.points_balance || 0) + REFERRAL_ACTIVATION_REWARD;
-                refEntry.reward_issued = true;
+                // Atomic update: only award if reward_issued is still false (prevents race condition)
+                const updateResult = await User.findOneAndUpdate(
+                    {
+                        _id: referrerProfile._id,
+                        'referrals.telegram_id': String(userId),
+                        'referrals.reward_issued': false
+                    },
+                    {
+                        $set: { 'referrals.$.reward_issued': true },
+                        $inc: { points_balance: REFERRAL_ACTIVATION_REWARD },
+                        $push: {
+                            earnings_history: {
+                                $each: [{
+                                    type: "Referral Activation",
+                                    amount: REFERRAL_ACTIVATION_REWARD,
+                                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                }],
+                                $position: 0
+                            }
+                        }
+                    },
+                    { new: true }
+                );
 
-                if (!referrerProfile.earnings_history) referrerProfile.earnings_history = [];
-                referrerProfile.earnings_history.unshift({
-                    type: "Referral Activation",
-                    amount: REFERRAL_ACTIVATION_REWARD,
-                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                });
-                console.log(`[REFERRAL BONUS ACTIVATED] Referrer ${referrerProfile.telegram_id} awarded +${REFERRAL_ACTIVATION_REWARD} PTS from invite ${userId}`);
+                if (updateResult) {
+                    console.log(`[REFERRAL BONUS ACTIVATED] Referrer ${referrerProfile.telegram_id} awarded +${REFERRAL_ACTIVATION_REWARD} PTS from invite ${userId}`);
+                }
             }
             await referrerProfile.save();
         }

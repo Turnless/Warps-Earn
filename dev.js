@@ -5,9 +5,9 @@ const PORT = process.env.PORT || 3000;
 // Grab the Telegraf bot instance attached to Express settings
 const bot = app.get('bot');
 
-// Safety net: prevent ANY unhandled promise rejection from crashing the server
+// Safety net: log unhandled promise rejections with stack trace for debugging
 process.on('unhandledRejection', (err) => {
-    console.error('⚠️ [Process] Unhandled promise rejection (caught):', err.message || err);
+    console.error('⚠️ [Process] Unhandled promise rejection:', err.stack || err.message || err);
 });
 
 const server = app.listen(PORT, async () => {

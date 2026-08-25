@@ -432,7 +432,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
 });
 
 // --- ✅ CLAIM ADSGRAM REWARD (SECURE) ---
-router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
+router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const rewardAmount = ADSGRAM_REWARD_PTS; // Fixed amount, cannot be exploited
     const rewardType = "Adsgram Sponsored Task";
@@ -474,7 +474,7 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
 });
 
 // --- ✅ VERIFY CUSTOM PROMO TASK (PROTECTED) ---
-router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
+router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const promoKey = String(req.body.promoKey || "");
 
@@ -490,7 +490,8 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         if (!user.custom_promos) user.custom_promos = new Map();
         
         // If already verified and we have a truthy value, reject (unless it's an object with verified: true)
-        const currentPromo = user.custom_promos.get(promoKey);
+        // Handle both Mongoose Map and plain object (from Redis cache)
+        const currentPromo = user.custom_promos instanceof Map ? user.custom_promos.get(promoKey) : user.custom_promos[promoKey];
         if (currentPromo === true || (currentPromo && currentPromo.verified)) {
             return res.status(400).send("Already verified.");
         }
@@ -540,7 +541,12 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         }
 
         if (submittedLink) {
-            user.custom_promos.set(promoKey, { verified: false, status: 'pending', link: submittedLink, pts: rewardPts, title: campaign.title });
+            const promoData = { verified: false, status: 'pending', link: submittedLink, pts: rewardPts, title: campaign.title };
+            if (user.custom_promos instanceof Map) {
+                user.custom_promos.set(promoKey, promoData);
+            } else {
+                user.custom_promos[promoKey] = promoData;
+            }
             try {
                 const subId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
                 await redis.lpush('admin:quest_submissions', JSON.stringify({
@@ -562,7 +568,11 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
                 amount: campaign.pts,
                 timestamp: getFormattedDateTime()
             });
-            user.custom_promos.set(promoKey, true);
+            if (user.custom_promos instanceof Map) {
+                user.custom_promos.set(promoKey, true);
+            } else {
+                user.custom_promos[promoKey] = true;
+            }
         }
 
         await user.save();
@@ -589,7 +599,7 @@ const Bounty = require('../models/Bounty');
 const StoreOrder = require('../models/StoreOrder');
 
 // --- 🛒 PURCHASE STORE ITEM ---
-router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
+router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const item = String(req.body.item || "");
     const hasBlueTick = req.body.blue_tick === true;
@@ -773,7 +783,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
 });
 
 // --- 🌟 GENERATE INVOICE FOR TELEGRAM STARS ---
-router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
+router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const item = String(req.body.item || "");
     const hasBlueTick = Boolean(req.body.hasBlueTick || false);
@@ -831,7 +841,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
 });
 
 // --- 📊 AD TELEMETRY REPORTING ---
-router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData, async (req, res) => {
+router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData, globalEcosystemCheck, async (req, res) => {
     try {
         const { network, status, errorMsg } = req.body;
         if (!network || !status) return res.status(400).send("Invalid payload");
@@ -1055,7 +1065,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 });
 
 // --- 🎯 BOUNTY SUBMISSION ---
-router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppData, transactionalLimiter, async (req, res) => {
+router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppData, globalEcosystemCheck, transactionalLimiter, async (req, res) => {
     const userId = String(req.body.id || "");
     const bountyId = String(req.body.bounty_id || "");
     let proofUrl = String(req.body.proof_url || "").trim();

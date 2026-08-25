@@ -105,7 +105,10 @@ createBullBoard({
 
 app.use('/admin/queues', (req, res, next) => {
     const secret = req.query.secret || req.headers['x-admin-secret'];
-    const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE || 'warps_payout_sec_2026';
+    const ADMIN_SECRET_SIGNATURE = process.env.ADMIN_SECRET_SIGNATURE;
+    if (!ADMIN_SECRET_SIGNATURE) {
+        console.error('FATAL: ADMIN_SECRET_SIGNATURE environment variable is not set.');
+    }
     
     if (secret !== ADMIN_SECRET_SIGNATURE) {
         console.warn(`⚠️ [Security Alert] Unauthorized access attempt to Bull Board Dashboard.`);
@@ -157,6 +160,14 @@ app.get("/onboarding", async (req, res) => {
 
 // 🛡️ CLIENT-TO-SERVER SYBIL DETECTION HANDSHAKE PROCESSOR
 app.post("/portal/verify-sybil", async (req, res) => {
+    // Rate limit: 5 attempts per IP per 15 minutes
+    const rateLimitKey = `rl:sybil:${req.ip}`;
+    const attempts = await redis.incr(rateLimitKey);
+    if (attempts === 1) await redis.expire(rateLimitKey, 900);
+    if (attempts > 5) {
+        return res.status(429).json({ error: "Too many verification attempts. Try again later." });
+    }
+
     const { id, fingerprint, solution, country, xHandle } = req.body;
     if (!id || !fingerprint || !country || !xHandle) {
         return res.status(400).json({ error: "Missing credentials or profile information." });

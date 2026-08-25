@@ -1,32 +1,6 @@
 const crypto = require('crypto');
 const User = require('../models/User');
 
-function verifyTelegramSignature(initDataString, botToken) {
-    if (!initDataString) return false;
-    try {
-        const urlParams = new URLSearchParams(initDataString);
-        const hash = urlParams.get('hash');
-        urlParams.delete('hash');
-
-        const dataCheckArr = [];
-        for (const [key, value] of urlParams.entries()) {
-            dataCheckArr.push(`${key}=${value}`);
-        }
-        dataCheckArr.sort();
-        const dataCheckString = dataCheckArr.join('\n');
-
-        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
-        const localHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-
-        // Constant-time comparison to prevent timing attacks
-        const localBuf = Buffer.from(localHash, 'hex');
-        const providedBuf = Buffer.from(hash, 'hex');
-        return localBuf.length === providedBuf.length && crypto.timingSafeEqual(localBuf, providedBuf);
-    } catch (e) {
-        return false;
-    }
-}
-
 /**
  * Advanced Multi-Account Device Interceptor:
  * Evaluates hardware profiles, incoming hashes, and database entries to stop double registration.
@@ -39,7 +13,7 @@ async function isDeviceFingerprintFlagged(req, telegramId, browserFingerprint) {
         
         // Build a deterministic hardware device signature cluster hash
         const hardwareSignatureHash = crypto
-            .createHash('md5')
+            .createHash('sha256')
             .update(`${userAgent}_${acceptLanguage}`)
             .digest('hex');
 
@@ -78,6 +52,5 @@ async function isDeviceFingerprintFlagged(req, telegramId, browserFingerprint) {
 }
 
 module.exports = {
-    verifyTelegramSignature,
     isDeviceFingerprintFlagged
 };

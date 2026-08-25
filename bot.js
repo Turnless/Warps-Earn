@@ -81,10 +81,45 @@ bot.command('start', async (ctx) => {
 // --- 🌟 TELEGRAM STARS PAYMENT HANDLERS ---
 bot.on('pre_checkout_query', async (ctx) => {
     try {
-        // Always approve the pre-checkout query so the user can pay
+        const { invoice_payload, total_amount, currency } = ctx.preCheckoutQuery;
+        
+        // Validate currency
+        if (currency !== 'XTR') {
+            await ctx.answerPreCheckoutQuery(false, { error_message: "Invalid currency." });
+            return;
+        }
+
+        // Parse and validate payload
+        let payload;
+        try {
+            payload = JSON.parse(invoice_payload);
+        } catch (e) {
+            await ctx.answerPreCheckoutQuery(false, { error_message: "Invalid payment payload." });
+            return;
+        }
+
+        const { item, amount } = payload;
+        if (!item || !amount) {
+            await ctx.answerPreCheckoutQuery(false, { error_message: "Invalid payment details." });
+            return;
+        }
+
+        // Validate amount matches expected store price
+        const redis = require('./services/redis');
+        const storeConfigStr = await redis.get('admin:store_config');
+        const { DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG } = require('./constants');
+        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG };
+        
+        const expectedAmount = storeConfig[item];
+        if (!expectedAmount || expectedAmount !== total_amount) {
+            await ctx.answerPreCheckoutQuery(false, { error_message: "Price mismatch. Please try again." });
+            return;
+        }
+
         await ctx.answerPreCheckoutQuery(true);
     } catch (e) {
         console.error("❌ Pre-checkout query failed:", e);
+        await ctx.answerPreCheckoutQuery(false, { error_message: "Payment verification failed." });
     }
 });
 

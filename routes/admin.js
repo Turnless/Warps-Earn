@@ -115,6 +115,21 @@ const verifyCsrfToken = async (req, res, next) => {
     next();
 };
 
+// --- 📝 ADMIN AUDIT LOGGING ---
+async function logAdminAction(action, details = {}) {
+    try {
+        const entry = JSON.stringify({
+            action,
+            ...details,
+            timestamp: new Date().toISOString()
+        });
+        await redis.lpush('admin:audit_log', entry);
+        await redis.ltrim('admin:audit_log', 0, 499); // Keep last 500 entries
+    } catch (e) {
+        console.warn('[Audit Log] Failed to write:', e.message);
+    }
+}
+
 // --- 🔐 LOGIN SYSTEM ---
 router.get('/login', (req, res) => {
     res.render('admin_login');
@@ -140,7 +155,8 @@ router.post('/login', express.urlencoded({ extended: true }), async (req, res) =
             ip: req.ip
         }));
         // Set session cookie (not the password!)
-        res.cookie('admin_session', sessionToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: true, sameSite: 'strict' });
+        res.cookie('admin_session', sessionToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
+        await logAdminAction('login', { ip: req.ip });
         return res.redirect('/admin');
     }
 
@@ -266,7 +282,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
         // Fetch pending bounty submissions
         const BountySubmission = require('../models/BountySubmission');
         const StoreOrder = require('../models/StoreOrder');
-        const pendingBounties = await BountySubmission.find({ status: 'pending' }).sort({ submitted_at: -1 }).lean();
+        const pendingBounties = await BountySubmission.find({ status: 'pending' }).sort({ created_at: -1 }).lean();
         const pendingStoreOrders = await StoreOrder.find({ status: 'pending' }).sort({ created_at: -1 }).lean();
         
         // Fetch pending X verifications
@@ -631,8 +647,10 @@ router.post('/user-ban', checkAdminAuth, verifyCsrfToken, express.urlencoded({ e
     try {
         if (action === 'ban') {
             await User.updateOne({ telegram_id }, { is_banned: true });
+            await logAdminAction('user_ban', { target: telegram_id });
         } else if (action === 'unban') {
             await User.updateOne({ telegram_id }, { is_banned: false });
+            await logAdminAction('user_unban', { target: telegram_id });
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {
@@ -666,6 +684,7 @@ router.post('/user-delete', checkAdminAuth, verifyCsrfToken, express.urlencoded(
         await redis.del(`user:${telegram_id}:profile`);
         await redis.del(`lock:claim:${telegram_id}`);
         await redis.del(`lock:payout:${telegram_id}`);
+        await logAdminAction('user_delete', { target: telegram_id });
         res.redirect('/admin');
     } catch (e) {
         res.status(500).send("Action failed");
@@ -690,6 +709,7 @@ router.post('/user-manage-balance', checkAdminAuth, verifyCsrfToken, express.url
             });
             await user.save();
             await redis.del(`user:${telegram_id}:profile`);
+            await logAdminAction('balance_adjustment', { target: telegram_id, amount: amt, reason: reason || 'Manual' });
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {
