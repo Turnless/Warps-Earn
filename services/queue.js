@@ -6,6 +6,9 @@ require('dotenv').config();
 const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 const { REDIS_OPTS, REDIS_URL } = require('./redis');
 
+// Upper bound on failed jobs retained in Redis for debugging.
+const MAX_RETAINED_FAILED_JOBS = 500;
+
 console.log(`📡 [Queue] Initializing Telegram notification queue on Redis...`);
 
 // Bull creates 3 internal Redis connections. Use createClient so they all
@@ -73,7 +76,10 @@ async function sendTelegramMessageAsync(chatId, text, options = {}, delayMs = 0)
                 delay: 5000
             },
             removeOnComplete: true,
-            removeOnFail: false
+            // Failed jobs were retained forever. Every user who blocks the bot
+            // leaves a permanent job in Redis, which is what fills Upstash.
+            // Keep a bounded window for debugging instead.
+            removeOnFail: MAX_RETAINED_FAILED_JOBS
         }
     );
 }

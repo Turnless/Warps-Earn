@@ -205,9 +205,13 @@
 
             try {
                 // Post matching payloads back to client security validator router
+                const telegramInitData = window.Telegram?.WebApp?.initData || "";
                 const response = await fetch('/portal/verify-sybil', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `WebApp ${telegramInitData}`
+                    },
                     body: JSON.stringify({
                         id: explicitId,
                         fingerprint: getDeviceFingerprint(), // Dynamically generated unique hardware tracking token

@@ -18,10 +18,10 @@
                             <% if (hasBounties) { bounties.forEach(bounty => { 
                                 let isEligible = true;
                                 let eligibilityMsg = '';
-                                if (bounty.tier_required === 'Premium' && user.account_tier === 'Standard') {
+                                if (bounty.required_tier === 'Premium' && user.account_tier === 'Standard') {
                                     isEligible = false;
                                     eligibilityMsg = 'Requires Premium Tier';
-                                } else if (bounty.tier_required === 'Gold' && user.account_tier !== 'Gold') {
+                                } else if (bounty.required_tier === 'Gold' && user.account_tier !== 'Gold') {
                                     isEligible = false;
                                     eligibilityMsg = 'Requires Gold Tier';
                                 }

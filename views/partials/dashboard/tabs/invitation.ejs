@@ -1,6 +1,7 @@
 <div id="view-invite" class="hidden flex flex-col gap-4 w-full">
 <% 
 var qualifiedRefs = locals.qualifiedRefs || 0;
+var REFERRAL_ACTIVATION_THRESHOLD = locals.REFERRAL_ACTIVATION_THRESHOLD || 20;
 var nextMilestoneTarget = locals.nextMilestoneTarget || 10;
 var contestProgressPct = locals.contestProgressPct || 0;
 %>
@@ -110,11 +111,11 @@ var contestProgressPct = locals.contestProgressPct || 0;
                                             <span class="text-xs font-bold text-neutral-800 truncate max-w-[180px]">
                                                 <%= ref.username || ('id_' + ref.telegram_id.toString().slice(-4)) %>
                                             </span>
-                                            <span class="text-[10px] font-medium text-neutral-500 mono-text">Status: <%= ref.qualified ? 'QUALIFIED' : `${ref.ads_viewed}/1000 ads` %></span>
+                                            <span class="text-[10px] font-medium text-neutral-500 mono-text">Status: <%= ref.qualified ? 'QUALIFIED' : `${ref.ads_viewed}/${REFERRAL_ACTIVATION_THRESHOLD} ads` %></span>
                                         </div>
 
                                         <div class="w-full bg-neutral-200 rounded-full h-1.5 overflow-hidden">
-                                            <% let pct=ref.qualified ? 100 : Math.min((ref.ads_viewed / 1000) * 100, 100); %>
+                                            <% let pct=ref.qualified ? 100 : Math.min((ref.ads_viewed / REFERRAL_ACTIVATION_THRESHOLD) * 100, 100); %>
                                                 <div class="bg-neutral-950 h-1.5 rounded-full transition-all duration-300" style="width: <%= pct %>%"></div>
                                         </div>
                                     </div>

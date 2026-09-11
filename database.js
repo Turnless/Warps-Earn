@@ -77,8 +77,12 @@ async function trackDailyLogin(userId) {
     const todayStr = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - MS_PER_DAY).toISOString().split('T')[0];
 
-    // Already tracked today
-    if (user.last_login_date === todayStr) return user.toObject();
+    // Already tracked today — nothing written, so the cache stays valid
+    if (user.last_login_date === todayStr) {
+        const unchanged = user.toObject();
+        unchanged.__changed = false;
+        return unchanged;
+    }
 
     if (user.last_login_date === yesterday) {
         user.login_streak = (user.login_streak || 0) + 1;
@@ -104,7 +108,9 @@ async function trackDailyLogin(userId) {
     }
 
     await user.save();
-    return user.toObject();
+    const updated = user.toObject();
+    updated.__changed = true;
+    return updated;
 }
 
 async function watchAdRound(userId) {

@@ -3,30 +3,65 @@ const router = express.Router();
 const crypto = require('crypto');
 const User = require('../models/User');
 
+const INITDATA_MAX_AGE_SECONDS = 24 * 60 * 60;
+
+/**
+ * Verifies a raw Telegram initData string and returns the signed user object,
+ * or null if the signature is missing, forged or stale.
+ */
+function verifyInitData(rawInitData) {
+    if (!rawInitData) return null;
+    const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+        console.error('FATAL: BOT_TOKEN is not set. Cannot verify Telegram sessions.');
+        return null;
+    }
+    try {
+        const params = new URLSearchParams(rawInitData);
+        const hash = params.get('hash');
+        if (!hash || !/^[0-9a-fA-F]+$/.test(hash)) return null;
+
+        const authDate = parseInt(params.get('auth_date'), 10);
+        if (!authDate || Number.isNaN(authDate)) return null;
+        if ((Math.floor(Date.now() / 1000) - authDate) > INITDATA_MAX_AGE_SECONDS) return null;
+
+        const keys = Array.from(params.keys()).filter(k => k !== 'hash').sort();
+        const dataCheckString = keys.map(k => `${k}=${params.get(k)}`).join('\n');
+
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+        const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+        const computedBuf = Buffer.from(computedHash, 'hex');
+        const providedBuf = Buffer.from(hash, 'hex');
+        if (computedBuf.length !== providedBuf.length) return null;
+        if (!crypto.timingSafeEqual(computedBuf, providedBuf)) return null;
+
+        const userObj = JSON.parse(params.get('user'));
+        if (!userObj || !userObj.id) return null;
+        // start_param is a top-level initData field, not part of the user object
+        userObj.start_param = params.get('start_param') || null;
+        return userObj;
+    } catch (e) {
+        console.warn("initData verification failed:", e.message);
+        return null;
+    }
+}
+
 // 🔑 CENTRAL TRAFFIC CHECKPOINT (Triggers when user opens any Mini App button instance)
 router.get('/', async (req, res) => {
-    let telegramId = req.query.id;
-    let parsedUser = null;
-    let rawInitData = req.query.tgWebAppInitData || req.headers['x-telegram-init-data'];
+    const rawInitData = req.query.tgWebAppInitData || req.headers['x-telegram-init-data'];
 
-    // 💡 THE GLOBAL BUTTON FIX: If id parameter is missing from the query string
-    try {
-        if (rawInitData) {
-            const urlParams = new URLSearchParams(rawInitData);
-            const userObj = JSON.parse(urlParams.get('user'));
-            if (userObj && userObj.id) {
-                telegramId = String(userObj.id);
-                parsedUser = userObj; // Save user context details (pfp, username, names)
-            }
-        }
-    } catch (e) {
-        console.warn("Global tracking identity evaluation skipped:", e.message);
-    }
+    // Identity comes ONLY from a verified signature. `?id=` is attacker-controlled —
+    // trusting it let anyone create arbitrary user records by enumerating IDs.
+    const parsedUser = verifyInitData(rawInitData);
 
-    // Fallback block if everything is completely empty (e.g. opened via t.me/bot/app direct link)
-    if (!telegramId) {
+    // No verified session yet? Render the loader, which reads initData from the
+    // Telegram SDK and re-enters this route with a signed payload.
+    if (!parsedUser) {
         return res.render("loader");
     }
+
+    const telegramId = String(parsedUser.id);
 
     try {
         let user = await User.findOne({ telegram_id: String(telegramId) });
@@ -48,7 +83,13 @@ router.get('/', async (req, res) => {
             const username = parsedUser?.username || "Anonymous";
             const firstName = parsedUser?.first_name || "User Node";
             const photoUrl = parsedUser?.photo_url || null;
-            const upline = req.query.startapp || null; // Capture invitation referral code if present
+            // Referral code arrives as start_param inside initData (Mini App launch)
+            // or as ?startapp= on a t.me link. Normalise the `ref_` prefix the bot uses.
+            let upline = parsedUser.start_param || req.query.startapp || null;
+            if (upline) {
+                upline = String(upline).replace(/^ref_/, '');
+                if (!/^\d+$/.test(upline) || upline === telegramId) upline = null;
+            }
             const todayStr = new Date().toISOString().split('T')[0];
 
             // Create a hardware verification hash placeholder for local dev environments
@@ -83,6 +124,24 @@ router.get('/', async (req, res) => {
             });
 
             await user.save();
+
+            if (upline) {
+                const referrer = await User.findOne({ telegram_id: String(upline) });
+                if (referrer) {
+                    if (!referrer.referrals) referrer.referrals = [];
+                    const alreadyLinked = referrer.referrals.some(r => r.telegram_id === String(telegramId));
+                    if (!alreadyLinked) {
+                        referrer.referrals.push({
+                            telegram_id: String(telegramId),
+                            username: parsedUser.username ? `@${parsedUser.username}` : `id_${String(telegramId).slice(-4)}`,
+                            ads_viewed: 0,
+                            reward_issued: false
+                        });
+                        await referrer.save();
+                        console.log(`[PIPELINE LINKED] User ${telegramId} registered under Upline ${upline}`);
+                    }
+                }
+            }
         }
 
         // 🔒 SECURITY CHECKPOINT: Enforce Sybil Validation

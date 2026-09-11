@@ -23,11 +23,16 @@ if (!ADMIN_SECRET_SIGNATURE) {
 }
 const PUBLIC_PAYOUT_CHANNEL_ID = process.env.PUBLIC_PAYOUT_CHANNEL_ID || '@WarpsEarn';
 
+// Telegram initData stays signed forever; expire it so a leaked string
+// (it travels in the URL query string) is not a permanent credential.
+const INITDATA_MAX_AGE_SECONDS = 24 * 60 * 60;
+
 // Shared business logic constants
 const {
     DAILY_AD_LIMIT, ADS_PER_ROUND, SHORT_COOLDOWN_MS, LONG_COOLDOWN_MS,
     PTS_TO_USD_RATE, USD_TO_NGN_RATE, ADSGRAM_REWARD_PTS, QUEST_REWARD_PTS,
-    ONBOARDING_REWARD_PTS, REFERRAL_ACTIVATION_REWARD, REFERRAL_MILESTONES,
+    ONBOARDING_REWARD_PTS, REFERRAL_ACTIVATION_REWARD, REFERRAL_ACTIVATION_THRESHOLD,
+    REFERRAL_MILESTONES,
     SHORT_COOLDOWN_SECONDS_THRESHOLD, AD_CLAIM_LOCK_TTL_SECONDS,
     PAYOUT_LOCK_TTL_SECONDS, NAIRA_ACCOUNT_NUMBER_LENGTH, MAX_DAILY_WITHDRAWALS,
     FIRST_WITHDRAWAL_MIN_PTS, MIN_WITHDRAWAL_PTS, UPLINE_PROMOTER_REFERRAL_THRESHOLD,
@@ -35,6 +40,19 @@ const {
     REDIS_OPERATION_TIMEOUT_MS, USER_CACHE_TTL_SECONDS, MAX_QUEST_SUBMISSIONS_LOG,
     DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG
 } = require('../constants');
+
+// Maps a store item key to its Telegram Stars price key.
+// Store config holds PTS prices under the bare key (premium_tier_1m) and
+// Stars prices under a `stars_` prefix (stars_premium_1m).
+function resolveStarsPriceKey(item) {
+    const key = String(item);
+    if (key.startsWith('stars_')) return key;
+    // Item keys carry a `_tier_` segment the price keys drop:
+    //   premium_tier_1m    -> stars_premium_1m
+    //   gold_tier_3m_blue  -> stars_gold_3m_blue
+    //   x_verify           -> stars_x_verify
+    return `stars_${key.replace('_tier_', '_')}`;
+}
 
 // 🛡️ HTML SANITIZER FOR TELEGRAM COMPATIBILITY
 function escapeTelegramHtml(text) {
@@ -107,15 +125,28 @@ function verifyInitDataParam(req, res, next) {
         const hash = params.get('hash');
         if (!hash) return res.status(401).send("Unauthorized: Invalid token.");
 
+        // initData signatures never expire on their own — enforce a freshness window
+        const authDate = parseInt(params.get('auth_date'), 10);
+        if (!authDate || Number.isNaN(authDate)) {
+            return res.status(401).send("Unauthorized: Missing session timestamp.");
+        }
+        if ((Math.floor(Date.now() / 1000) - authDate) > INITDATA_MAX_AGE_SECONDS) {
+            return res.status(401).send("Unauthorized: Session expired. Please reopen the app.");
+        }
+
         const keys = Array.from(params.keys()).filter(k => k !== 'hash').sort();
         const dataCheckString = keys.map(k => `${k}=${params.get(k)}`).join('\n');
 
         const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+        if (!botToken) {
+            console.error('FATAL: BOT_TOKEN is not set. Cannot verify Telegram sessions.');
+            return res.status(500).send("Server misconfiguration.");
+        }
         const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
         const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
         const computedBuf = Buffer.from(computedHash, 'hex');
-        const providedBuf = Buffer.from(hash, 'hex');
+        const providedBuf = Buffer.from(/^[0-9a-fA-F]+$/.test(hash) ? hash : '', 'hex');
         if (computedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(computedBuf, providedBuf)) {
             return res.status(403).send("Forbidden: Invalid signature.");
         }
@@ -137,9 +168,14 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
             return res.status(400).send("Missing identity context parameter.");
         }
 
-        // Track daily login streak when user opens the app
-        await db.trackDailyLogin(userId);
-        await invalidateUserCache(userId);
+        // Track daily login streak when user opens the app.
+        // Only purge the cache when the login tracker actually wrote something —
+        // purging unconditionally made every dashboard load a guaranteed cache miss
+        // (a DEL + GET + SETEX of the full user document, every single time).
+        const loginResult = await db.trackDailyLogin(userId);
+        if (!loginResult || loginResult.__changed !== false) {
+            await invalidateUserCache(userId);
+        }
 
         const redisKey = `user:${userId}:profile`;
         let user = null;
@@ -188,6 +224,7 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
         const storeConfigStr = await redis.get('admin:store_config');
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
             ...DEFAULT_STORE_CONFIG,
+            ...DEFAULT_STARS_CONFIG,
         };
 
         const StoreOrder = require('../models/StoreOrder');
@@ -196,7 +233,7 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
         const BountySubmission = require('../models/BountySubmission');
         const userBountySubmissions = await BountySubmission.find({ telegram_id: userId }).lean();
 
-        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig, pendingOrders: pendingOrders, userBountySubmissions: userBountySubmissions, globalSettings: req.globalSettings });
+        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig, pendingOrders: pendingOrders, userBountySubmissions: userBountySubmissions, globalSettings: req.globalSettings, REFERRAL_ACTIVATION_THRESHOLD: REFERRAL_ACTIVATION_THRESHOLD });
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
@@ -458,6 +495,22 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
             return res.status(404).send("User profile not found.");
         }
 
+        if (user.is_banned) {
+            await redisWithTimeout(redis.del(lockKey));
+            return res.status(403).send("Account suspended.");
+        }
+
+        // This endpoint grants points on the client's word alone, so cap it at one
+        // claim per user per day. Without this the rate limiter still allowed
+        // 5 claims/min (~360,000 PTS/day) for an ad nobody watched.
+        const todayStr = new Date().toISOString().split('T')[0];
+        const claimedKey = `adsgram:claimed:${userId}:${todayStr}`;
+        const firstClaimToday = await redisWithTimeout(redis.set(claimedKey, "1", "NX", "EX", 86400));
+        if (!firstClaimToday) {
+            await redisWithTimeout(redis.del(lockKey));
+            return res.status(429).send("You have already claimed this reward today. Come back tomorrow!");
+        }
+
         user.points_balance = (user.points_balance || 0) + rewardAmount;
 
         if (!user.earnings_history) user.earnings_history = [];
@@ -624,11 +677,13 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         gold_tier_6m_blue: { key: 'gold_tier_6m_blue', title: "Gold Tier (6 Months) + Blue Tick" }
     };
 
+    // Declared at handler scope so the finally{} block below can release it.
+    const lockKey = `lock:store:${userId}:${item}`;
+
     try {
         if (!userId || !item || !items[item]) return res.status(400).send("Invalid item payload.");
 
         // Mutex lock to prevent double-spend on concurrent requests
-        const lockKey = `lock:store:${userId}:${item}`;
         const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 10));
         if (!isLocked) {
             return res.status(429).send("Purchase already processing. Please wait.");
@@ -637,6 +692,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         const storeConfigStr = await redis.get('admin:store_config');
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
             ...DEFAULT_STORE_CONFIG,
+            ...DEFAULT_STARS_CONFIG,
         };
 
         const user = await User.findOne({ telegram_id: userId });
@@ -657,6 +713,13 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         } else if (item === 'premium_tier_6m' && hasBlueTick) {
             cost = storeConfig.premium_tier_6m_blue;
             title += " + Blue Tick";
+        }
+
+        // Validate the final price (after any blue-tick substitution). `balance < undefined`
+        // is false, so an unpriced item would otherwise pass the affordability check.
+        if (typeof cost !== 'number' || !Number.isFinite(cost) || cost <= 0) {
+            console.error(`[Store] No valid price configured for item: ${item} (blue_tick=${hasBlueTick})`);
+            return res.status(400).send("This item is not available right now.");
         }
 
         // Block multiplier re-purchase while still active (check before deducting)
@@ -786,7 +849,11 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         console.error("Store error:", e);
         return res.status(500).send("Purchase failed.");
     } finally {
-        await redisWithTimeout(redis.del(lockKey));
+        try {
+            await redisWithTimeout(redis.del(lockKey));
+        } catch (releaseErr) {
+            console.warn("⚠️ Store lock release failed:", releaseErr.message);
+        }
     }
 });
 
@@ -800,23 +867,33 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
         return res.status(400).send("Invalid invoice payload.");
     }
 
-    // CRITICAL: Validate amount server-side — never trust client-sent amount
+    // CRITICAL: Validate amount server-side — never trust client-sent amount.
+    // Stars prices live under the `stars_` namespace; looking up the bare item key
+    // returned the PTS price and invoiced it as Stars (e.g. 15,000 Stars for a
+    // 15-Star item), so resolve the Stars key explicitly.
     const storeConfigStr = await redis.get('admin:store_config');
     const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG };
-    const expectedAmount = storeConfig[item];
+    const starsKey = resolveStarsPriceKey(item);
+    const expectedAmount = storeConfig[starsKey];
     if (!expectedAmount || typeof expectedAmount !== 'number' || expectedAmount <= 0) {
+        console.error(`[Invoice] No Stars price configured for item: ${item} (looked up ${starsKey})`);
         return res.status(400).send("Invalid store item.");
     }
 
     try {
         const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
         
-        const payload = JSON.stringify({ userId, item, amount: expectedAmount, hasBlueTick });
+        const payload = JSON.stringify({ userId, item, amount: expectedAmount, currency: 'stars', hasBlueTick });
         
+        // Item keys are suffixed (premium_tier_1m, gold_tier_3m_blue...), so exact
+        // comparisons never matched and every invoice read "Store Purchase".
         let title = "Store Purchase";
-        if (item === 'premium_tier') title = "Premium Tier Upgrade";
-        else if (item === 'gold_tier') title = "Gold Tier Upgrade";
+        if (item.startsWith('premium_tier')) title = "Premium Tier Upgrade";
+        else if (item.startsWith('gold_tier')) title = "Gold Tier Upgrade";
         else if (item === 'x_verify') title = "X Verification Pack";
+        else if (item === 'multiplier') title = "2x Yield Multiplier";
+        else if (item === 'cooldown') title = "Instant Cooldown Reset";
+        if (hasBlueTick && !item.includes('blue')) title += " + Blue Tick";
 
         const tgUrl = `https://api.telegram.org/bot${botToken}/createInvoiceLink`;
         const invoiceData = {
@@ -1164,7 +1241,11 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         console.error("Bounty submission error:", e);
         res.status(500).send("Internal error processing submission.");
     } finally {
-        await redisWithTimeout(redis.del(`lock:bounty:${userId}:${bountyId}`));
+        try {
+            await redisWithTimeout(redis.del(`lock:bounty:${userId}:${bountyId}`));
+        } catch (releaseErr) {
+            console.warn("⚠️ Bounty lock release failed:", releaseErr.message);
+        }
     }
 });
 

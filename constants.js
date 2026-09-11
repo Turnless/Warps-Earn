@@ -23,10 +23,10 @@ const REFERRAL_ACTIVATION_THRESHOLD = 20;
 const VIP_REFERRAL_THRESHOLD = 50;
 const UPLINE_PROMOTER_REFERRAL_THRESHOLD = 10;
 const REFERRAL_MILESTONES = [
-    { n: 10, pts: 6250 },
-    { n: 20, pts: 6250 },
-    { n: 50, pts: 18750 },
-    { n: 100, pts: 31250 }
+    { n: 10, pts: 6250, label: '10 Referral Milestone' },
+    { n: 20, pts: 6250, label: '20 Referral Milestone' },
+    { n: 50, pts: 18750, label: '50 Referral Milestone' },
+    { n: 100, pts: 31250, label: '100 Referral Milestone' }
 ];
 
 // --- Withdrawals ---
@@ -72,6 +72,7 @@ const DEFAULT_STORE_CONFIG = {
     cooldown: 500,
     multiplier: 3000,
     premium_tier_1m: 15000,
+    premium_tier_3m: 22000,
     premium_tier_6m: 28000,
     premium_tier_3m_blue: 45000,
     premium_tier_6m_blue: 85000,
@@ -83,6 +84,7 @@ const DEFAULT_STORE_CONFIG = {
 };
 
 const DEFAULT_STARS_CONFIG = {
+    stars_premium_1m: 15,
     stars_premium_3m: 25,
     stars_premium_6m: 40,
     stars_premium_1m_blue: 50,

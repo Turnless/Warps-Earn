@@ -2,7 +2,8 @@
 <% 
 var firstWithdrawalDone = locals.firstWithdrawalDone || false;
 var qualifiedRefs = locals.qualifiedRefs || 0;
-var personalThreshold=firstWithdrawalDone ? 1250 : 1500; var isUplinePromoter=(qualifiedRefs>=10);
+var personalThreshold = (user.account_tier === 'Gold') ? 1000 : (firstWithdrawalDone ? 1250 : 1500);
+                        var isUplinePromoter=(qualifiedRefs>=10);
                         var globalClearedStatus = (user.points_balance >= personalThreshold || isUplinePromoter);
                     %>
 
