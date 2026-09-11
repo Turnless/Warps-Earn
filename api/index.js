@@ -198,7 +198,8 @@ app.get("/onboarding", async (req, res) => {
 });
 
 // 🛡️ CLIENT-TO-SERVER SYBIL DETECTION HANDSHAKE PROCESSOR
-app.post("/portal/verify-sybil", async (req, res) => {
+const verifyTelegramWebAppData = require(path.join(process.cwd(), "middleware", "auth"));
+app.post("/portal/verify-sybil", verifyTelegramWebAppData, async (req, res) => {
     const redis = require('../services/redis');
     // Rate limit: 5 attempts per IP per 15 minutes
     const rateLimitKey = `rl:sybil:${req.ip}`;
@@ -208,7 +209,8 @@ app.post("/portal/verify-sybil", async (req, res) => {
         return res.status(429).json({ error: "Too many verification attempts. Try again later." });
     }
 
-    const { id, fingerprint, solution, country, xHandle } = req.body;
+    const { fingerprint, solution, country, xHandle } = req.body;
+    const id = req.validatedTelegramId;
     if (!id || !fingerprint || !country || !xHandle) {
         return res.status(400).json({ error: "Missing credentials or profile information." });
     }
@@ -237,6 +239,12 @@ app.post("/portal/verify-sybil", async (req, res) => {
 
         if (!user) {
             return res.status(404).json({ error: "User not found." });
+        }
+
+        // Onboarding pays ONBOARDING_REWARD_PTS and rewrites the device fingerprint.
+        // Without this guard it could be replayed for unlimited points.
+        if (user.onboarding_passed) {
+            return res.status(409).json({ error: "This account is already verified." });
         }
 
         // Apply onboarding updates, award initial verification points, and lock fingerprint to account

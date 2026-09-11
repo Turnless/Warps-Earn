@@ -18,9 +18,13 @@ if (typeof dynamicQuests !== 'undefined') {
 
 if (typeof bounties !== 'undefined') {
     bounties.forEach(b => {
-        if (!b.target_countries || b.target_countries.length === 0 || b.target_countries.includes(user.country)) {
-            incompleteCount++;
+        if (b.target_countries && b.target_countries.length > 0 && !b.target_countries.includes(user.country)) return;
+        // Already submitted (pending or approved) is not "incomplete"
+        if (typeof userBountySubmissions !== 'undefined') {
+            const sub = userBountySubmissions.find(s => String(s.bounty_id) === String(b._id));
+            if (sub && (sub.status === 'pending' || sub.status === 'approved')) return;
         }
+        incompleteCount++;
     });
 }
 

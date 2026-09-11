@@ -49,11 +49,11 @@
                                 </div>
 
                                 <div id="premium-options-blue" class="hidden grid grid-cols-2 gap-2 mt-2 relative z-10">
-                                    <button onclick="promptStorePurchase('premium_tier_3m_blue', <%= locals.storeConfig?.premium_tier_3m_blue || 45000 %>, <%= locals.storeConfig?.stars_premium_3m_blue || 50 %>)" class="bg-indigo-900/60 hover:bg-indigo-800 text-indigo-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-indigo-700/50 flex flex-col items-center">
+                                    <button onclick="promptStorePurchase('premium_tier_3m_blue', <%= locals.storeConfig?.premium_tier_3m_blue || 45000 %>, <%= locals.storeConfig?.stars_premium_3m_blue || 100 %>)" class="bg-indigo-900/60 hover:bg-indigo-800 text-indigo-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-indigo-700/50 flex flex-col items-center">
                                         <span>3 Months</span>
                                         <span class="text-[9px] text-indigo-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.premium_tier_3m_blue) || 45000).toLocaleString() %> PTS</span>
                                     </button>
-                                    <button onclick="promptStorePurchase('premium_tier_6m_blue', <%= locals.storeConfig?.premium_tier_6m_blue || 85000 %>, <%= locals.storeConfig?.stars_premium_6m_blue || 95 %>)" class="bg-indigo-900/60 hover:bg-indigo-800 text-indigo-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-indigo-700/50 flex flex-col items-center">
+                                    <button onclick="promptStorePurchase('premium_tier_6m_blue', <%= locals.storeConfig?.premium_tier_6m_blue || 85000 %>, <%= locals.storeConfig?.stars_premium_6m_blue || 150 %>)" class="bg-indigo-900/60 hover:bg-indigo-800 text-indigo-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-indigo-700/50 flex flex-col items-center">
                                         <span>6 Months</span>
                                         <span class="text-[9px] text-indigo-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.premium_tier_6m_blue) || 85000).toLocaleString() %> PTS</span>
                                     </button>
@@ -100,7 +100,7 @@
                             </div>
 
                             <div id="gold-options-blue" class="hidden grid grid-cols-2 gap-2 mt-2 relative z-10">
-                                <button onclick="promptStorePurchase('gold_tier_3m_blue', <%= locals.storeConfig?.gold_tier_3m_blue || 80000 %>, <%= locals.storeConfig?.stars_gold_3m_blue || 120 %>)" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
+                                <button onclick="promptStorePurchase('gold_tier_3m_blue', <%= locals.storeConfig?.gold_tier_3m_blue || 80000 %>, <%= locals.storeConfig?.stars_gold_3m_blue || 180 %>)" class="bg-amber-900/60 hover:bg-amber-800 text-amber-50 font-bold text-xs py-2.5 rounded-xl shadow-inner active:scale-[0.98] transition-all border border-amber-700/50 flex flex-col items-center">
                                     <span>3 Months</span>
                                     <span class="text-[9px] text-amber-300 mono-text"><%= ((locals.storeConfig && locals.storeConfig.gold_tier_3m_blue) || 80000).toLocaleString() %> PTS</span>
                                 </button>

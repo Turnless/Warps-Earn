@@ -2,6 +2,11 @@
 const crypto = require('crypto');
 require('dotenv').config();
 
+// Telegram initData stays cryptographically valid forever, so a leaked
+// initData string is a permanent credential unless we enforce a freshness
+// window on auth_date.
+const INITDATA_MAX_AGE_SECONDS = 24 * 60 * 60;
+
 /**
  * Express Middleware to validate Telegram WebApp initData signatures.
  * Prevents endpoint spoofing, IDOR, and unauthorized point farming.
@@ -21,12 +26,25 @@ function verifyTelegramWebAppData(req, res, next) {
         return res.status(401).send("Unauthorized: Invalid cryptographic parameters.");
     }
 
+    // Reject stale sessions before spending any crypto on them
+    const authDate = parseInt(params.get('auth_date'), 10);
+    if (!authDate || Number.isNaN(authDate)) {
+        return res.status(401).send("Unauthorized: Missing session timestamp.");
+    }
+    if ((Math.floor(Date.now() / 1000) - authDate) > INITDATA_MAX_AGE_SECONDS) {
+        return res.status(401).send("Unauthorized: Session expired. Please reopen the app.");
+    }
+
     // 1. Sort all key-value parameters alphabetically (excluding 'hash')
     const keys = Array.from(params.keys()).filter(key => key !== 'hash').sort();
     const dataCheckString = keys.map(key => `${key}=${params.get(key)}`).join('\n');
 
     // 2. Derive secret key by hashing the Bot Token using "WebAppData" constant salt
     const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+        console.error('FATAL: BOT_TOKEN is not set. Cannot verify Telegram sessions.');
+        return res.status(500).send("Server misconfiguration.");
+    }
     const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
 
     // 3. Compute expected hash signature
@@ -34,7 +52,7 @@ function verifyTelegramWebAppData(req, res, next) {
 
     // 4. Compare calculated hash signature with the client's provided hash (constant-time to prevent timing attacks)
     const computedBuf = Buffer.from(computedHash, 'hex');
-    const providedBuf = Buffer.from(hash, 'hex');
+    const providedBuf = Buffer.from(/^[0-9a-fA-F]+$/.test(hash) ? hash : '', 'hex');
     if (computedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(computedBuf, providedBuf)) {
         return res.status(403).send("Forbidden: Cryptographic signature mismatch. Session tampered.");
     }

@@ -5,7 +5,8 @@
   "main": "api/index.js",
   "scripts": {
     "dev": "node dev.js",
-    "start": "node dev.js"
+    "start": "node dev.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js"
   },
   "dependencies": {
     "@bull-board/api": "^8.0.1",

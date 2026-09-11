@@ -110,8 +110,12 @@ bot.on('pre_checkout_query', async (ctx) => {
         const { DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG } = require('./constants');
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG };
         
-        const expectedAmount = storeConfig[item];
+        // Stars prices live under the `stars_` namespace — looking up the bare
+        // item key compared against the PTS price and approved a 1000x overcharge.
+        const starsKey = item.startsWith('stars_') ? item : `stars_${item.replace('_tier_', '_')}`;
+        const expectedAmount = storeConfig[starsKey];
         if (!expectedAmount || expectedAmount !== total_amount) {
+            console.error(`[PreCheckout] Price mismatch for ${item}: expected ${expectedAmount} (${starsKey}), got ${total_amount}`);
             await ctx.answerPreCheckoutQuery(false, { error_message: "Price mismatch. Please try again." });
             return;
         }
@@ -181,6 +185,15 @@ bot.on('successful_payment', async (ctx) => {
             }
         } else if (item === 'x_verify') {
             isPending = true;
+        } else if (item === 'cooldown') {
+            user.cooldown_until = 0;
+            user.current_session_loop = 0;
+        } else if (item === 'multiplier') {
+            const { AD_MULTIPLIER_PREMIUM } = require('./constants');
+            user.ad_multiplier = AD_MULTIPLIER_PREMIUM;
+            const expDate = new Date();
+            expDate.setMonth(expDate.getMonth() + 1);
+            user.multiplier_expires_at = expDate;
         }
 
         await user.save();

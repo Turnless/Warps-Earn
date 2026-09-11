@@ -46,10 +46,14 @@ function getFormattedDateTime() {
 
 // --- 🛡️ AUTHENTICATION MIDDLEWARE ---
 // Session-based auth: verify random token from Redis, never raw password
+// Routes a signed payout token is allowed to unlock. The token is emailed out in
+// a Telegram message, so it must not act as a general admin key.
+const SIGNED_TOKEN_ALLOWED_PATHS = ['/payout'];
+
 const checkAdminAuth = async (req, res, next) => {
     // 1. Check for HMAC-signed payout token (from Telegram inline buttons)
     const signedToken = req.query.token;
-    if (signedToken) {
+    if (signedToken && SIGNED_TOKEN_ALLOWED_PATHS.includes(req.path)) {
         try {
             const [payload, sig] = signedToken.split('.');
             const expectedSig = crypto
@@ -405,13 +409,13 @@ router.post('/store-config', checkAdminAuth, verifyCsrfToken, express.urlencoded
             gold_tier_6m_blue: parseInt(gold_tier_6m_blue) || 150000,
             stars_premium_1m: parseInt(stars_premium_1m) || 15,
             stars_premium_3m: parseInt(stars_premium_3m) || 25,
-            stars_premium_6m: parseInt(stars_premium_6m) || 45,
-            stars_premium_3m_blue: parseInt(stars_premium_3m_blue) || 50,
-            stars_premium_6m_blue: parseInt(stars_premium_6m_blue) || 95,
+            stars_premium_6m: parseInt(stars_premium_6m) || DEFAULT_STARS_CONFIG.stars_premium_6m,
+            stars_premium_3m_blue: parseInt(stars_premium_3m_blue) || DEFAULT_STARS_CONFIG.stars_premium_3m_blue,
+            stars_premium_6m_blue: parseInt(stars_premium_6m_blue) || DEFAULT_STARS_CONFIG.stars_premium_6m_blue,
             stars_gold_1m: parseInt(stars_gold_1m) || 50,
             stars_gold_3m: parseInt(stars_gold_3m) || 100,
-            stars_gold_6m: parseInt(stars_gold_6m) || 180,
-            stars_gold_3m_blue: parseInt(stars_gold_3m_blue) || 120,
+            stars_gold_6m: parseInt(stars_gold_6m) || DEFAULT_STARS_CONFIG.stars_gold_6m,
+            stars_gold_3m_blue: parseInt(stars_gold_3m_blue) || DEFAULT_STARS_CONFIG.stars_gold_3m_blue,
             stars_gold_6m_blue: parseInt(stars_gold_6m_blue) || 220,
             stars_x_verify: parseInt(stars_x_verify) || 100,
             enable_cooldown: enable_cooldown === 'on',

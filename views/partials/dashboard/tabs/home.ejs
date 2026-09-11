@@ -25,7 +25,7 @@
                                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                 <span class="font-medium">Status: <span class="mono-text text-neutral-900 font-bold">READY</span></span>
                             </div>
-                            <span class="mono-text text-[10px]">+<%= (locals.settings && locals.settings.reward_per_ad) || 3 %> PTS PER ROUND</span>
+                            <span class="mono-text text-[10px]">+<%= ((locals.globalSettings?.reward_per_ad || 3) * 3) * (user.ad_multiplier || 1) %> PTS PER ROUND</span>
                         </div>
 
                         <button id="adsgram-play-btn" onclick="triggerAdNetworkSequence()" class="w-full bg-neutral-900 hover:bg-neutral-800 active:scale-[0.98] transition-all text-[#e6ddd0] rounded-2xl p-4 flex items-center justify-between shadow-md group">
