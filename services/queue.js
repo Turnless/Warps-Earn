@@ -13,10 +13,22 @@ console.log(`📡 [Queue] Initializing Telegram notification queue on Redis...`)
 
 // Bull creates 3 internal Redis connections. Use createClient so they all
 // inherit the Upstash-compatible options (maxRetriesPerRequest: null, etc.)
+// Bull polls Redis continuously even with an empty queue. On a pay-per-request
+// Redis (Upstash) the defaults cost ~89,000 commands/day with zero users, which
+// exhausts a 500k/month quota in under 6 days. These intervals cut that by ~98%
+// without delaying jobs: Bull still sets a precise timer for the next delayed
+// job, and a blocking BRPOPLPUSH still wakes the instant a job is pushed.
+const QUEUE_SETTINGS = {
+    guardInterval: 300000,    // delayed-set safety sweep (default 5000)
+    stalledInterval: 300000,  // stalled-job check (default 30000)
+    drainDelay: 60            // blocking pop timeout in seconds (default 5)
+};
+
 const telegramQueue = new Queue('telegramNotifications', {
     createClient(type) {
         return new Redis(REDIS_URL, REDIS_OPTS);
-    }
+    },
+    settings: QUEUE_SETTINGS
 });
 
 // Register error listener to prevent unhandled Redis connection reset crashes

@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
 const redis = require('../services/redis');
 const { sendTelegramMessageAsync, telegramQueue } = require('../services/queue');
+const { invalidateGlobalSettings } = require('../services/settings');
 
 // Import environment parameters securely
 require('dotenv').config();
@@ -374,6 +375,7 @@ router.post('/settings', checkAdminAuth, verifyCsrfToken, express.urlencoded({ e
             streak_reward: parseInt(streak_reward) || STREAK_BONUS_REWARD
         };
         await redis.set('global_settings', JSON.stringify(newSettings));
+        invalidateGlobalSettings();   // this process picks the change up immediately
         res.redirect('/admin');
     } catch (e) {
         res.status(500).send("Failed to update settings");

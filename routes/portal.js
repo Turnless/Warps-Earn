@@ -8,6 +8,7 @@ const Withdrawal = require('../models/Withdrawal');
 const BountySubmission = require('../models/BountySubmission');
 const redis = require('../services/redis');
 const { sendTelegramMessageAsync } = require('../services/queue');
+const { getGlobalSettings } = require('../services/settings');
 
 // Import the cryptographic verification middleware securely
 const verifyTelegramWebAppData = require('../middleware/auth');
@@ -96,8 +97,7 @@ function redisWithTimeout(promise, timeoutMs = REDIS_OPERATION_TIMEOUT_MS) {
 // 🛡️ GLOBAL ECOSYSTEM & BAN CHECK MIDDLEWARE
 const globalEcosystemCheck = async (req, res, next) => {
     try {
-        let settingsStr = await redisWithTimeout(redis.get('global_settings'));
-        req.globalSettings = settingsStr ? JSON.parse(settingsStr) : { maintenance: false, withdrawals: true };
+        req.globalSettings = await getGlobalSettings();
 
         if (req.globalSettings.maintenance) {
             if (req.method === 'GET') {
