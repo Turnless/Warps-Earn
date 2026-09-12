@@ -385,49 +385,37 @@ router.post('/settings', checkAdminAuth, verifyCsrfToken, express.urlencoded({ e
 // --- 🛒 STORE CONFIG CONTROLLER ---
 router.post('/store-config', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { 
-            cooldown, multiplier, 
-            premium_tier_1m, premium_tier_3m, premium_tier_6m, premium_tier_3m_blue, premium_tier_6m_blue, 
-            gold_tier_1m, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue, 
-            stars_premium_1m, stars_premium_3m, stars_premium_6m, stars_premium_3m_blue, stars_premium_6m_blue,
-            stars_gold_1m, stars_gold_3m, stars_gold_6m, stars_gold_3m_blue, stars_gold_6m_blue,
-            stars_x_verify,
-            enable_cooldown, enable_multiplier, enable_premium, enable_gold 
-        } = req.body;
-        const newConfig = {
-            ...DEFAULT_STORE_CONFIG,
-            ...DEFAULT_STARS_CONFIG,
-            cooldown: parseInt(cooldown) || 500,
-            multiplier: parseInt(multiplier) || 3000,
-            premium_tier_1m: parseInt(premium_tier_1m) || 15000,
-            premium_tier_3m: parseInt(premium_tier_3m) || 15000,
-            premium_tier_6m: parseInt(premium_tier_6m) || 28000,
-            premium_tier_3m_blue: parseInt(premium_tier_3m_blue) || 45000,
-            premium_tier_6m_blue: parseInt(premium_tier_6m_blue) || 85000,
-            gold_tier_1m: parseInt(gold_tier_1m) || 50000,
-            gold_tier_3m: parseInt(gold_tier_3m) || 50000,
-            gold_tier_6m: parseInt(gold_tier_6m) || 90000,
-            gold_tier_3m_blue: parseInt(gold_tier_3m_blue) || 80000,
-            gold_tier_6m_blue: parseInt(gold_tier_6m_blue) || 150000,
-            stars_premium_1m: parseInt(stars_premium_1m) || 15,
-            stars_premium_3m: parseInt(stars_premium_3m) || 25,
-            stars_premium_6m: parseInt(stars_premium_6m) || DEFAULT_STARS_CONFIG.stars_premium_6m,
-            stars_premium_3m_blue: parseInt(stars_premium_3m_blue) || DEFAULT_STARS_CONFIG.stars_premium_3m_blue,
-            stars_premium_6m_blue: parseInt(stars_premium_6m_blue) || DEFAULT_STARS_CONFIG.stars_premium_6m_blue,
-            stars_gold_1m: parseInt(stars_gold_1m) || 50,
-            stars_gold_3m: parseInt(stars_gold_3m) || 100,
-            stars_gold_6m: parseInt(stars_gold_6m) || DEFAULT_STARS_CONFIG.stars_gold_6m,
-            stars_gold_3m_blue: parseInt(stars_gold_3m_blue) || DEFAULT_STARS_CONFIG.stars_gold_3m_blue,
-            stars_gold_6m_blue: parseInt(stars_gold_6m_blue) || 220,
-            stars_x_verify: parseInt(stars_x_verify) || 100,
-            enable_cooldown: enable_cooldown === 'on',
-            enable_multiplier: enable_multiplier === 'on',
-            enable_premium: enable_premium === 'on',
-            enable_gold: enable_gold === 'on'
-        };
+        // Start from what is currently stored so a blank field keeps its existing
+        // value instead of snapping back to a literal, and fall back to the
+        // shared defaults rather than numbers duplicated in this handler.
+        const existingStr = await redis.get('admin:store_config');
+        const existing = existingStr ? JSON.parse(existingStr) : {};
+        const base = { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG, ...existing };
+
+        const PRICE_FIELDS = [
+            ...Object.keys(DEFAULT_STORE_CONFIG),
+            ...Object.keys(DEFAULT_STARS_CONFIG),
+            // priced items the defaults intentionally leave unset
+            'premium_tier_3m', 'stars_premium_3m', 'stars_gold_3m', 'stars_gold_6m'
+        ];
+        const TOGGLE_FIELDS = ['enable_cooldown', 'enable_multiplier', 'enable_premium', 'enable_gold'];
+
+        const newConfig = { ...base };
+        for (const field of PRICE_FIELDS) {
+            const raw = req.body[field];
+            if (raw === undefined || String(raw).trim() === '') continue;   // keep existing
+            const parsed = parseInt(raw, 10);
+            if (Number.isFinite(parsed) && parsed > 0) newConfig[field] = parsed;
+        }
+        for (const field of TOGGLE_FIELDS) {
+            newConfig[field] = req.body[field] === 'on';
+        }
+
         await redis.set('admin:store_config', JSON.stringify(newConfig));
+        await logAdminAction('store_config_update', { fields: Object.keys(req.body).length });
         res.redirect('/admin');
     } catch (e) {
+        console.error('Store config update failed:', e);
         res.status(500).type('text/plain').send("Failed to update store config");
     }
 });

@@ -38,6 +38,7 @@ const {
     SHORT_COOLDOWN_SECONDS_THRESHOLD, AD_CLAIM_LOCK_TTL_SECONDS,
     PAYOUT_LOCK_TTL_SECONDS, NAIRA_ACCOUNT_NUMBER_LENGTH, MAX_DAILY_WITHDRAWALS,
     FIRST_WITHDRAWAL_MIN_PTS, MIN_WITHDRAWAL_PTS, UPLINE_PROMOTER_REFERRAL_THRESHOLD,
+    TIER_DAILY_WITHDRAWAL_LIMITS, DEFAULT_DAILY_WITHDRAWAL_LIMIT, GOLD_MIN_WITHDRAWAL_PTS,
     ADMIN_TELEGRAM_CHAT_ID, MS_PER_DAY, AD_MULTIPLIER_PREMIUM,
     REDIS_OPERATION_TIMEOUT_MS, USER_CACHE_TTL_SECONDS, MAX_QUEST_SUBMISSIONS_LOG,
     DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG
@@ -253,7 +254,15 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
         const BountySubmission = require('../models/BountySubmission');
         const userBountySubmissions = await BountySubmission.find({ telegram_id: userId }).lean();
 
-        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig, pendingOrders: pendingOrders, userBountySubmissions: userBountySubmissions, globalSettings: req.globalSettings, REFERRAL_ACTIVATION_THRESHOLD: REFERRAL_ACTIVATION_THRESHOLD });
+        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig, pendingOrders: pendingOrders, userBountySubmissions: userBountySubmissions, globalSettings: req.globalSettings, REFERRAL_ACTIVATION_THRESHOLD: REFERRAL_ACTIVATION_THRESHOLD,
+            withdrawalLimits: {
+                firstMin: FIRST_WITHDRAWAL_MIN_PTS,
+                subsequentMin: MIN_WITHDRAWAL_PTS,
+                goldMin: GOLD_MIN_WITHDRAWAL_PTS,
+                dailyLimits: TIER_DAILY_WITHDRAWAL_LIMITS,
+                uplinePromoterThreshold: UPLINE_PROMOTER_REFERRAL_THRESHOLD,
+                ptsToUsd: PTS_TO_USD_RATE
+            } });
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
@@ -1032,8 +1041,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         }
 
         // Tier-based daily withdrawal limits
-        const tierDailyLimits = { Standard: 1, Premium: 2, Gold: 3 };
-        const dailyLimit = tierDailyLimits[user.account_tier] || 1;
+        const dailyLimit = TIER_DAILY_WITHDRAWAL_LIMITS[user.account_tier] || DEFAULT_DAILY_WITHDRAWAL_LIMIT;
 
         if (user.daily_withdrawals.count >= dailyLimit) {
             await redisWithTimeout(redis.del(lockKey));
@@ -1045,13 +1053,9 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         const isUplinePromoter = (qualifiedCount >= UPLINE_PROMOTER_REFERRAL_THRESHOLD);
 
         // Tier-based withdrawal minimums
-        let thresholdLimit;
-        if (user.account_tier === 'Gold') {
-            thresholdLimit = 1000; // Gold: flat 1,000 PTS min
-        } else {
-            // Standard & Premium: 1,500 first, then 1,250
-            thresholdLimit = (withdrawalsMade === 0) ? FIRST_WITHDRAWAL_MIN_PTS : MIN_WITHDRAWAL_PTS;
-        }
+        const thresholdLimit = (user.account_tier === 'Gold')
+            ? GOLD_MIN_WITHDRAWAL_PTS
+            : ((withdrawalsMade === 0) ? FIRST_WITHDRAWAL_MIN_PTS : MIN_WITHDRAWAL_PTS);
 
         if (!isUplinePromoter && requestedAmount < thresholdLimit) {
             await redisWithTimeout(redis.del(lockKey));
@@ -1059,85 +1063,140 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         }
 
         const uniqueTxId = `TX-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-
         const debitedPoints = requestedAmount;
-        user.points_balance = (user.points_balance || 0) - debitedPoints;
-        user.withdrawals_count = withdrawalsMade + 1;
-        user.last_withdrawal_date = new Date();
-        user.daily_withdrawals.count += 1;
-
         const formattedTimestamp = getFormattedDateTime();
+        const previousDailyWithdrawals = {
+            date: user.daily_withdrawals.date,
+            count: user.daily_withdrawals.count
+        };
 
-        if (!user.transactions) user.transactions = [];
-        user.transactions.unshift({
-            txId: uniqueTxId,
-            type: `Withdrawal (${chosenAsset})`,
-            amount: debitedPoints,
-            date: formattedTimestamp,
-            status: "Pending"
-        });
-
-        // Handle referral updates if this is the user's first withdrawal
-        const referrerTelegramId = user.referrer_id;
-        if (withdrawalsMade === 0 && referrerTelegramId && referrerTelegramId !== userId) {
-            const referrer = await User.findOne({ telegram_id: referrerTelegramId });
-            if (referrer) {
-                if (!referrer.referrals) referrer.referrals = [];
-                const refEntry = referrer.referrals.find(r => r.telegram_id === userId);
-                if (refEntry) refEntry.qualified = true;
-
-                const referrerQualifiedCount = referrer.referrals.filter(r => r.qualified).length;
-
-                const milestones = [
-                    ...REFERRAL_MILESTONES
-                ];
-
-                if (!referrer.milestones_claimed) {
-                    referrer.milestones_claimed = { tier_10: false, tier_20: false, tier_50: false, tier_100: false };
+        // --- Debit atomically -------------------------------------------------
+        // Guarded by the balance and by withdrawals_count acting as an optimistic
+        // concurrency token: if anything changed since we read the user, this
+        // matches nothing and we ask the caller to retry rather than double-debit.
+        const debited = await User.findOneAndUpdate(
+            {
+                telegram_id: userId,
+                is_banned: { $ne: true },
+                points_balance: { $gte: debitedPoints },
+                withdrawals_count: withdrawalsMade
+            },
+            {
+                $inc: { points_balance: -debitedPoints, withdrawals_count: 1 },
+                $set: {
+                    last_withdrawal_date: new Date(),
+                    daily_withdrawals: { date: todayStr, count: previousDailyWithdrawals.count + 1 }
+                },
+                $push: {
+                    transactions: {
+                        $each: [{
+                            txId: uniqueTxId,
+                            type: `Withdrawal (${chosenAsset})`,
+                            amount: debitedPoints,
+                            date: formattedTimestamp,
+                            status: "Pending"
+                        }],
+                        $position: 0
+                    }
                 }
+            },
+            { new: true }
+        );
 
-                let referrerNeedsSave = false;
-                for (const m of milestones) {
-                    const claimKey = `tier_${m.n}`;
-                    if (referrerQualifiedCount >= m.n && !referrer.milestones_claimed[claimKey]) {
-                        referrer.points_balance = (referrer.points_balance || 0) + m.pts;
-                        referrer.milestones_claimed[claimKey] = true;
-                        
-                        if (!referrer.earnings_history) referrer.earnings_history = [];
-                        referrer.earnings_history.unshift({
-                            type: m.label,
-                            amount: m.pts,
-                            timestamp: formattedTimestamp
-                        });
-                        referrerNeedsSave = true;
+        if (!debited) {
+            await redisWithTimeout(redis.del(lockKey));
+            return res.status(409).json({ error: "Your balance changed while we were processing. Please try again." });
+        }
 
-                        // Enqueue milestone reached message to referrer via Bull Queue
+        // --- Record the payout ticket ----------------------------------------
+        // The debit has already committed. If the ticket cannot be written the
+        // user's points would be gone with nothing in the admin queue to pay
+        // out, so compensate and report failure instead of leaving it stranded.
+        try {
+            const ticket = new Withdrawal({
+                ticket_id: uniqueTxId,
+                telegram_id: String(userId),
+                username: debited.username,
+                amount_points: debitedPoints,
+                asset: chosenAsset,
+                bank_provider: req.body.bank || null,
+                destination_details: destination,
+                status: "Pending",
+                created_at: new Date()
+            });
+            await ticket.save();
+        } catch (ticketErr) {
+            console.error(`❌ [Payout] Ticket ${uniqueTxId} failed to save, refunding:`, ticketErr.message);
+            try {
+                await User.findOneAndUpdate(
+                    { telegram_id: userId },
+                    {
+                        $inc: { points_balance: debitedPoints, withdrawals_count: -1 },
+                        $pull: { transactions: { txId: uniqueTxId } },
+                        $set: { daily_withdrawals: previousDailyWithdrawals }
+                    }
+                );
+                await invalidateUserCache(userId);
+            } catch (refundErr) {
+                // The one case a human must resolve: the debit stuck but neither
+                // the ticket nor the refund did. Log everything needed to fix it.
+                console.error(`🚨 [Payout] MANUAL RECONCILIATION REQUIRED — user ${userId} debited ${debitedPoints} PTS for ${uniqueTxId} with no ticket and no refund:`, refundErr.message);
+            }
+            await redisWithTimeout(redis.del(lockKey));
+            return respondWithError(res, ticketErr, "Could not record your withdrawal. Your points have not been deducted.");
+        }
+
+        // --- Referral qualification (non-critical, runs after the payout is durable) ---
+        // This pays the referrer, so it must never run before the withdrawal is
+        // committed, and its failure must never fail the user's withdrawal.
+        try {
+            const referrerTelegramId = debited.referrer_id;
+            if (withdrawalsMade === 0 && referrerTelegramId && referrerTelegramId !== userId) {
+                const referrer = await User.findOne({ telegram_id: referrerTelegramId });
+                if (referrer) {
+                    if (!referrer.referrals) referrer.referrals = [];
+                    const refEntry = referrer.referrals.find(r => r.telegram_id === userId);
+                    if (refEntry) refEntry.qualified = true;
+
+                    const referrerQualifiedCount = referrer.referrals.filter(r => r.qualified).length;
+
+                    if (!referrer.milestones_claimed) referrer.milestones_claimed = {};
+
+                    let referrerNeedsSave = Boolean(refEntry);
+                    const reached = [];
+                    for (const m of REFERRAL_MILESTONES) {
+                        const claimKey = `tier_${m.n}`;
+                        if (referrerQualifiedCount >= m.n && !referrer.milestones_claimed[claimKey]) {
+                            referrer.points_balance = (referrer.points_balance || 0) + m.pts;
+                            referrer.milestones_claimed[claimKey] = true;
+
+                            if (!referrer.earnings_history) referrer.earnings_history = [];
+                            referrer.earnings_history.unshift({
+                                type: m.label,
+                                amount: m.pts,
+                                timestamp: formattedTimestamp
+                            });
+                            referrerNeedsSave = true;
+                            reached.push(m);
+                        }
+                    }
+
+                    if (referrerNeedsSave) {
+                        referrer.markModified('milestones_claimed');
+                        await referrer.save();
+                        await invalidateUserCache(referrer.telegram_id);
+                    }
+
+                    // Notify only after the award is persisted
+                    for (const m of reached) {
                         const milestoneMsg = `🎉 <b>Referral Milestone Reached!</b>\n\nYou have successfully unlocked <b>${m.label}</b> with ${referrerQualifiedCount} qualified referrals.\n\n⚡ <b>+${m.pts.toLocaleString()} PTS ($${(m.pts * PTS_TO_USD_RATE).toFixed(2)} USD)</b> has been added to your balance!`;
                         await notifyQuietly(referrer.telegram_id, milestoneMsg);
                     }
                 }
-                if (referrerNeedsSave) {
-                    await referrer.save();
-                    await invalidateUserCache(referrer.telegram_id);
-                }
             }
+        } catch (referralErr) {
+            console.error(`⚠️ [Payout] Referral credit failed for ${userId} (withdrawal already recorded):`, referralErr.message);
         }
-
-        await user.save();
-
-        // 3. Create structural Withdrawal database ticket entry for administrative logging
-        const ticket = new Withdrawal({
-            ticket_id: uniqueTxId,
-            telegram_id: String(userId),
-            username: user.username,
-            amount_points: debitedPoints,
-            asset: chosenAsset,
-            bank_provider: req.body.bank || null,
-            destination_details: destination,
-            status: "Pending",
-            created_at: new Date()
-        });
-        await ticket.save();
 
         await invalidateUserCache(userId);
         await redisWithTimeout(redis.del(lockKey)); // releaseMutex
@@ -1161,7 +1220,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         const rejectionUrl = `${hostUrl}/admin/payout?token=${generatePayoutToken(uniqueTxId, 'reject')}`;
 
         const adminMessageText = `🚨 <b>NEW WITHDRAWAL REQUEST</b> 🚨\n\n` +
-            `👤 <b>User:</b> ${escapeTelegramHtml(user.first_name || 'N/A')} (@${escapeTelegramHtml(user.username || 'Anonymous')})\n` +
+            `👤 <b>User:</b> ${escapeTelegramHtml(debited.first_name || 'N/A')} (@${escapeTelegramHtml(debited.username || 'Anonymous')})\n` +
             `🆔 <b>Telegram ID:</b> <code>${escapeTelegramHtml(userId)}</code>\n` +
             `🧾 <b>TX ID:</b> <code>${escapeTelegramHtml(uniqueTxId)}</code>\n\n` +
             `💰 <b>Amount:</b> <b>${debitedPoints.toLocaleString()} PTS</b>\n` +

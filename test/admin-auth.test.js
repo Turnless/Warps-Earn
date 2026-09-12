@@ -109,3 +109,74 @@ test('a payout cannot be resolved twice', async () => {
     assert.strictEqual(res.status, 400);
     assert.match(await res.text(), /already been resolved/i);
 });
+
+// ---------------------------------------------------------------------------
+// Store config: blank fields must preserve existing values, not reset to literals
+// ---------------------------------------------------------------------------
+
+async function adminSession() {
+    const redis = require('../services/redis');
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(16).toString('hex');
+    const csrf = crypto.randomBytes(16).toString('hex');
+    await redis.setex(`admin:session:${token}`, 300, JSON.stringify({ loginAt: 'now' }));
+    await redis.setex(`admin:csrf:${token}`, 300, csrf);
+    return { cookie: `admin_session=${token}; admin_csrf=${csrf}`, csrf };
+}
+
+test('submitting the store form with blank fields keeps the current prices', async () => {
+    const redis = require('../services/redis');
+    const { DEFAULT_STORE_CONFIG } = require('../constants');
+
+    // An admin previously set a custom price
+    await redis.set('admin:store_config', JSON.stringify({ cooldown: 777, gold_tier_1m: 42000 }));
+
+    const { cookie, csrf } = await adminSession();
+    const res = await fetch(`${server.url}/admin/store-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+        body: new URLSearchParams({ _csrf: csrf, cooldown: '', gold_tier_1m: '' }).toString(),
+        redirect: 'manual'
+    });
+    assert.strictEqual(res.status, 302);
+
+    const saved = JSON.parse(await redis.get('admin:store_config'));
+    assert.strictEqual(saved.cooldown, 777, 'a blank field must not reset the stored price');
+    assert.strictEqual(saved.gold_tier_1m, 42000, 'a blank field must not reset the stored price');
+    assert.strictEqual(saved.multiplier, DEFAULT_STORE_CONFIG.multiplier,
+        'unset fields fall back to the shared defaults');
+});
+
+test('submitting a new price updates it and leaves the rest alone', async () => {
+    const redis = require('../services/redis');
+    await redis.set('admin:store_config', JSON.stringify({ cooldown: 777, gold_tier_1m: 42000 }));
+
+    const { cookie, csrf } = await adminSession();
+    await fetch(`${server.url}/admin/store-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+        body: new URLSearchParams({ _csrf: csrf, cooldown: '999' }).toString(),
+        redirect: 'manual'
+    });
+
+    const saved = JSON.parse(await redis.get('admin:store_config'));
+    assert.strictEqual(saved.cooldown, 999, 'the submitted price should be applied');
+    assert.strictEqual(saved.gold_tier_1m, 42000, 'other prices must be untouched');
+});
+
+test('a junk or negative price is ignored rather than stored', async () => {
+    const redis = require('../services/redis');
+    await redis.set('admin:store_config', JSON.stringify({ cooldown: 777 }));
+
+    const { cookie, csrf } = await adminSession();
+    await fetch(`${server.url}/admin/store-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+        body: new URLSearchParams({ _csrf: csrf, cooldown: 'free', gold_tier_1m: '-5' }).toString(),
+        redirect: 'manual'
+    });
+
+    const saved = JSON.parse(await redis.get('admin:store_config'));
+    assert.strictEqual(saved.cooldown, 777, 'junk input must not overwrite a real price');
+    assert.ok(saved.gold_tier_1m > 0, 'a negative price must never be stored');
+});

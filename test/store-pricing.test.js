@@ -27,11 +27,24 @@ const SERVER_ITEMS = [
     'gold_tier_3m_blue', 'gold_tier_6m_blue'
 ];
 
-test('every purchasable item has a PTS price', () => {
-    for (const item of SERVER_ITEMS) {
+test('every item the store UI offers has a PTS price', () => {
+    // The UI can only launch a purchase for these, so an unpriced one would be
+    // a broken button. Items the server accepts but the UI never offers may be
+    // unpriced — the purchase guard refuses those (asserted below and in
+    // portal-routes.test.js), which is safer than inventing a price.
+    for (const item of UI_PTS_ITEMS) {
         const price = DEFAULT_STORE_CONFIG[item];
         assert.ok(typeof price === 'number' && price > 0,
-            `${item} has no PTS price (was undefined -> NaN balance)`);
+            `${item} is offered in the store UI but has no PTS price`);
+    }
+});
+
+test('server-accepted items are either priced or absent, never zero or junk', () => {
+    for (const item of SERVER_ITEMS) {
+        const price = DEFAULT_STORE_CONFIG[item];
+        if (price === undefined) continue;          // refused by the purchase guard
+        assert.ok(typeof price === 'number' && Number.isFinite(price) && price > 0,
+            `${item} has an unusable price: ${price}`);
     }
 });
 
