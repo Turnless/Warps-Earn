@@ -135,3 +135,119 @@ test('naira withdrawal requires a 10-digit account number', async () => {
     });
     assert.strictEqual(res.status, 400);
 });
+
+// ---------------------------------------------------------------------------
+// Atomicity: a failure after the debit must not strand the user's points
+// ---------------------------------------------------------------------------
+
+/** Simulates the ticket write failing after the debit has committed. */
+function breakTicketSave() {
+    models.Withdrawal.__failSave = true;
+    models.Withdrawal.__failSaveMessage = 'connection <monitor> to mongodb closed';
+    const realError = console.error;
+    console.error = () => {};
+    return () => {
+        console.error = realError;
+        models.Withdrawal.__failSave = false;
+        models.Withdrawal.__failSaveMessage = null;
+    };
+}
+
+test('a failed ticket write refunds the user instead of stranding their points', async () => {
+    seedReferralChain();
+
+    const restore = breakTicketSave();
+    let res;
+    try {
+        res = await requestPayout({
+            id: USER_ID, amount: FIRST_WITHDRAWAL_MIN_PTS, asset: 'TON', destination: 'UQxxxxxxxx'
+        });
+    } finally { restore(); }
+
+    assert.ok(res.status >= 400, `should report failure, got ${res.status}`);
+
+    const user = await models.User.findOne({ telegram_id: USER_ID });
+    assert.strictEqual(user.points_balance, 5000,
+        'points must be refunded when the ticket could not be written');
+    assert.strictEqual(user.withdrawals_count, 0, 'the withdrawal counter must be rolled back');
+    assert.strictEqual((user.transactions || []).length, 0,
+        'the pending transaction entry must be removed');
+    assert.strictEqual(user.daily_withdrawals.count, 0, 'the daily counter must be rolled back');
+});
+
+test('the referrer is not paid when the withdrawal itself fails', async () => {
+    seedReferralChain();
+
+    const restore = breakTicketSave();
+    try {
+        await requestPayout({ id: USER_ID, amount: FIRST_WITHDRAWAL_MIN_PTS, asset: 'TON', destination: 'UQx' });
+    } finally { restore(); }
+
+    const referrer = await models.User.findOne({ telegram_id: REFERRER_ID });
+    assert.strictEqual(referrer.points_balance, 1000,
+        'the referrer must not be paid a milestone for a withdrawal that never happened');
+    assert.notStrictEqual(referrer.milestones_claimed.tier_10, true,
+        'the milestone must not be marked claimed');
+});
+
+test('the debit is guarded against a balance that changed underneath it', async () => {
+    seedReferralChain();
+
+    // Simulate a concurrent withdrawal landing between the read and the debit by
+    // bumping withdrawals_count (the optimistic-concurrency token) *after* the
+    // route's read resolves — mutating before it would just be read back.
+    const realFindOne = models.User.findOne.bind(models.User);
+    let firstRead = true;
+    models.User.findOne = function (query) {
+        const q = realFindOne(query);
+        if (firstRead && query && query.telegram_id === USER_ID) {
+            firstRead = false;
+            const originalThen = q.then.bind(q);
+            q.then = (onOk, onErr) => originalThen((doc) => {
+                const stored = models.User.__all().find(u => u.telegram_id === USER_ID);
+                if (stored) stored.withdrawals_count = 5;   // someone else withdrew
+                return onOk(doc);
+            }, onErr);
+        }
+        return q;
+    };
+
+    let res;
+    try {
+        res = await requestPayout({
+            id: USER_ID, amount: FIRST_WITHDRAWAL_MIN_PTS, asset: 'TON', destination: 'UQx'
+        });
+    } finally {
+        models.User.findOne = realFindOne;
+    }
+
+    assert.strictEqual(res.status, 409, 'a changed balance must be refused, not double-debited');
+    const parsed = await res.json();
+    assert.match(parsed.error, /changed|try again/i);
+    assert.strictEqual(models.Withdrawal.__all().length, 0, 'no ticket should be created');
+});
+
+test('withdrawal limits and minimums come from constants, not inline literals', async () => {
+    const {
+        TIER_DAILY_WITHDRAWAL_LIMITS, GOLD_MIN_WITHDRAWAL_PTS,
+        FIRST_WITHDRAWAL_MIN_PTS: FIRST, MIN_WITHDRAWAL_PTS: SUBSEQUENT
+    } = require('../constants');
+
+    // Gold's lower minimum is honoured by the server
+    seedReferralChain();
+    const stored = models.User.__all().find(u => u.telegram_id === USER_ID);
+    stored.account_tier = 'Gold';
+
+    const res = await requestPayout({
+        id: USER_ID, amount: GOLD_MIN_WITHDRAWAL_PTS, asset: 'TON', destination: 'UQx'
+    });
+    assert.strictEqual(res.status, 200,
+        `Gold should be able to withdraw the configured minimum of ${GOLD_MIN_WITHDRAWAL_PTS}`);
+
+    // and the tier limits exist for every tier the schema allows
+    for (const tier of ['Standard', 'Premium', 'Gold']) {
+        assert.ok(typeof TIER_DAILY_WITHDRAWAL_LIMITS[tier] === 'number',
+            `no daily withdrawal limit configured for ${tier}`);
+    }
+    assert.ok(FIRST > SUBSEQUENT, 'first withdrawal minimum should exceed the subsequent one');
+});

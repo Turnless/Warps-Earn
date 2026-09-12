@@ -7,8 +7,9 @@ const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
 const BountySubmission = require('../models/BountySubmission');
 const redis = require('../services/redis');
-const { sendTelegramMessageAsync } = require('../services/queue');
+const { sendTelegramMessageAsync, notifyQuietly } = require('../services/queue');
 const { getGlobalSettings } = require('../services/settings');
+const { respondWithError } = require('../services/errors');
 
 // Import the cryptographic verification middleware securely
 const verifyTelegramWebAppData = require('../middleware/auth');
@@ -37,6 +38,7 @@ const {
     SHORT_COOLDOWN_SECONDS_THRESHOLD, AD_CLAIM_LOCK_TTL_SECONDS,
     PAYOUT_LOCK_TTL_SECONDS, NAIRA_ACCOUNT_NUMBER_LENGTH, MAX_DAILY_WITHDRAWALS,
     FIRST_WITHDRAWAL_MIN_PTS, MIN_WITHDRAWAL_PTS, UPLINE_PROMOTER_REFERRAL_THRESHOLD,
+    TIER_DAILY_WITHDRAWAL_LIMITS, DEFAULT_DAILY_WITHDRAWAL_LIMIT, GOLD_MIN_WITHDRAWAL_PTS,
     ADMIN_TELEGRAM_CHAT_ID, MS_PER_DAY, AD_MULTIPLIER_PREMIUM,
     REDIS_OPERATION_TIMEOUT_MS, USER_CACHE_TTL_SECONDS, MAX_QUEST_SUBMISSIONS_LOG,
     DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG
@@ -73,6 +75,24 @@ function getFormattedDateTime() {
     return `${dateStr} • ${timeStr}`;
 }
 
+/**
+ * Reads a JSON config blob from Redis, falling back to a default.
+ *
+ * These keys (store config, dynamic quests, telemetry) are convenience state
+ * with sensible defaults in constants.js. A Redis outage or a corrupt value
+ * should degrade the feature, never fail the whole request.
+ */
+async function readJsonConfig(key, fallback) {
+    try {
+        const raw = await redisWithTimeout(redis.get(key));
+        if (!raw) return fallback;
+        return JSON.parse(raw);
+    } catch (err) {
+        console.error(`⚠️ [Config] Could not read ${key}, using fallback:`, err.message);
+        return fallback;
+    }
+}
+
 // Cache helper to purge stale Redis state when database state updates
 async function invalidateUserCache(userId) {
     try {
@@ -103,7 +123,8 @@ const globalEcosystemCheck = async (req, res, next) => {
             if (req.method === 'GET') {
                 return res.send(`<body style="background:#1a1a16; color:#e6ddd0; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; text-align:center;"><div style="padding:40px;"><span style="font-size:48px;">🛠️</span><h1 style="margin-top:20px;">System Upgrade</h1><p style="color:#999; margin-top:10px;">The Warps Earn platform is currently undergoing scheduled maintenance.<br>Please check back shortly.</p></div></body>`);
             } else {
-                return res.status(503).json({ error: "Platform is in maintenance mode." });
+                if (res.headersSent) return;
+        return res.status(503).json({ error: "Platform is in maintenance mode." });
             }
         }
         next();
@@ -118,6 +139,7 @@ const globalEcosystemCheck = async (req, res, next) => {
 function verifyInitDataParam(req, res, next) {
     const initData = req.query.initData;
     if (!initData) {
+        if (res.headersSent) return;
         return res.status(401).json({ error: "Unauthorized: Missing verification token." });
     }
     try {
@@ -155,6 +177,7 @@ function verifyInitDataParam(req, res, next) {
         req.verifiedTelegramId = String(userObj.id);
         next();
     } catch (e) {
+        if (res.headersSent) return;
         return res.status(403).json({ error: "Forbidden: Verification failed." });
     }
 }
@@ -215,17 +238,15 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
             return res.redirect(`/onboarding?id=${userId}`);
         }
 
-        const questsStr = await redis.get('admin:dynamic_quests');
-        const dynamicQuests = questsStr ? JSON.parse(questsStr) : {};
+        const dynamicQuests = await readJsonConfig('admin:dynamic_quests', {});
 
         const Bounty = require('../models/Bounty');
         const bounties = await Bounty.find({ status: 'active', expires_at: { $gt: new Date() } }).sort({ created_at: -1 }).lean();
 
-        const storeConfigStr = await redis.get('admin:store_config');
-        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
+        const storeConfig = await readJsonConfig('admin:store_config', {
             ...DEFAULT_STORE_CONFIG,
             ...DEFAULT_STARS_CONFIG,
-        };
+        });
 
         const StoreOrder = require('../models/StoreOrder');
         const pendingOrders = await StoreOrder.find({ telegram_id: userId, status: 'pending' }).lean();
@@ -233,11 +254,19 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
         const BountySubmission = require('../models/BountySubmission');
         const userBountySubmissions = await BountySubmission.find({ telegram_id: userId }).lean();
 
-        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig, pendingOrders: pendingOrders, userBountySubmissions: userBountySubmissions, globalSettings: req.globalSettings, REFERRAL_ACTIVATION_THRESHOLD: REFERRAL_ACTIVATION_THRESHOLD });
+        res.render('dashboard', { user: user, dynamicQuests: dynamicQuests, bounties: bounties, storeConfig: storeConfig, pendingOrders: pendingOrders, userBountySubmissions: userBountySubmissions, globalSettings: req.globalSettings, REFERRAL_ACTIVATION_THRESHOLD: REFERRAL_ACTIVATION_THRESHOLD,
+            withdrawalLimits: {
+                firstMin: FIRST_WITHDRAWAL_MIN_PTS,
+                subsequentMin: MIN_WITHDRAWAL_PTS,
+                goldMin: GOLD_MIN_WITHDRAWAL_PTS,
+                dailyLimits: TIER_DAILY_WITHDRAWAL_LIMITS,
+                uplinePromoterThreshold: UPLINE_PROMOTER_REFERRAL_THRESHOLD,
+                ptsToUsd: PTS_TO_USD_RATE
+            } });
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
-        res.status(500).json({ error: "Internal server error loading dashboard." });
+        return respondWithError(res, e, "Internal server error loading dashboard.");
     }
 });
 
@@ -314,7 +343,7 @@ router.get('/watch-ads', globalEcosystemCheck, verifyInitDataParam, async (req, 
 
     } catch (e) {
         console.error("Error launching ad view gateway:", e);
-        res.status(500).json({ error: "Connection error. Try again." });
+        return respondWithError(res, e, "Connection error. Try again.");
     }
 });
 
@@ -367,7 +396,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
         if (result.loopIndex === 0) { 
             const cooldownMs = result.cooldownTime; 
             
-            await sendTelegramMessageAsync(
+            await notifyQuietly(
                 userId,
                 "⚡ <b>Ad Loops Restocked!</b>\n\nYour break is over. Open the app now to watch more ads and earn points!",
                 {
@@ -383,7 +412,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 
     } catch (e) {
         console.error("Ad point processing crash:", e);
-        res.status(500).json({ error: "Internal processing fault." });
+        return respondWithError(res, e, "Internal processing fault.");
     }
 });
 
@@ -442,7 +471,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
                 }
             } catch (apiErr) {
                 console.error("External validation network error:", apiErr.message);
-                return res.status(500).json({ error: "External network validation failure." });
+                return respondWithError(res, apiErr, "External network validation failure.");
             }
         }
 
@@ -469,7 +498,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
 
     } catch (e) {
         console.error("❌ [Quest Critical Error] Quest verification processor exception:", e);
-        res.status(500).json({ error: "Internal processing fault." });
+        return respondWithError(res, e, "Internal processing fault.");
     }
 });
 
@@ -527,7 +556,7 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
         res.status(200).json({ success: true, newBalance: user.points_balance });
     } catch (e) {
         console.error("Adsgram reward allocation error:", e);
-        res.status(500).json({ error: "Connection error. Try again." });
+        return respondWithError(res, e, "Connection error. Try again.");
     }
 });
 
@@ -536,10 +565,8 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
     const userId = String(req.body.id || "");
     const promoKey = String(req.body.promoKey || "");
 
-    const promoMapStr = await redis.get('admin:dynamic_quests');
-    const promoMap = promoMapStr ? JSON.parse(promoMapStr) : {};
-
     try {
+        const promoMap = await readJsonConfig('admin:dynamic_quests', {});
         if (!userId || !promoKey || !promoMap[promoKey]) return res.status(400).json({ error: "Invalid payload." });
 
         const user = await User.findOne({ telegram_id: userId });
@@ -587,7 +614,8 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
                 console.error("Telegram API verify error:", err);
                 // Fail-safe pass if Telegram API is down or if it's a private join link
                 // But ideally we strict block. Let's block for now to strictly authenticate.
-                return res.status(400).json({ error: "Authentication failed. Make sure you joined." });
+                if (res.headersSent) return;
+        return res.status(400).json({ error: "Authentication failed. Make sure you joined." });
             }
         }
 
@@ -649,7 +677,7 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         res.json({ success: true, title: campaign.title, pts: campaign.pts, requiresCommentLink: !!submittedLink });
     } catch (e) {
         console.error("Custom Promo Error:", e);
-        res.status(500).json({ error: "Internal error." });
+        return respondWithError(res, e, "Internal error.");
     }
 });
 
@@ -689,11 +717,10 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             return res.status(429).json({ error: "Purchase already processing. Please wait." });
         }
 
-        const storeConfigStr = await redis.get('admin:store_config');
-        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
+        const storeConfig = await readJsonConfig('admin:store_config', {
             ...DEFAULT_STORE_CONFIG,
             ...DEFAULT_STARS_CONFIG,
-        };
+        });
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) return res.status(404).json({ error: "User not found." });
@@ -847,7 +874,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         return res.json({ success: true, newBalance: user.points_balance, isPending });
     } catch (e) {
         console.error("Store error:", e);
-        return res.status(500).json({ error: "Purchase failed." });
+        return respondWithError(res, e, "Purchase failed.");
     } finally {
         try {
             await redisWithTimeout(redis.del(lockKey));
@@ -864,6 +891,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
     const hasBlueTick = Boolean(req.body.hasBlueTick || false);
 
     if (!userId || !item) {
+        if (res.headersSent) return;
         return res.status(400).json({ error: "Invalid invoice payload." });
     }
 
@@ -871,8 +899,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
     // Stars prices live under the `stars_` namespace; looking up the bare item key
     // returned the PTS price and invoiced it as Stars (e.g. 15,000 Stars for a
     // 15-Star item), so resolve the Stars key explicitly.
-    const storeConfigStr = await redis.get('admin:store_config');
-    const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG };
+    const storeConfig = await readJsonConfig('admin:store_config', { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG });
     const starsKey = resolveStarsPriceKey(item);
     const expectedAmount = storeConfig[starsKey];
     if (!expectedAmount || typeof expectedAmount !== 'number' || expectedAmount <= 0) {
@@ -921,7 +948,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
         }
     } catch (e) {
         console.error("Invoice generation error:", e);
-        return res.status(500).json({ error: "Invoice generation failed." });
+        return respondWithError(res, e, "Invoice generation failed.");
     }
 });
 
@@ -931,28 +958,35 @@ router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData,
         const { network, status, errorMsg } = req.body;
         if (!network || !status) return res.status(400).json({ error: "Invalid payload" });
 
-        const key = 'admin:ad_telemetry';
-        let telemetryStr = await redis.get(key);
-        let telemetry = telemetryStr ? JSON.parse(telemetryStr) : {};
+        // Analytics only — a telemetry failure must never look like a failure of
+        // the ad the user just watched, so this always reports success and the
+        // storage error goes to the logs instead.
+        try {
+            const key = 'admin:ad_telemetry';
+            const telemetry = await readJsonConfig(key, {});
 
-        if (!telemetry[network]) {
-            telemetry[network] = { success: 0, fail: 0, lastError: null, lastUpdate: null };
+            if (!telemetry[network]) {
+                telemetry[network] = { success: 0, fail: 0, lastError: null, lastUpdate: null };
+            }
+
+            if (status === 'success') {
+                telemetry[network].success += 1;
+            } else if (status === 'fail') {
+                telemetry[network].fail += 1;
+                telemetry[network].lastError = errorMsg || "Unknown error";
+            }
+
+            telemetry[network].lastUpdate = new Date().toISOString();
+            await redisWithTimeout(redis.set(key, JSON.stringify(telemetry)));
+        } catch (storageErr) {
+            console.error("⚠️ [Telemetry] Not recorded:", storageErr.message);
         }
 
-        if (status === 'success') {
-            telemetry[network].success += 1;
-        } else if (status === 'fail') {
-            telemetry[network].fail += 1;
-            telemetry[network].lastError = errorMsg || "Unknown error";
-        }
-
-        telemetry[network].lastUpdate = new Date().toISOString();
-
-        await redis.set(key, JSON.stringify(telemetry));
         res.status(200).json({ success: true });
     } catch (e) {
         console.error("Telemetry Error:", e);
-        res.status(500).json({ error: "Error" });
+        if (res.headersSent) return;
+        res.status(200).json({ success: true });
     }
 });
 
@@ -1007,8 +1041,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         }
 
         // Tier-based daily withdrawal limits
-        const tierDailyLimits = { Standard: 1, Premium: 2, Gold: 3 };
-        const dailyLimit = tierDailyLimits[user.account_tier] || 1;
+        const dailyLimit = TIER_DAILY_WITHDRAWAL_LIMITS[user.account_tier] || DEFAULT_DAILY_WITHDRAWAL_LIMIT;
 
         if (user.daily_withdrawals.count >= dailyLimit) {
             await redisWithTimeout(redis.del(lockKey));
@@ -1020,13 +1053,9 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         const isUplinePromoter = (qualifiedCount >= UPLINE_PROMOTER_REFERRAL_THRESHOLD);
 
         // Tier-based withdrawal minimums
-        let thresholdLimit;
-        if (user.account_tier === 'Gold') {
-            thresholdLimit = 1000; // Gold: flat 1,000 PTS min
-        } else {
-            // Standard & Premium: 1,500 first, then 1,250
-            thresholdLimit = (withdrawalsMade === 0) ? FIRST_WITHDRAWAL_MIN_PTS : MIN_WITHDRAWAL_PTS;
-        }
+        const thresholdLimit = (user.account_tier === 'Gold')
+            ? GOLD_MIN_WITHDRAWAL_PTS
+            : ((withdrawalsMade === 0) ? FIRST_WITHDRAWAL_MIN_PTS : MIN_WITHDRAWAL_PTS);
 
         if (!isUplinePromoter && requestedAmount < thresholdLimit) {
             await redisWithTimeout(redis.del(lockKey));
@@ -1034,85 +1063,140 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         }
 
         const uniqueTxId = `TX-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-
         const debitedPoints = requestedAmount;
-        user.points_balance = (user.points_balance || 0) - debitedPoints;
-        user.withdrawals_count = withdrawalsMade + 1;
-        user.last_withdrawal_date = new Date();
-        user.daily_withdrawals.count += 1;
-
         const formattedTimestamp = getFormattedDateTime();
+        const previousDailyWithdrawals = {
+            date: user.daily_withdrawals.date,
+            count: user.daily_withdrawals.count
+        };
 
-        if (!user.transactions) user.transactions = [];
-        user.transactions.unshift({
-            txId: uniqueTxId,
-            type: `Withdrawal (${chosenAsset})`,
-            amount: debitedPoints,
-            date: formattedTimestamp,
-            status: "Pending"
-        });
-
-        // Handle referral updates if this is the user's first withdrawal
-        const referrerTelegramId = user.referrer_id;
-        if (withdrawalsMade === 0 && referrerTelegramId && referrerTelegramId !== userId) {
-            const referrer = await User.findOne({ telegram_id: referrerTelegramId });
-            if (referrer) {
-                if (!referrer.referrals) referrer.referrals = [];
-                const refEntry = referrer.referrals.find(r => r.telegram_id === userId);
-                if (refEntry) refEntry.qualified = true;
-
-                const referrerQualifiedCount = referrer.referrals.filter(r => r.qualified).length;
-
-                const milestones = [
-                    ...REFERRAL_MILESTONES
-                ];
-
-                if (!referrer.milestones_claimed) {
-                    referrer.milestones_claimed = { tier_10: false, tier_20: false, tier_50: false, tier_100: false };
-                }
-
-                let referrerNeedsSave = false;
-                for (const m of milestones) {
-                    const claimKey = `tier_${m.n}`;
-                    if (referrerQualifiedCount >= m.n && !referrer.milestones_claimed[claimKey]) {
-                        referrer.points_balance = (referrer.points_balance || 0) + m.pts;
-                        referrer.milestones_claimed[claimKey] = true;
-                        
-                        if (!referrer.earnings_history) referrer.earnings_history = [];
-                        referrer.earnings_history.unshift({
-                            type: m.label,
-                            amount: m.pts,
-                            timestamp: formattedTimestamp
-                        });
-                        referrerNeedsSave = true;
-
-                        // Enqueue milestone reached message to referrer via Bull Queue
-                        const milestoneMsg = `🎉 <b>Referral Milestone Reached!</b>\n\nYou have successfully unlocked <b>${m.label}</b> with ${referrerQualifiedCount} qualified referrals.\n\n⚡ <b>+${m.pts.toLocaleString()} PTS ($${(m.pts * PTS_TO_USD_RATE).toFixed(2)} USD)</b> has been added to your balance!`;
-                        await sendTelegramMessageAsync(referrer.telegram_id, milestoneMsg);
+        // --- Debit atomically -------------------------------------------------
+        // Guarded by the balance and by withdrawals_count acting as an optimistic
+        // concurrency token: if anything changed since we read the user, this
+        // matches nothing and we ask the caller to retry rather than double-debit.
+        const debited = await User.findOneAndUpdate(
+            {
+                telegram_id: userId,
+                is_banned: { $ne: true },
+                points_balance: { $gte: debitedPoints },
+                withdrawals_count: withdrawalsMade
+            },
+            {
+                $inc: { points_balance: -debitedPoints, withdrawals_count: 1 },
+                $set: {
+                    last_withdrawal_date: new Date(),
+                    daily_withdrawals: { date: todayStr, count: previousDailyWithdrawals.count + 1 }
+                },
+                $push: {
+                    transactions: {
+                        $each: [{
+                            txId: uniqueTxId,
+                            type: `Withdrawal (${chosenAsset})`,
+                            amount: debitedPoints,
+                            date: formattedTimestamp,
+                            status: "Pending"
+                        }],
+                        $position: 0
                     }
                 }
-                if (referrerNeedsSave) {
-                    await referrer.save();
-                    await invalidateUserCache(referrer.telegram_id);
-                }
-            }
+            },
+            { new: true }
+        );
+
+        if (!debited) {
+            await redisWithTimeout(redis.del(lockKey));
+            return res.status(409).json({ error: "Your balance changed while we were processing. Please try again." });
         }
 
-        await user.save();
+        // --- Record the payout ticket ----------------------------------------
+        // The debit has already committed. If the ticket cannot be written the
+        // user's points would be gone with nothing in the admin queue to pay
+        // out, so compensate and report failure instead of leaving it stranded.
+        try {
+            const ticket = new Withdrawal({
+                ticket_id: uniqueTxId,
+                telegram_id: String(userId),
+                username: debited.username,
+                amount_points: debitedPoints,
+                asset: chosenAsset,
+                bank_provider: req.body.bank || null,
+                destination_details: destination,
+                status: "Pending",
+                created_at: new Date()
+            });
+            await ticket.save();
+        } catch (ticketErr) {
+            console.error(`❌ [Payout] Ticket ${uniqueTxId} failed to save, refunding:`, ticketErr.message);
+            try {
+                await User.findOneAndUpdate(
+                    { telegram_id: userId },
+                    {
+                        $inc: { points_balance: debitedPoints, withdrawals_count: -1 },
+                        $pull: { transactions: { txId: uniqueTxId } },
+                        $set: { daily_withdrawals: previousDailyWithdrawals }
+                    }
+                );
+                await invalidateUserCache(userId);
+            } catch (refundErr) {
+                // The one case a human must resolve: the debit stuck but neither
+                // the ticket nor the refund did. Log everything needed to fix it.
+                console.error(`🚨 [Payout] MANUAL RECONCILIATION REQUIRED — user ${userId} debited ${debitedPoints} PTS for ${uniqueTxId} with no ticket and no refund:`, refundErr.message);
+            }
+            await redisWithTimeout(redis.del(lockKey));
+            return respondWithError(res, ticketErr, "Could not record your withdrawal. Your points have not been deducted.");
+        }
 
-        // 3. Create structural Withdrawal database ticket entry for administrative logging
-        const ticket = new Withdrawal({
-            ticket_id: uniqueTxId,
-            telegram_id: String(userId),
-            username: user.username,
-            amount_points: debitedPoints,
-            asset: chosenAsset,
-            bank_provider: req.body.bank || null,
-            destination_details: destination,
-            status: "Pending",
-            created_at: new Date()
-        });
-        await ticket.save();
+        // --- Referral qualification (non-critical, runs after the payout is durable) ---
+        // This pays the referrer, so it must never run before the withdrawal is
+        // committed, and its failure must never fail the user's withdrawal.
+        try {
+            const referrerTelegramId = debited.referrer_id;
+            if (withdrawalsMade === 0 && referrerTelegramId && referrerTelegramId !== userId) {
+                const referrer = await User.findOne({ telegram_id: referrerTelegramId });
+                if (referrer) {
+                    if (!referrer.referrals) referrer.referrals = [];
+                    const refEntry = referrer.referrals.find(r => r.telegram_id === userId);
+                    if (refEntry) refEntry.qualified = true;
+
+                    const referrerQualifiedCount = referrer.referrals.filter(r => r.qualified).length;
+
+                    if (!referrer.milestones_claimed) referrer.milestones_claimed = {};
+
+                    let referrerNeedsSave = Boolean(refEntry);
+                    const reached = [];
+                    for (const m of REFERRAL_MILESTONES) {
+                        const claimKey = `tier_${m.n}`;
+                        if (referrerQualifiedCount >= m.n && !referrer.milestones_claimed[claimKey]) {
+                            referrer.points_balance = (referrer.points_balance || 0) + m.pts;
+                            referrer.milestones_claimed[claimKey] = true;
+
+                            if (!referrer.earnings_history) referrer.earnings_history = [];
+                            referrer.earnings_history.unshift({
+                                type: m.label,
+                                amount: m.pts,
+                                timestamp: formattedTimestamp
+                            });
+                            referrerNeedsSave = true;
+                            reached.push(m);
+                        }
+                    }
+
+                    if (referrerNeedsSave) {
+                        referrer.markModified('milestones_claimed');
+                        await referrer.save();
+                        await invalidateUserCache(referrer.telegram_id);
+                    }
+
+                    // Notify only after the award is persisted
+                    for (const m of reached) {
+                        const milestoneMsg = `🎉 <b>Referral Milestone Reached!</b>\n\nYou have successfully unlocked <b>${m.label}</b> with ${referrerQualifiedCount} qualified referrals.\n\n⚡ <b>+${m.pts.toLocaleString()} PTS ($${(m.pts * PTS_TO_USD_RATE).toFixed(2)} USD)</b> has been added to your balance!`;
+                        await notifyQuietly(referrer.telegram_id, milestoneMsg);
+                    }
+                }
+            }
+        } catch (referralErr) {
+            console.error(`⚠️ [Payout] Referral credit failed for ${userId} (withdrawal already recorded):`, referralErr.message);
+        }
 
         await invalidateUserCache(userId);
         await redisWithTimeout(redis.del(lockKey)); // releaseMutex
@@ -1136,7 +1220,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         const rejectionUrl = `${hostUrl}/admin/payout?token=${generatePayoutToken(uniqueTxId, 'reject')}`;
 
         const adminMessageText = `🚨 <b>NEW WITHDRAWAL REQUEST</b> 🚨\n\n` +
-            `👤 <b>User:</b> ${escapeTelegramHtml(user.first_name || 'N/A')} (@${escapeTelegramHtml(user.username || 'Anonymous')})\n` +
+            `👤 <b>User:</b> ${escapeTelegramHtml(debited.first_name || 'N/A')} (@${escapeTelegramHtml(debited.username || 'Anonymous')})\n` +
             `🆔 <b>Telegram ID:</b> <code>${escapeTelegramHtml(userId)}</code>\n` +
             `🧾 <b>TX ID:</b> <code>${escapeTelegramHtml(uniqueTxId)}</code>\n\n` +
             `💰 <b>Amount:</b> <b>${debitedPoints.toLocaleString()} PTS</b>\n` +
@@ -1150,13 +1234,13 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
             `❌ <a href="${rejectionUrl}">Reject and Refund Points</a>`;
 
         // Enqueue alert to admin via Bull Queue
-        await sendTelegramMessageAsync(adminChatId, adminMessageText, { disable_web_page_preview: true });
+        await notifyQuietly(adminChatId, adminMessageText, { disable_web_page_preview: true });
 
         return res.sendStatus(200);
 
     } catch (err) {
         console.error("Financial router allocation engine failure:", err);
-        return res.status(500).json({ error: "Internal accounting ledger fault." });
+        return respondWithError(res, err, "Internal accounting ledger fault.");
     }
 });
 
@@ -1233,13 +1317,14 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         } catch (e) {}
 
         if (isAutoApprove) {
-            return res.status(200).json({ success: true, message: "Verified successfully!" });
+            if (res.headersSent) return;
+        return res.status(200).json({ success: true, message: "Verified successfully!" });
         } else {
             return res.status(200).json({ success: true, message: "Submission received! Pending admin verification." });
         }
     } catch (e) {
         console.error("Bounty submission error:", e);
-        res.status(500).json({ error: "Internal error processing submission." });
+        return respondWithError(res, e, "Internal error processing submission.");
     } finally {
         try {
             await redisWithTimeout(redis.del(`lock:bounty:${userId}:${bountyId}`));

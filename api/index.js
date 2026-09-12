@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const mongoose = require("mongoose");
 const { ONBOARDING_REWARD_PTS, ADMIN_TELEGRAM_CHAT_ID, CAPTCHA_LENGTH } = require('../constants');
+const { isInfrastructureError, OUTAGE_MESSAGE } = require('../services/errors');
 
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ad-earn-bot";
 
@@ -333,15 +334,29 @@ app.use((err, req, res, next) => {
 
     if (res.headersSent) return next(err);
 
-    // Never leak internals to the client — the details go to the logs only.
-    const message = isBadJson
-        ? "Malformed request body."
-        : (status < 500 ? (err.message || "Request failed.") : "Something went wrong. Please try again.");
+    // A backing-store outage is not a bug in the user's request — say so, and
+    // use 503 so clients and uptime checks can tell it apart from a real 500.
+    // Same classifier the route-level catch blocks use.
+    const isInfraOutage = isInfrastructureError(err);
+
+    let responseStatus = status;
+    let message;
+    if (isBadJson) {
+        message = "Malformed request body.";
+    } else if (isInfraOutage) {
+        responseStatus = 503;
+        message = OUTAGE_MESSAGE;
+    } else if (status < 500) {
+        message = err.message || "Request failed.";
+    } else {
+        // Never leak internals on a real 500 — details go to the logs only.
+        message = "Something went wrong. Please try again.";
+    }
 
     if (wantsJson(req)) {
-        return res.status(status).json({ error: message });
+        return res.status(responseStatus).json({ error: message });
     }
-    res.status(status).type('text/plain').send(message);
+    res.status(responseStatus).type('text/plain').send(message);
 });
 
 // Attach MongoDB connection state to the app for dev.js to await

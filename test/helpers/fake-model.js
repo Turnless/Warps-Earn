@@ -90,6 +90,14 @@ function createModel(name, required = [], requiredSubdocs = {}) {
         Object.defineProperties(doc, {
             save: {
                 value: async function () {
+                    // Lets a test simulate a write failing mid-transaction.
+                    // Routes capture the model at require time, so the switch
+                    // has to live on the model rather than the module binding.
+                    if (Model.__failSave) {
+                        const err = new Error(Model.__failSaveMessage || `${name} write failed`);
+                        err.name = Model.__failSaveName || 'MongoNetworkError';
+                        throw err;
+                    }
                     for (const field of required) {
                         const v = getPath(this, field);
                         if (v === undefined || v === null || (typeof v === 'number' && Number.isNaN(v))) {
@@ -157,6 +165,9 @@ function createModel(name, required = [], requiredSubdocs = {}) {
     const Model = function (data) { return makeDoc(data); };
 
     Model.__store = store;
+    Model.__failSave = false;
+    Model.__failSaveMessage = null;
+    Model.__failSaveName = null;
     Model.__seed = (docs) => {
         for (const d of [].concat(docs)) {
             const doc = makeDoc(d);
@@ -224,6 +235,13 @@ function createModel(name, required = [], requiredSubdocs = {}) {
             if (update.$inc) {
                 for (const [field, val] of Object.entries(update.$inc)) {
                     setPath(v, field, (getPath(v, field) || 0) + val);
+                }
+            }
+            if (update.$pull) {
+                for (const [field, criteria] of Object.entries(update.$pull)) {
+                    const arr = getPath(v, field);
+                    if (!Array.isArray(arr)) continue;
+                    setPath(v, field, arr.filter(el => !matches(el, criteria)));
                 }
             }
             if (update.$push) {

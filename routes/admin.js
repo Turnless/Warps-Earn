@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
 const redis = require('../services/redis');
-const { sendTelegramMessageAsync, telegramQueue } = require('../services/queue');
+const { sendTelegramMessageAsync, telegramQueue, notifyQuietly } = require('../services/queue');
 const { invalidateGlobalSettings } = require('../services/settings');
 
 // Import environment parameters securely
@@ -385,49 +385,37 @@ router.post('/settings', checkAdminAuth, verifyCsrfToken, express.urlencoded({ e
 // --- 🛒 STORE CONFIG CONTROLLER ---
 router.post('/store-config', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
-        const { 
-            cooldown, multiplier, 
-            premium_tier_1m, premium_tier_3m, premium_tier_6m, premium_tier_3m_blue, premium_tier_6m_blue, 
-            gold_tier_1m, gold_tier_3m, gold_tier_6m, gold_tier_3m_blue, gold_tier_6m_blue, 
-            stars_premium_1m, stars_premium_3m, stars_premium_6m, stars_premium_3m_blue, stars_premium_6m_blue,
-            stars_gold_1m, stars_gold_3m, stars_gold_6m, stars_gold_3m_blue, stars_gold_6m_blue,
-            stars_x_verify,
-            enable_cooldown, enable_multiplier, enable_premium, enable_gold 
-        } = req.body;
-        const newConfig = {
-            ...DEFAULT_STORE_CONFIG,
-            ...DEFAULT_STARS_CONFIG,
-            cooldown: parseInt(cooldown) || 500,
-            multiplier: parseInt(multiplier) || 3000,
-            premium_tier_1m: parseInt(premium_tier_1m) || 15000,
-            premium_tier_3m: parseInt(premium_tier_3m) || 15000,
-            premium_tier_6m: parseInt(premium_tier_6m) || 28000,
-            premium_tier_3m_blue: parseInt(premium_tier_3m_blue) || 45000,
-            premium_tier_6m_blue: parseInt(premium_tier_6m_blue) || 85000,
-            gold_tier_1m: parseInt(gold_tier_1m) || 50000,
-            gold_tier_3m: parseInt(gold_tier_3m) || 50000,
-            gold_tier_6m: parseInt(gold_tier_6m) || 90000,
-            gold_tier_3m_blue: parseInt(gold_tier_3m_blue) || 80000,
-            gold_tier_6m_blue: parseInt(gold_tier_6m_blue) || 150000,
-            stars_premium_1m: parseInt(stars_premium_1m) || 15,
-            stars_premium_3m: parseInt(stars_premium_3m) || 25,
-            stars_premium_6m: parseInt(stars_premium_6m) || DEFAULT_STARS_CONFIG.stars_premium_6m,
-            stars_premium_3m_blue: parseInt(stars_premium_3m_blue) || DEFAULT_STARS_CONFIG.stars_premium_3m_blue,
-            stars_premium_6m_blue: parseInt(stars_premium_6m_blue) || DEFAULT_STARS_CONFIG.stars_premium_6m_blue,
-            stars_gold_1m: parseInt(stars_gold_1m) || 50,
-            stars_gold_3m: parseInt(stars_gold_3m) || 100,
-            stars_gold_6m: parseInt(stars_gold_6m) || DEFAULT_STARS_CONFIG.stars_gold_6m,
-            stars_gold_3m_blue: parseInt(stars_gold_3m_blue) || DEFAULT_STARS_CONFIG.stars_gold_3m_blue,
-            stars_gold_6m_blue: parseInt(stars_gold_6m_blue) || 220,
-            stars_x_verify: parseInt(stars_x_verify) || 100,
-            enable_cooldown: enable_cooldown === 'on',
-            enable_multiplier: enable_multiplier === 'on',
-            enable_premium: enable_premium === 'on',
-            enable_gold: enable_gold === 'on'
-        };
+        // Start from what is currently stored so a blank field keeps its existing
+        // value instead of snapping back to a literal, and fall back to the
+        // shared defaults rather than numbers duplicated in this handler.
+        const existingStr = await redis.get('admin:store_config');
+        const existing = existingStr ? JSON.parse(existingStr) : {};
+        const base = { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG, ...existing };
+
+        const PRICE_FIELDS = [
+            ...Object.keys(DEFAULT_STORE_CONFIG),
+            ...Object.keys(DEFAULT_STARS_CONFIG),
+            // priced items the defaults intentionally leave unset
+            'premium_tier_3m', 'stars_premium_3m', 'stars_gold_3m', 'stars_gold_6m'
+        ];
+        const TOGGLE_FIELDS = ['enable_cooldown', 'enable_multiplier', 'enable_premium', 'enable_gold'];
+
+        const newConfig = { ...base };
+        for (const field of PRICE_FIELDS) {
+            const raw = req.body[field];
+            if (raw === undefined || String(raw).trim() === '') continue;   // keep existing
+            const parsed = parseInt(raw, 10);
+            if (Number.isFinite(parsed) && parsed > 0) newConfig[field] = parsed;
+        }
+        for (const field of TOGGLE_FIELDS) {
+            newConfig[field] = req.body[field] === 'on';
+        }
+
         await redis.set('admin:store_config', JSON.stringify(newConfig));
+        await logAdminAction('store_config_update', { fields: Object.keys(req.body).length });
         res.redirect('/admin');
     } catch (e) {
+        console.error('Store config update failed:', e);
         res.status(500).type('text/plain').send("Failed to update store config");
     }
 });
@@ -760,7 +748,7 @@ router.post('/user-x-verify', checkAdminAuth, verifyCsrfToken, express.urlencode
             const msg = `🎉 *Account Tier Updated* 🎉\n\nYour account has been manually reviewed and placed in the *${user.account_tier} Tier*.\nFollowers: ${user.x_followers}\nBlue Tick: ${user.x_blue_tick ? 'Yes' : 'No'}`;
             try {
                 const { sendTelegramMessageAsync } = require('../services/queue');
-                await sendTelegramMessageAsync(telegram_id, msg, { parse_mode: 'Markdown' });
+                await notifyQuietly(telegram_id, msg, { parse_mode: 'Markdown' });
             } catch (err) {
                 console.error("Failed to notify user of tier change:", err);
             }
@@ -894,7 +882,7 @@ router.get('/sybil-hunter', checkAdminAuth, async (req, res) => {
         });
     } catch (err) {
         console.error(err);
-        res.status(500).send("Sybil Hunter Failed: " + err.message);
+        res.status(500).type('text/plain').send("Sybil Hunter failed. Check the server logs for details.");
     }
 });
 
@@ -979,11 +967,11 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
                 `📅 <b>Date:</b> ${getFormattedDateTime()}\n\n` +
                 `💚 <i>Keep watching, keep sharing, keep stacking!</i>`;
 
-            await sendTelegramMessageAsync(PUBLIC_PAYOUT_CHANNEL_ID, proofReceiptText);
+            await notifyQuietly(PUBLIC_PAYOUT_CHANNEL_ID, proofReceiptText);
 
             // Message target user directly via Bull Queue
             const userNotificationText = `💰 <b>Withdrawal Successful!</b>\n\nYour withdrawal of <b>${totalDebitedPoints.toLocaleString()} PTS (${valuationStr})</b> has been processed successfully.\n\nProof of payment has been posted to ${PUBLIC_PAYOUT_CHANNEL_ID}!`;
-            await sendTelegramMessageAsync(targetUser.telegram_id, userNotificationText);
+            await notifyQuietly(targetUser.telegram_id, userNotificationText);
 
             return res.send(`
                 <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #e6ddd0; text-align: center; color: #1a1a16;">
@@ -1006,7 +994,7 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
 
             // Notify user of rejection reason via Bull Queue
             const userRejectionText = `❌ <b>Withdrawal Rejected</b>\n\nYour withdrawal request for <b>${targetTx.amount.toLocaleString()} PTS</b> was declined. Your points have been refunded to your balance.`;
-            await sendTelegramMessageAsync(targetUser.telegram_id, userRejectionText);
+            await notifyQuietly(targetUser.telegram_id, userRejectionText);
 
             return res.send(`
                 <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #e6ddd0; text-align: center; color: #1a1a16;">
@@ -1071,7 +1059,7 @@ router.post('/bounty/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
             await targetUser.save();
             
             // Notify user of success
-            await sendTelegramMessageAsync(targetUser.telegram_id, `🎉 <b>Bounty Approved!</b>\n\nYour submission for <b>${targetBounty.title}</b> was verified. <b>+${targetBounty.reward_pts} PTS</b> has been added to your balance!`);
+            await notifyQuietly(targetUser.telegram_id, `🎉 <b>Bounty Approved!</b>\n\nYour submission for <b>${targetBounty.title}</b> was verified. <b>+${targetBounty.reward_pts} PTS</b> has been added to your balance!`);
             
             return res.redirect('/admin');
             
@@ -1092,7 +1080,7 @@ router.post('/bounty/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
                 "\n\n🚨 <b>ACCOUNT BANNED FROM BOUNTIES</b>\nYou have received 3 strikes for fraudulent submissions. You can no longer participate in social tasks." :
                 `\n\n⚠️ <b>Strike Added (${targetUser.bounty_strikes}/${MAX_BOUNTY_STRIKES})</b>\nSubmit valid links only to avoid being banned from tasks.`;
                 
-            await sendTelegramMessageAsync(targetUser.telegram_id, `❌ <b>Bounty Rejected</b>\n\nYour submission for <b>${targetBounty.title}</b> was marked as invalid.` + warningText);
+            await notifyQuietly(targetUser.telegram_id, `❌ <b>Bounty Rejected</b>\n\nYour submission for <b>${targetBounty.title}</b> was marked as invalid.` + warningText);
             
             return res.redirect('/admin');
         }

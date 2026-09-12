@@ -96,7 +96,26 @@ async function sendTelegramMessageAsync(chatId, text, options = {}, delayMs = 0)
     );
 }
 
+/**
+ * Best-effort notification: enqueues a Telegram message but never lets a queue
+ * failure change the outcome of the request that triggered it.
+ *
+ * Every caller reaches this point AFTER the real work has committed — points
+ * credited, payout recorded, order approved. Letting a Redis/queue outage throw
+ * here made the route's catch block report failure for work that had already
+ * succeeded, and in one case respond twice and crash the process.
+ */
+async function notifyQuietly(chatId, text, options = {}, delayMs = 0) {
+    try {
+        return await sendTelegramMessageAsync(chatId, text, options, delayMs);
+    } catch (err) {
+        console.error(`⚠️ [Queue] Notification to ${chatId} dropped:`, err.message);
+        return null;
+    }
+}
+
 module.exports = {
     telegramQueue,
-    sendTelegramMessageAsync
+    sendTelegramMessageAsync,
+    notifyQuietly
 };

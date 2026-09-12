@@ -113,16 +113,27 @@ async function setup() {
         };
     }
 
-    // Stub the Bull queue so tests never hit the Telegram API
+    // Stub the Bull queue so tests never hit the Telegram API.
+    // Routes destructure sendTelegramMessageAsync at require time, so failure is
+    // toggled through a mutable flag the stub reads on each call.
     const sentMessages = [];
+    const queueState = { shouldFail: false };
     const queuePath = require.resolve(path.join(ROOT, 'services/queue.js'));
     require.cache[queuePath] = {
         id: queuePath, filename: queuePath, loaded: true,
         exports: {
             telegramQueue: { on() {}, add: async () => ({ id: 'job' }), getJobCounts: async () => ({}), getFailed: async () => [] },
             sendTelegramMessageAsync: async (chatId, text, opts, delay) => {
+                if (queueState.shouldFail) throw new Error('queue unavailable');
                 sentMessages.push({ chatId, text, opts, delay });
                 return { id: 'job' };
+            },
+            notifyQuietly: async (chatId, text, opts, delay) => {
+                try {
+                    if (queueState.shouldFail) throw new Error('queue unavailable');
+                    sentMessages.push({ chatId, text, opts, delay });
+                    return { id: 'job' };
+                } catch (e) { return null; }
             }
         }
     };
@@ -155,7 +166,7 @@ async function setup() {
         }
     };
 
-    return { models, redisPort: port, sentMessages, fetchCalls };
+    return { models, redisPort: port, sentMessages, fetchCalls, queueState };
 }
 
 /** Mounts the real portal router on a fresh express app. */

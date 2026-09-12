@@ -33,6 +33,17 @@ const REFERRAL_MILESTONES = [
 const FIRST_WITHDRAWAL_MIN_PTS = 1500;
 const MIN_WITHDRAWAL_PTS = 1250;
 const MAX_DAILY_WITHDRAWALS = 2;
+
+// Withdrawals allowed per day, by account tier (was inline in routes/portal.js)
+const TIER_DAILY_WITHDRAWAL_LIMITS = {
+    Standard: 1,
+    Premium: 2,
+    Gold: 3
+};
+const DEFAULT_DAILY_WITHDRAWAL_LIMIT = 1;
+
+// Gold pays a flat minimum instead of the first/subsequent split
+const GOLD_MIN_WITHDRAWAL_PTS = 1000;
 const PAYOUT_LOCK_TTL_SECONDS = 10;
 const NAIRA_ACCOUNT_NUMBER_LENGTH = 10;
 
@@ -72,7 +83,6 @@ const DEFAULT_STORE_CONFIG = {
     cooldown: 500,
     multiplier: 3000,
     premium_tier_1m: 15000,
-    premium_tier_3m: 22000,
     premium_tier_6m: 28000,
     premium_tier_3m_blue: 45000,
     premium_tier_6m_blue: 85000,
@@ -122,6 +132,9 @@ module.exports = {
     FIRST_WITHDRAWAL_MIN_PTS,
     MIN_WITHDRAWAL_PTS,
     MAX_DAILY_WITHDRAWALS,
+    TIER_DAILY_WITHDRAWAL_LIMITS,
+    DEFAULT_DAILY_WITHDRAWAL_LIMIT,
+    GOLD_MIN_WITHDRAWAL_PTS,
     PAYOUT_LOCK_TTL_SECONDS,
     NAIRA_ACCOUNT_NUMBER_LENGTH,
     PTS_TO_USD_RATE,

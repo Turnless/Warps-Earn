@@ -3,7 +3,21 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 const ejs = require('ejs');
-const { REFERRAL_ACTIVATION_THRESHOLD, DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG } = require('../constants');
+const {
+    REFERRAL_ACTIVATION_THRESHOLD, DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG,
+    FIRST_WITHDRAWAL_MIN_PTS, MIN_WITHDRAWAL_PTS, GOLD_MIN_WITHDRAWAL_PTS,
+    TIER_DAILY_WITHDRAWAL_LIMITS, UPLINE_PROMOTER_REFERRAL_THRESHOLD, PTS_TO_USD_RATE
+} = require('../constants');
+
+// Mirrors what routes/portal.js hands the dashboard view.
+const WITHDRAWAL_LIMITS = {
+    firstMin: FIRST_WITHDRAWAL_MIN_PTS,
+    subsequentMin: MIN_WITHDRAWAL_PTS,
+    goldMin: GOLD_MIN_WITHDRAWAL_PTS,
+    dailyLimits: TIER_DAILY_WITHDRAWAL_LIMITS,
+    uplinePromoterThreshold: UPLINE_PROMOTER_REFERRAL_THRESHOLD,
+    ptsToUsd: PTS_TO_USD_RATE
+};
 
 const VIEWS = path.join(__dirname, '..', 'views');
 
@@ -79,24 +93,38 @@ test('referral progress uses the real activation threshold, not 1000', async () 
 // Gold withdrawal minimum
 // --------------------------------------------------------------------------
 
-test('a Gold user sees the 1,000 PTS withdrawal minimum the server enforces', async () => {
+test('a Gold user sees the withdrawal minimum the server actually enforces', async () => {
+    const aboveGoldMin = GOLD_MIN_WITHDRAWAL_PTS + 200;
     const html = await render('partials/dashboard/tabs/wallet.ejs', {
-        user: baseUser({ account_tier: 'Gold', points_balance: 1200 }),
-        locals: {}, firstWithdrawalDone: false, qualifiedRefs: 0
+        user: baseUser({ account_tier: 'Gold', points_balance: aboveGoldMin }),
+        firstWithdrawalDone: false, qualifiedRefs: 0,
+        withdrawalLimits: WITHDRAWAL_LIMITS
     });
 
-    assert.match(html, /Min:<\/span>\s*<span[^>]*>1000 PTS/,
-        'Gold minimum is 1000 — the view was showing 1500');
+    assert.match(html, new RegExp(`Min:<\\/span>\\s*<span[^>]*>${GOLD_MIN_WITHDRAWAL_PTS} PTS`),
+        'the view must show the configured Gold minimum, not a literal');
     assert.match(html, /Submit Withdrawal/,
-        'a Gold user with 1200 PTS is above the 1000 minimum and must not be blocked');
+        'a Gold user above the Gold minimum must not be blocked');
+    assert.match(html, new RegExp(`${WITHDRAWAL_LIMITS.dailyLimits.Gold} withdrawals/day`),
+        'the daily limit should come from config too');
 });
 
 test('a Standard user below the minimum still sees the blocked button', async () => {
     const html = await render('partials/dashboard/tabs/wallet.ejs', {
-        user: baseUser({ account_tier: 'Standard', points_balance: 900 }),
-        locals: {}, firstWithdrawalDone: false, qualifiedRefs: 0
+        user: baseUser({ account_tier: 'Standard', points_balance: FIRST_WITHDRAWAL_MIN_PTS - 100 }),
+        firstWithdrawalDone: false, qualifiedRefs: 0,
+        withdrawalLimits: WITHDRAWAL_LIMITS
     });
-    assert.match(html, /Need 1500 PTS to withdraw/);
+    assert.match(html, new RegExp(`Need ${FIRST_WITHDRAWAL_MIN_PTS} PTS to withdraw`));
+});
+
+test('the wallet view contains no hardcoded withdrawal numbers', async () => {
+    const fs = require('fs');
+    const source = fs.readFileSync(path.join(VIEWS, 'partials/dashboard/tabs/wallet.ejs'), 'utf8');
+    for (const literal of [FIRST_WITHDRAWAL_MIN_PTS, MIN_WITHDRAWAL_PTS, GOLD_MIN_WITHDRAWAL_PTS]) {
+        assert.ok(!new RegExp(`\\b${literal}\\b`).test(source),
+            `wallet.ejs hardcodes ${literal}; it should read the value from withdrawalLimits`);
+    }
 });
 
 // --------------------------------------------------------------------------
@@ -141,8 +169,9 @@ test('the task badge does not count bounties the user already submitted', async 
 
 test('store view passes the correct Stars price for every purchasable item', async () => {
     const html = await render('partials/dashboard/tabs/store.ejs', {
-        user: baseUser(), locals: {},
-        storeConfig: {}, pendingOrders: []
+        user: baseUser(),
+        storeConfig: { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG },
+        pendingOrders: []
     });
 
     function resolveStarsPriceKey(item) {
@@ -156,13 +185,34 @@ test('store view passes the correct Stars price for every purchasable item', asy
 
     for (const [, item, ptsPrice, starsPrice] of calls) {
         const expectedStars = DEFAULT_STARS_CONFIG[resolveStarsPriceKey(item)];
-        const expectedPts = DEFAULT_STORE_CONFIG[item];
-
         assert.strictEqual(Number(starsPrice), expectedStars,
             `${item}: view offers ${starsPrice} Stars but the invoice endpoint charges ${expectedStars}`);
-        assert.strictEqual(Number(ptsPrice), expectedPts,
-            `${item}: view offers ${ptsPrice} PTS but the server charges ${expectedPts}`);
         assert.notStrictEqual(Number(starsPrice), Number(ptsPrice),
             `${item}: Stars price must not equal the PTS price`);
+    }
+});
+
+test('the store view never duplicates a price literal', async () => {
+    // The dashboard route always supplies a complete store config, so any
+    // `|| 15000` fallback here is a second copy of a price that can drift from
+    // what the server charges.
+    const fs = require('fs');
+    const source = fs.readFileSync(path.join(VIEWS, 'partials/dashboard/tabs/store.ejs'), 'utf8');
+    const duplicated = source.match(/storeConfig\??\.[a-z0-9_]+ \|\| \d+/g) || [];
+    assert.deepStrictEqual(duplicated, [],
+        `store.ejs hardcodes prices the server already provides: ${duplicated.join(', ')}`);
+});
+
+test('store prices render from the config the server supplies', async () => {
+    const html = await render('partials/dashboard/tabs/store.ejs', {
+        user: baseUser(),
+        storeConfig: { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG },
+        pendingOrders: []
+    });
+    const calls = [...html.matchAll(/promptStorePurchase\('([a-z0-9_]+)',\s*(\d+),\s*(\d+)\)/g)];
+    assert.ok(calls.length >= 6, `expected store buttons, found ${calls.length}`);
+    for (const [, item, pts] of calls) {
+        assert.strictEqual(Number(pts), DEFAULT_STORE_CONFIG[item],
+            `${item} rendered ${pts} but the server charges ${DEFAULT_STORE_CONFIG[item]}`);
     }
 });

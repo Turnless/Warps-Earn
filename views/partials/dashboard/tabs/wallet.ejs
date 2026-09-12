@@ -2,8 +2,12 @@
 <% 
 var firstWithdrawalDone = locals.firstWithdrawalDone || false;
 var qualifiedRefs = locals.qualifiedRefs || 0;
-var personalThreshold = (user.account_tier === 'Gold') ? 1000 : (firstWithdrawalDone ? 1250 : 1500);
-                        var isUplinePromoter=(qualifiedRefs>=10);
+var wl = locals.withdrawalLimits || {};
+                        wl.dailyLimits = wl.dailyLimits || {};
+                        var personalThreshold = (user.account_tier === 'Gold')
+                            ? wl.goldMin
+                            : (firstWithdrawalDone ? wl.subsequentMin : wl.firstMin);
+                        var isUplinePromoter = (qualifiedRefs >= wl.uplinePromoterThreshold);
                         var globalClearedStatus = (user.points_balance >= personalThreshold || isUplinePromoter);
                     %>
 
@@ -24,14 +28,14 @@ var personalThreshold = (user.account_tier === 'Gold') ? 1000 : (firstWithdrawal
                                 <span class="text-xs mt-0.5">ℹ️</span>
                                 <span>
                                     <% if (user.account_tier === 'Gold') { %>
-                                        <b class="text-amber-400">Gold Tier</b> — Min withdrawal: <b class="text-white mono-text">1,000 PTS ($0.80)</b>.
-                                        Up to <b class="text-emerald-400 mono-text">3 withdrawals/day</b>. Instant processing. No limits.
+                                        <b class="text-amber-400">Gold Tier</b> — Min withdrawal: <b class="text-white mono-text"><%= wl.goldMin.toLocaleString() %> PTS ($<%= (wl.goldMin * wl.ptsToUsd).toFixed(2) %>)</b>.
+                                        Up to <b class="text-emerald-400 mono-text"><%= wl.dailyLimits.Gold %> withdrawals/day</b>. Instant processing. No limits.
                                     <% } else if (user.account_tier === 'Premium') { %>
-                                        <b class="text-violet-400">Premium Tier</b> — First withdrawal: <b class="text-white mono-text">1,500 PTS ($1.20)</b>.
-                                        After that, min drops to <b class="text-emerald-400 mono-text">1,250 PTS ($1.00)</b>. Up to 2/day. 1h processing.
+                                        <b class="text-violet-400">Premium Tier</b> — First withdrawal: <b class="text-white mono-text"><%= wl.firstMin.toLocaleString() %> PTS ($<%= (wl.firstMin * wl.ptsToUsd).toFixed(2) %>)</b>.
+                                        After that, min drops to <b class="text-emerald-400 mono-text"><%= wl.subsequentMin.toLocaleString() %> PTS ($<%= (wl.subsequentMin * wl.ptsToUsd).toFixed(2) %>)</b>. Up to <%= wl.dailyLimits.Premium %>/day. 1h processing.
                                     <% } else { %>
-                                        <b class="text-neutral-200">Standard Tier</b> — First withdrawal: <b class="text-white mono-text">1,500 PTS ($1.20)</b>.
-                                        After that, min drops to <b class="text-emerald-400 mono-text">1,250 PTS ($1.00)</b>. Max 1/day. 24h processing.
+                                        <b class="text-neutral-200">Standard Tier</b> — First withdrawal: <b class="text-white mono-text"><%= wl.firstMin.toLocaleString() %> PTS ($<%= (wl.firstMin * wl.ptsToUsd).toFixed(2) %>)</b>.
+                                        After that, min drops to <b class="text-emerald-400 mono-text"><%= wl.subsequentMin.toLocaleString() %> PTS ($<%= (wl.subsequentMin * wl.ptsToUsd).toFixed(2) %>)</b>. Max <%= wl.dailyLimits.Standard %>/day. 24h processing.
                                     <% } %>
                                 </span>
                             </div>
