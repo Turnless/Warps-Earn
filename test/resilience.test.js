@@ -36,6 +36,14 @@ const auth = () => `WebApp ${harness.signInitData({ id: Number(USER), username: 
 const REDIS_METHODS = ['get', 'set', 'setex', 'del', 'incr', 'expire', 'lpush', 'ltrim', 'lrange', 'lrem', 'call'];
 
 /** Simulates the Upstash quota failure: every redis command rejects. */
+function silenceExpectedLogging() {
+    const realError = console.error;
+    const realWarn = console.warn;
+    console.error = () => {};
+    console.warn = () => {};
+    return () => { console.error = realError; console.warn = realWarn; };
+}
+
 function breakRedis() {
     const saved = {};
     for (const m of REDIS_METHODS) {
@@ -45,7 +53,9 @@ function breakRedis() {
         };
     }
     require('../services/settings').invalidateGlobalSettings();
+    const unsilence = silenceExpectedLogging();
     return () => {
+        unsilence();
         for (const m of REDIS_METHODS) redis[m] = saved[m];
         require('../services/settings').invalidateGlobalSettings();
     };
@@ -119,6 +129,7 @@ test('an ad claim still succeeds when the notification queue is down', async () 
     // there used to make the catch block respond a second time, which crashed
     // the process with ERR_HTTP_HEADERS_SENT.
     ctx.queueState.shouldFail = true;
+    const unsilence = silenceExpectedLogging();
 
     const crashes = [];
     const onErr = (e) => crashes.push(e);
@@ -136,6 +147,7 @@ test('an ad claim still succeeds when the notification queue is down', async () 
         const headerCrash = crashes.find(e => /ERR_HTTP_HEADERS_SENT/.test(e && (e.code || e.message)));
         assert.ok(!headerCrash, `responded twice: ${headerCrash && headerCrash.message}`);
     } finally {
+        unsilence();
         process.off('uncaughtException', onErr);
         process.off('unhandledRejection', onErr);
     }
@@ -146,9 +158,13 @@ test('an ad claim still succeeds when the notification queue is down', async () 
 
 test('a withdrawal still succeeds when the admin alert cannot be queued', async () => {
     ctx.queueState.shouldFail = true;
-    const res = await post('/portal/request-payout', {
-        id: USER, amount: 2000, asset: 'TON', destination: 'UQxxxxxxxx'
-    });
+    const unsilence = silenceExpectedLogging();
+    let res;
+    try {
+        res = await post('/portal/request-payout', {
+            id: USER, amount: 2000, asset: 'TON', destination: 'UQxxxxxxxx'
+        });
+    } finally { unsilence(); }
 
     assert.strictEqual(res.status, 200,
         'the payout ticket was created — a failed admin alert must not report failure to the user');
@@ -179,4 +195,76 @@ test('corrupt quest config does not break the dashboard', async () => {
     const res = await fetch(`${server.url}/dashboard?id=${USER}&initData=${encodeURIComponent(initData)}`,
         { redirect: 'manual', headers: { Accept: 'text/html' } });
     assert.strictEqual(res.status, 200);
+});
+
+// ---------------------------------------------------------------------------
+// A database outage should read the same way a redis outage does
+// ---------------------------------------------------------------------------
+
+/** Simulates a lost Atlas connection: every query rejects. */
+function breakMongo() {
+    const saved = [];
+    const QUERY_METHODS = ['findOne', 'find', 'findById', 'findOneAndUpdate',
+                           'countDocuments', 'updateOne', 'deleteOne', 'aggregate'];
+    for (const model of Object.values(models)) {
+        for (const fn of QUERY_METHODS) {
+            saved.push([model, fn, model[fn]]);
+            model[fn] = () => {
+                const e = new Error('connection <monitor> to mongodb closed');
+                e.name = 'MongoNetworkError';
+                throw e;
+            };
+        }
+    }
+    const unsilence = silenceExpectedLogging();
+    return () => { unsilence(); for (const [m, fn, orig] of saved) m[fn] = orig; };
+}
+
+test('a database outage reports 503, not a 500 with internal jargon', async () => {
+    const restore = breakMongo();
+    try {
+        for (const [path, body] of [
+            ['/portal/claim-ad-reward', { id: USER }],
+            ['/portal/purchase-store-item', { id: USER, item: 'cooldown' }],
+            ['/portal/request-payout', { id: USER, amount: 2000, asset: 'TON', destination: 'UQx' }],
+            ['/portal/verify-quest', { id: USER, quest: 'channel' }]
+        ]) {
+            const res = await post(path, body);
+            assert.strictEqual(res.status, 503, `${path} returned ${res.status}`);
+
+            const parsed = await res.json();
+            assert.match(parsed.error, /temporarily unavailable/i, `${path}: ${parsed.error}`);
+            assert.doesNotMatch(parsed.error, /mongo|ledger fault|processing fault/i,
+                `${path} leaked internals or jargon: ${parsed.error}`);
+        }
+    } finally { restore(); }
+});
+
+test('a database outage never returns HTML and never leaks driver messages', async () => {
+    const restore = breakMongo();
+    try {
+        const initData = harness.signInitData({ id: Number(USER), username: 't' });
+        for (const url of [
+            `${server.url}/dashboard?id=${USER}&initData=${encodeURIComponent(initData)}`,
+            `${server.url}/auth?tgWebAppInitData=${encodeURIComponent(initData)}`
+        ]) {
+            const res = await fetch(url, { redirect: 'manual', headers: { Accept: 'text/html' } });
+            const text = await res.text();
+            assert.strictEqual(res.status, 503, `${url} returned ${res.status}`);
+            assert.doesNotMatch(text, /<\s*(!doctype|html|pre)\b/i, 'must not be an HTML error page');
+            assert.doesNotMatch(text, /MongoNetworkError|connection <monitor>/i, 'must not leak the driver error');
+        }
+    } finally { restore(); }
+});
+
+test('a genuine bug still reports 500, not a misleading 503', async () => {
+    // Classification must not swallow real defects.
+    const { isInfrastructureError } = require('../services/errors');
+    assert.strictEqual(isInfrastructureError(new TypeError("x is not a function")), false);
+    assert.strictEqual(isInfrastructureError(new Error("Cannot read properties of undefined")), false);
+
+    const mongoErr = new Error('connection timed out');
+    mongoErr.name = 'MongoServerSelectionError';
+    assert.strictEqual(isInfrastructureError(mongoErr), true);
+    assert.strictEqual(isInfrastructureError(new Error('ERR max requests limit exceeded')), true);
 });

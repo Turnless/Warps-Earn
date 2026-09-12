@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const mongoose = require("mongoose");
 const { ONBOARDING_REWARD_PTS, ADMIN_TELEGRAM_CHAT_ID, CAPTCHA_LENGTH } = require('../constants');
+const { isInfrastructureError, OUTAGE_MESSAGE } = require('../services/errors');
 
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ad-earn-bot";
 
@@ -335,8 +336,8 @@ app.use((err, req, res, next) => {
 
     // A backing-store outage is not a bug in the user's request — say so, and
     // use 503 so clients and uptime checks can tell it apart from a real 500.
-    const isInfraOutage = /max requests limit|ECONNREFUSED|ECONNRESET|ETIMEDOUT|Redis|MongoNetworkError|connection is closed|operation timed out/i
-        .test(err.message || '');
+    // Same classifier the route-level catch blocks use.
+    const isInfraOutage = isInfrastructureError(err);
 
     let responseStatus = status;
     let message;
@@ -344,7 +345,7 @@ app.use((err, req, res, next) => {
         message = "Malformed request body.";
     } else if (isInfraOutage) {
         responseStatus = 503;
-        message = "Service is temporarily unavailable. Please try again in a moment.";
+        message = OUTAGE_MESSAGE;
     } else if (status < 500) {
         message = err.message || "Request failed.";
     } else {

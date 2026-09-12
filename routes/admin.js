@@ -894,7 +894,7 @@ router.get('/sybil-hunter', checkAdminAuth, async (req, res) => {
         });
     } catch (err) {
         console.error(err);
-        res.status(500).send("Sybil Hunter Failed: " + err.message);
+        res.status(500).type('text/plain').send("Sybil Hunter failed. Check the server logs for details.");
     }
 });
 

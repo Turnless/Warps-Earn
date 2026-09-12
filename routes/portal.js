@@ -9,6 +9,7 @@ const BountySubmission = require('../models/BountySubmission');
 const redis = require('../services/redis');
 const { sendTelegramMessageAsync, notifyQuietly } = require('../services/queue');
 const { getGlobalSettings } = require('../services/settings');
+const { respondWithError } = require('../services/errors');
 
 // Import the cryptographic verification middleware securely
 const verifyTelegramWebAppData = require('../middleware/auth');
@@ -256,8 +257,7 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
-        if (res.headersSent) return;
-        res.status(500).json({ error: "Internal server error loading dashboard." });
+        return respondWithError(res, e, "Internal server error loading dashboard.");
     }
 });
 
@@ -334,8 +334,7 @@ router.get('/watch-ads', globalEcosystemCheck, verifyInitDataParam, async (req, 
 
     } catch (e) {
         console.error("Error launching ad view gateway:", e);
-        if (res.headersSent) return;
-        res.status(500).json({ error: "Connection error. Try again." });
+        return respondWithError(res, e, "Connection error. Try again.");
     }
 });
 
@@ -404,8 +403,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 
     } catch (e) {
         console.error("Ad point processing crash:", e);
-        if (res.headersSent) return;
-        res.status(500).json({ error: "Internal processing fault." });
+        return respondWithError(res, e, "Internal processing fault.");
     }
 });
 
@@ -464,8 +462,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
                 }
             } catch (apiErr) {
                 console.error("External validation network error:", apiErr.message);
-                if (res.headersSent) return;
-        return res.status(500).json({ error: "External network validation failure." });
+                return respondWithError(res, apiErr, "External network validation failure.");
             }
         }
 
@@ -492,8 +489,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
 
     } catch (e) {
         console.error("❌ [Quest Critical Error] Quest verification processor exception:", e);
-        if (res.headersSent) return;
-        res.status(500).json({ error: "Internal processing fault." });
+        return respondWithError(res, e, "Internal processing fault.");
     }
 });
 
@@ -551,8 +547,7 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
         res.status(200).json({ success: true, newBalance: user.points_balance });
     } catch (e) {
         console.error("Adsgram reward allocation error:", e);
-        if (res.headersSent) return;
-        res.status(500).json({ error: "Connection error. Try again." });
+        return respondWithError(res, e, "Connection error. Try again.");
     }
 });
 
@@ -673,8 +668,7 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         res.json({ success: true, title: campaign.title, pts: campaign.pts, requiresCommentLink: !!submittedLink });
     } catch (e) {
         console.error("Custom Promo Error:", e);
-        if (res.headersSent) return;
-        res.status(500).json({ error: "Internal error." });
+        return respondWithError(res, e, "Internal error.");
     }
 });
 
@@ -871,8 +865,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         return res.json({ success: true, newBalance: user.points_balance, isPending });
     } catch (e) {
         console.error("Store error:", e);
-        if (res.headersSent) return;
-        return res.status(500).json({ error: "Purchase failed." });
+        return respondWithError(res, e, "Purchase failed.");
     } finally {
         try {
             await redisWithTimeout(redis.del(lockKey));
@@ -946,8 +939,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
         }
     } catch (e) {
         console.error("Invoice generation error:", e);
-        if (res.headersSent) return;
-        return res.status(500).json({ error: "Invoice generation failed." });
+        return respondWithError(res, e, "Invoice generation failed.");
     }
 });
 
@@ -1189,8 +1181,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
     } catch (err) {
         console.error("Financial router allocation engine failure:", err);
-        if (res.headersSent) return;
-        return res.status(500).json({ error: "Internal accounting ledger fault." });
+        return respondWithError(res, err, "Internal accounting ledger fault.");
     }
 });
 
@@ -1274,8 +1265,7 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         }
     } catch (e) {
         console.error("Bounty submission error:", e);
-        if (res.headersSent) return;
-        res.status(500).json({ error: "Internal error processing submission." });
+        return respondWithError(res, e, "Internal error processing submission.");
     } finally {
         try {
             await redisWithTimeout(redis.del(`lock:bounty:${userId}:${bountyId}`));

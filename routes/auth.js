@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const User = require('../models/User');
+const { isInfrastructureError } = require('../services/errors');
 
 const INITDATA_MAX_AGE_SECONDS = 24 * 60 * 60;
 
@@ -152,10 +153,13 @@ router.get('/', async (req, res) => {
         return res.redirect(`/dashboard?id=${telegramId}`);
 
     } catch (err) {
+        // The detail belongs in the logs, not in a response to the client.
         console.error("Authentication mapping engine failure:", err);
-        // Surface the actual error in logs and response for debugging
-        const detail = err.message || 'Unknown error';
-        return res.status(500).send(`Authentication engine tracking fault: ${detail}`);
+        if (res.headersSent) return;
+        // A backing-store outage is transient — report it as such.
+        const status = isInfrastructureError(err) ? 503 : 500;
+        return res.status(status).type('text/plain')
+            .send("Could not sign you in right now. Please close and reopen the app.");
     }
 });
 
