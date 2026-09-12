@@ -142,9 +142,13 @@
         <div class="max-w-6xl mx-auto pb-20">
             
             <%- include('partials/admin/tabs/overview') %>
-            <%- include('partials/admin/tabs/approvals') %>
-            <%- include('partials/admin/tabs/intelligence') %>
-            <%- include('partials/admin/tabs/ecosystem') %>
+            <%- include('partials/admin/tabs/payouts') %>
+            <%- include('partials/admin/tabs/review') %>
+            <%- include('partials/admin/tabs/users') %>
+            <%- include('partials/admin/tabs/content') %>
+            <%- include('partials/admin/tabs/economy') %>
+            <%- include('partials/admin/tabs/messaging') %>
+            <%- include('partials/admin/tabs/system') %>
             
         </div>
     </main>
@@ -167,9 +171,8 @@
                 target.classList.add('animate-fade-in');
             }
 
-            // Activate the nav item
-            const navId = 'nav-' + tabId.split('-')[1];
-            const navItem = document.getElementById(navId);
+            // Activate the nav item ('tab-foo' -> 'nav-foo')
+            const navItem = document.getElementById(tabId.replace(/^tab-/, 'nav-'));
             if (navItem) navItem.classList.add('active');
 
             // Close mobile sidebar after clicking
@@ -195,7 +198,8 @@
             }
         }
 
-        const CONVERSION_RATE = 0.0008;
+        // Supplied by the server so this never drifts from constants.js
+        const CONVERSION_RATE = <%= ptsToUsd %>;
 
         function calcToUsd() {
             const ptsInput = document.getElementById('calc-pts').value;
@@ -222,6 +226,22 @@
             const match = document.cookie.match(/admin_csrf=([^;]+)/);
             if (match) el.value = match[1];
         });
+
+        // Open the section named in the URL hash, so /admin#payouts deep-links
+        // and a form POST that redirects back to /admin can return you there.
+        (function restoreSection() {
+            const wanted = (window.location.hash || '').replace('#', '');
+            if (!wanted) return;
+            const target = document.getElementById('tab-' + wanted);
+            if (target) switchTab('tab-' + wanted);
+        })();
+
+        // Keep the hash in step as you navigate
+        const _switchTab = switchTab;
+        switchTab = function (tabId) {
+            _switchTab(tabId);
+            history.replaceState(null, '', '#' + tabId.replace(/^tab-/, ''));
+        };
     </script>
 </body>
 </html>

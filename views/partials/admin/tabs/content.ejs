@@ -1,0 +1,114 @@
+<section id="tab-content" class="hide-section flex flex-col gap-8">
+                <div class="flex flex-col gap-1 animate-fade-in">
+                    <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Tasks</h2>
+                    <p class="text-neutral-500 text-sm">Create the quests users complete, and retire the ones that are done.</p>
+                </div>
+
+                <!-- Dynamic Quests Builder -->
+                <div class="glass-panel p-8 animate-fade-in stagger-3">
+                    <h3 class="font-heading font-bold text-xl text-neutral-900 mb-6">Dynamic Quests Engine</h3>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Create Form -->
+                        <form action="/admin/quests" method="POST" class="flex flex-col gap-4">
+                            <input type="hidden" name="_csrf" value="">
+                            <input type="hidden" name="action" value="create">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Quest Key (No spaces)</label>
+                                    <input type="text" name="key" required placeholder="e.g. follow_twitter" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs">
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Icon Emoji</label>
+                                    <input type="text" name="icon" required placeholder="🐦" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 text-xs text-center">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Quest Title</label>
+                                    <input type="text" name="title" required placeholder="Follow us on Twitter" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 text-xs">
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Target URL</label>
+                                    <input type="url" name="url" required placeholder="https://..." class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mt-2">
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Quest Timer (Seconds)</label>
+                                    <input type="number" name="timer" value="8" min="0" placeholder="e.g. 15" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs">
+                                </div>
+                                <div class="flex items-center gap-2 mt-6">
+                                    <input type="checkbox" name="requires_comment_link" id="requires_comment_link" class="w-4 h-4 rounded border-neutral-300 text-cyan-500 focus:ring-cyan-500">
+                                    <label for="requires_comment_link" class="text-xs font-bold text-neutral-700">Require X Comment Link</label>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">User Limit (0 for unlimited)</label>
+                                    <input type="number" name="max_participants" value="0" min="0" placeholder="100" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs">
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Reward PTS</label>
+                                    <input type="number" name="pts" required placeholder="500" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs">
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Tier Requirement</label>
+                                <select name="tier_required" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 text-xs appearance-none">
+                                    <option value="Any">Any Tier</option>
+                                    <option value="Premium">Premium + Gold</option>
+                                    <option value="Gold">Gold Only</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Target Countries (Comma separated, empty for global)</label>
+                                <input type="text" name="target_countries" placeholder="US, UK, NG" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-4 py-3 text-neutral-900 focus:border-cyan-500 font-mono text-xs uppercase">
+                            </div>
+                            <label class="flex items-center gap-3 mt-2 bg-white/60 p-3 rounded-xl border border-neutral-200 cursor-pointer hover:border-cyan-500/50 transition-colors">
+                                <input type="checkbox" name="is_telegram" class="w-4 h-4 accent-cyan-500">
+                                <span class="text-xs font-bold text-neutral-900">This is a Telegram joining task</span>
+                            </label>
+                            
+                            <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 text-neutral-900 font-bold py-3.5 rounded-xl transition-all uppercase tracking-widest text-xs mt-2 shadow-[0_0_15px_rgba(6,182,212,0.3)]">Deploy Quest</button>
+                        </form>
+
+                        <!-- Active Quests List -->
+                        <div class="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-2">
+                            <% const qObj = typeof dynamicQuests !== 'undefined' ? dynamicQuests : {}; %>
+                            <% const qKeys = Object.keys(qObj); %>
+                            <% if (qKeys.length > 0) { %>
+                                <% qKeys.forEach(k => { const q = qObj[k]; %>
+                                    <div class="bg-white/70 p-4 rounded-xl border border-neutral-200 flex flex-col gap-3 relative overflow-hidden">
+                                        <% if (q.is_telegram) { %><div class="absolute right-0 top-0 w-16 h-16 bg-blue-500/20 blur-[20px] rounded-full pointer-events-none"></div><% } %>
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-2xl"><%= q.icon %></span>
+                                                <div class="flex flex-col">
+                                                    <h4 class="font-bold text-neutral-900 text-sm"><%= q.title %></h4>
+                                                    <span class="text-[10px] text-cyan-400 font-mono">+<%= q.pts %> PTS | Tier: <%= q.tier_required %> | Users: <%= q.current_participants || 0 %>/<%= q.max_participants || '∞' %></span>
+                                                </div>
+                                            </div>
+                                            <form action="/admin/quests" method="POST">
+                                                <input type="hidden" name="_csrf" value="">
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="key" value="<%= k %>">
+                                                <button type="submit" class="text-rose-400 hover:text-rose-300 bg-rose-500/10 px-2 py-1 rounded text-[10px] font-bold border border-rose-500/20">Delete</button>
+                                            </form>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 text-[9px] font-mono text-neutral-500 uppercase">
+                                            <span>Key: <%= k %></span>
+                                            <% if (q.target_countries && q.target_countries.length > 0) { %>
+                                                <span class="text-amber-400 border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 rounded"><%= q.target_countries.join(', ') %></span>
+                                            <% } else { %>
+                                                <span class="text-emerald-400 border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 rounded">Global</span>
+                                            <% } %>
+                                        </div>
+                                    </div>
+                                <% }) %>
+                            <% } else { %>
+                                <p class="text-xs text-neutral-500 italic flex items-center justify-center h-full border border-dashed border-neutral-300 rounded-xl bg-black/10">No active dynamic quests.</p>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </section>

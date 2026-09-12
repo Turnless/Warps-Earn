@@ -1,41 +1,10 @@
-<section id="tab-approvals" class="hide-section flex flex-col gap-10">
+<section id="tab-review" class="hide-section flex flex-col gap-8">
                 <div class="flex flex-col gap-1 animate-fade-in">
-                    <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Action Center</h2>
-                    <p class="text-neutral-500 text-sm">Process pending payouts, review social bounties, and fulfill store orders.</p>
+                    <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Review Queue</h2>
+                    <p class="text-neutral-500 text-sm">Submissions waiting on a decision. Nothing here moves money directly.</p>
                 </div>
 
-                <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 animate-fade-in stagger-2">
-                    
-                    <!-- COLUMN 1: PAYOUTS -->
-                    <div class="glass-panel p-6 flex flex-col gap-4">
-                        <div class="flex justify-between items-center border-b border-neutral-200 pb-4">
-                            <h3 class="font-heading font-bold text-lg text-neutral-900 flex items-center gap-2">💸 Payouts</h3>
-                            <span class="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded text-[10px] font-mono"><%= pendingList ? pendingList.length : 0 %></span>
-                        </div>
-                        <div class="flex flex-col gap-3">
-                            <% if (pendingList && pendingList.length > 0) { %>
-                                <% pendingList.forEach(p => { %>
-                                    <div class="bg-white/70 rounded-xl p-4 border border-neutral-200 flex flex-col gap-3 hover:border-neutral-300 transition-colors">
-                                        <div class="flex justify-between items-start">
-                                            <div class="flex flex-col gap-1">
-                                                <span class="font-bold text-sm text-neutral-900">@<%= p.username || 'Anon' %></span>
-                                                <span class="text-[10px] text-neutral-500 font-mono"><%= p.telegram_id %></span>
-                                            </div>
-                                            <span class="text-sm font-bold text-emerald-400 font-mono"><%= p.amount_points.toLocaleString() %> PTS</span>
-                                        </div>
-                                        <div class="text-[10px] text-neutral-600 bg-white/90 p-2.5 rounded font-mono border border-neutral-200 break-all leading-relaxed whitespace-pre-wrap"><strong>Amount:</strong> <%= p.amount_points.toLocaleString() %> PTS<br><strong>Asset:</strong> <%= p.asset %><% if (p.bank_provider) { %><br><strong>Bank/Provider:</strong> <%= p.bank_provider %><% } %><br><strong>Account Details:</strong> <%= p.destination_details %><br><strong>Status:</strong> Pending Review<br><strong>Date:</strong> <%= new Date(p.created_at).toLocaleString() %></div>
-                                        <div class="grid grid-cols-2 gap-2 mt-1">
-                                            <a href="/admin/payout?txId=<%= p.id %>&action=reject" class="glass-btn text-rose-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500/10 hover:border-rose-500/30">Reject</a>
-                                            <a href="/admin/payout?txId=<%= p.id %>&action=approve" class="glass-btn text-emerald-400 text-center py-2 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500/10 hover:border-emerald-500/30">Approve</a>
-                                        </div>
-                                    </div>
-                                <% }) %>
-                            <% } else { %>
-                                <p class="text-xs text-neutral-500 italic text-center py-8">Inbox Zero.</p>
-                            <% } %>
-                        </div>
-                    </div>
-
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 animate-fade-in stagger-2">
                     <!-- COLUMN 2: BOUNTIES -->
                     <div class="glass-panel p-6 flex flex-col gap-4">
                         <div class="flex justify-between items-center border-b border-neutral-200 pb-4">

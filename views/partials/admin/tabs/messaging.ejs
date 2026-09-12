@@ -1,0 +1,25 @@
+<section id="tab-messaging" class="hide-section flex flex-col gap-8">
+                <div class="flex flex-col gap-1 animate-fade-in">
+                    <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">Messaging</h2>
+                    <p class="text-neutral-500 text-sm">Reaches every user at once. There is no undo — read the copy twice.</p>
+                </div>
+
+                <!-- Broadcast Engine -->
+                <div class="glass-panel p-8 animate-fade-in stagger-4 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 w-64 h-64 bg-rose-600/10 blur-[60px] rounded-full pointer-events-none"></div>
+                    <h3 class="font-heading font-bold text-xl text-neutral-900 mb-6">Broadcast Engine</h3>
+                    <div class="flex flex-col gap-4 relative z-10">
+                        <form action="/admin/broadcast" method="POST" id="broadcast-form" class="w-full">
+                            <input type="hidden" name="_csrf" value="">
+                            <textarea name="message_text" rows="4" placeholder="Enter HTML message payload here... (Sends to all <%= stats.users %> users)" class="w-full bg-white/80 border border-neutral-300 rounded-xl px-5 py-4 text-neutral-900 focus:outline-none focus:border-rose-500 transition-colors font-mono text-sm resize-none"></textarea>
+                        </form>
+                        <div class="flex justify-end gap-4">
+                            <form action="/admin/wakeup-push" method="POST">
+                                <input type="hidden" name="_csrf" value="">
+                                <button type="submit" onclick="return confirm('Send wake-up pings to inactive users?')" class="glass-btn text-amber-400 font-bold px-6 py-3 rounded-xl uppercase tracking-widest text-xs">Ping Inactive</button>
+                            </form>
+                            <button type="submit" form="broadcast-form" onclick="return confirm('WARNING: Pushing broadcast to ALL users. Execute?')" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-8 py-3 rounded-xl shadow-[0_0_20px_rgba(225,29,72,0.4)] transition-all uppercase tracking-widest text-xs">Execute Broadcast</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
