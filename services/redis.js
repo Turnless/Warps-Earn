@@ -46,7 +46,47 @@ redis.on('error', (err) => {
     }
 });
 
+/**
+ * Wraps a redis command so it can never hang a request.
+ *
+ * REDIS_OPTS sets maxRetriesPerRequest: null because Bull requires it. The side
+ * effect is that when the connection is down ioredis queues commands
+ * indefinitely — they never resolve and never reject — so an awaited command
+ * silently stalls the HTTP request forever. Always go through this.
+ */
+function withTimeout(promise, timeoutMs = 3000) {
+    let timer;
+    return Promise.race([
+        Promise.resolve(promise),
+        new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Redis operation timed out')), timeoutMs);
+        })
+    ]).finally(() => clearTimeout(timer));
+}
+
+/** Runs a redis command, returning `fallback` instead of throwing or hanging. */
+async function safely(promise, fallback = null, label = 'redis', timeoutMs = 3000) {
+    try {
+        return await withTimeout(promise, timeoutMs);
+    } catch (err) {
+        console.error(`⚠️ [Redis] ${label} unavailable:`, err.message);
+        return fallback;
+    }
+}
+
+/**
+ * Runs a redis command without making the caller wait for it.
+ * For bookkeeping — audit entries, cache purges, counters — where the user's
+ * response should not be delayed by a slow or dead cache.
+ */
+function fireAndForget(promise, label = 'redis') {
+    safely(promise, null, label, 2000).catch(() => {});
+}
+
 // Export both the client instance, options, and secure URL (for Bull queue reuse)
 module.exports = redis;
 module.exports.REDIS_OPTS = REDIS_OPTS;
 module.exports.REDIS_URL = REDIS_URL;
+module.exports.withTimeout = withTimeout;
+module.exports.safely = safely;
+module.exports.fireAndForget = fireAndForget;
