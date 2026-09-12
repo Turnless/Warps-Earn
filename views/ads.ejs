@@ -160,7 +160,19 @@
                 if (response.ok) {
                     window.location.href = `/dashboard?id=<%= userId %>&initData=${encodeURIComponent(window.Telegram?.WebApp?.initData || '')}`;
                 } else {
-                    alert("Claim rejected. Please try again.");
+                    let message = "Claim rejected. Please try again.";
+                    try {
+                        const raw = await response.text();
+                        if (raw) {
+                            try {
+                                message = JSON.parse(raw).error || message;
+                            } catch (notJson) {
+                                // never surface markup to the user
+                                if (!/<[a-z!/][\s\S]*>/i.test(raw)) message = raw;
+                            }
+                        }
+                    } catch (e) { /* keep the default */ }
+                    alert(message);
                     claimBtn.disabled = false;
                     claimBtn.innerText = "🎁 Complete Ads & Claim +10 PTS";
                 }

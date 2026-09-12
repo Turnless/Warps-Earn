@@ -153,8 +153,7 @@
                         showToast(data.error || "Failed to generate invoice", "❌");
                     }
                 } else {
-                    const err = await response.text();
-                    showToast(err, "❌");
+                    showToast(await readError(response), "❌");
                 }
             } catch (err) {
                 console.error(err);
@@ -216,11 +215,38 @@
                     
                     setTimeout(() => window.location.reload(), 2500);
                 } else {
-                    const errMsg = await response.text();
-                    showToast(errMsg || "Insufficient balance.", "❌");
+                    showToast(await readError(response, "Insufficient balance."), "❌");
                 }
             } catch (err) {
                 showToast("Connection error.", "⚠️");
+            }
+        }
+
+        // Reads an error message from a failed response.
+        // The API replies with JSON {error}, but fall back to plain text and
+        // strip any markup so a toast can never render raw HTML at the user.
+        async function readError(response, fallback = "Something went wrong. Please try again.") {
+            try {
+                const raw = await response.text();
+                if (!raw) return fallback;
+
+                let message = raw;
+                try {
+                    const parsed = JSON.parse(raw);
+                    message = parsed.error || parsed.message || fallback;
+                } catch (notJson) {
+                    // plain text, or an HTML page from an unexpected layer
+                    if (/<[a-z!/][\s\S]*>/i.test(raw)) {
+                        const stripped = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                        message = stripped || fallback;
+                    }
+                }
+
+                message = String(message).replace(/\s+/g, ' ').trim();
+                if (!message) return fallback;
+                return message.length > 200 ? message.slice(0, 200) + '…' : message;
+            } catch (e) {
+                return fallback;
             }
         }
 
@@ -661,8 +687,7 @@
                         window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
                     }
                 } else {
-                    const errMsg = await response.text();
-                    showToast(`Withdrawal failed: ${errMsg}`, "❌");
+                    showToast(`Withdrawal failed: ${await readError(response)}`, "❌");
                 }
             } catch (err) {
                 showToast("Connection error. Try again.", "❌");
@@ -944,8 +969,7 @@
 
                         resetAdButton();
                     } else {
-                        const errorMsg = await response.text();
-                        showToast(`Error: ${errorMsg}`, "❌");
+                        showToast(await readError(response, "Could not credit your points. Please try again."), "❌");
                         resetAdButton();
                     }
                 } catch (networkErr) {
@@ -1134,8 +1158,7 @@
                             }
                         }
                     } else {
-                        const errText = await response.text();
-                        showToast(errText || "Complete the task first, then try again.", "⚠️");
+                        showToast(await readError(response, "Complete the task first, then try again."), "⚠️");
                         btn.disabled = false;
                         btn.innerText = "Start";
                         btn.className = "bg-neutral-900 hover:bg-neutral-800 active:scale-[0.95] transition-all text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md border border-neutral-800";
@@ -1188,8 +1211,7 @@
                             showToast(`Task done! +${reward} PTS`, "🎉");
                             setTimeout(() => window.location.reload(), 1500);
                         } else {
-                            const errText = await response.text();
-                            showToast(errText || "Verification failed.", "⚠️");
+                            showToast(await readError(response, "Verification failed."), "⚠️");
                             // Re-enable buttons on failure
                             allBountyBtns.forEach(b => {
                                 b.disabled = false;
@@ -1264,8 +1286,7 @@
                     closeBountyModal();
                     setTimeout(() => window.location.reload(), 1500);
                 } else {
-                    const err = await response.text();
-                    showToast(err, "❌");
+                    showToast(await readError(response), "❌");
                 }
             } catch (err) {
                 showToast("Connection error. Try again.", "❌");

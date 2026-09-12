@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
 const redis = require('../services/redis');
 const { sendTelegramMessageAsync, telegramQueue } = require('../services/queue');
+const { invalidateGlobalSettings } = require('../services/settings');
 
 // Import environment parameters securely
 require('dotenv').config();
@@ -116,12 +117,12 @@ const verifyCsrfToken = async (req, res, next) => {
     const csrfToken = req.body?._csrf || req.headers['x-csrf-token'];
 
     if (!sessionToken || !csrfToken) {
-        return res.status(403).send("Forbidden: Missing CSRF token.");
+        return res.status(403).type('text/plain').send("Forbidden: Missing CSRF token.");
     }
 
     const storedToken = await redis.get(`admin:csrf:${sessionToken}`);
     if (!storedToken || storedToken !== csrfToken) {
-        return res.status(403).send("Forbidden: Invalid CSRF token.");
+        return res.status(403).type('text/plain').send("Forbidden: Invalid CSRF token.");
     }
 
     // Remove CSRF from body before processing
@@ -357,7 +358,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
         });
     } catch (e) {
         console.error(e);
-        res.status(500).send("Metrics Engine Failed");
+        res.status(500).type('text/plain').send("Metrics Engine Failed");
     }
 });
 
@@ -374,9 +375,10 @@ router.post('/settings', checkAdminAuth, verifyCsrfToken, express.urlencoded({ e
             streak_reward: parseInt(streak_reward) || STREAK_BONUS_REWARD
         };
         await redis.set('global_settings', JSON.stringify(newSettings));
+        invalidateGlobalSettings();   // this process picks the change up immediately
         res.redirect('/admin');
     } catch (e) {
-        res.status(500).send("Failed to update settings");
+        res.status(500).type('text/plain').send("Failed to update settings");
     }
 });
 
@@ -426,7 +428,7 @@ router.post('/store-config', checkAdminAuth, verifyCsrfToken, express.urlencoded
         await redis.set('admin:store_config', JSON.stringify(newConfig));
         res.redirect('/admin');
     } catch (e) {
-        res.status(500).send("Failed to update store config");
+        res.status(500).type('text/plain').send("Failed to update store config");
     }
 });
 
@@ -535,7 +537,7 @@ router.post('/store-orders/action', checkAdminAuth, verifyCsrfToken, express.url
         
         res.redirect('/admin');
     } catch (e) {
-        res.status(500).send("Action Failed");
+        res.status(500).type('text/plain').send("Action Failed");
     }
 });
 
@@ -567,7 +569,7 @@ router.post('/quests', checkAdminAuth, verifyCsrfToken, express.urlencoded({ ext
         await redis.set('admin:dynamic_quests', JSON.stringify(quests));
         res.redirect('/admin');
     } catch (e) {
-        res.status(500).send("Failed to manage quests");
+        res.status(500).type('text/plain').send("Failed to manage quests");
     }
 });
 
@@ -575,7 +577,7 @@ router.post('/quests', checkAdminAuth, verifyCsrfToken, express.urlencoded({ ext
 router.post('/quests/action', checkAdminAuth, verifyCsrfToken, async (req, res) => {
     try {
         const { id, action } = req.body;
-        if (!id || !action) return res.status(400).send("Missing parameters");
+        if (!id || !action) return res.status(400).type('text/plain').send("Missing parameters");
 
         const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1);
         let targetSub = null;
@@ -590,10 +592,10 @@ router.post('/quests/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
             return parsed;
         });
 
-        if (!targetSub) return res.status(404).send("Submission not found or already processed");
+        if (!targetSub) return res.status(404).type('text/plain').send("Submission not found or already processed");
 
         const user = await User.findOne({ telegram_id: targetSub.telegram_id });
-        if (!user) return res.status(404).send("User not found");
+        if (!user) return res.status(404).type('text/plain').send("User not found");
 
         if (action === 'approve') {
             user.points_balance = (user.points_balance || 0) + (targetSub.pts || 0);
@@ -625,7 +627,7 @@ router.post('/quests/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
         res.redirect('/admin');
     } catch (e) {
         console.error(e);
-        res.status(500).send("Action failed");
+        res.status(500).type('text/plain').send("Action failed");
     }
 });
 
@@ -657,7 +659,7 @@ router.get('/user-lookup', checkAdminAuth, async (req, res) => {
         // However, I will just return an HTML snippet for now since it's an admin panel.
         res.render('admin_user_view', { user: targetUser });
     } catch (e) {
-        res.status(500).send("Lookup failed");
+        res.status(500).type('text/plain').send("Lookup failed");
     }
 });
 
@@ -673,7 +675,7 @@ router.post('/user-ban', checkAdminAuth, verifyCsrfToken, express.urlencoded({ e
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {
-        res.status(500).send("Action failed");
+        res.status(500).type('text/plain').send("Action failed");
     }
 });
 
@@ -692,7 +694,7 @@ router.post('/user-clear-activities', checkAdminAuth, verifyCsrfToken, express.u
         });
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {
-        res.status(500).send("Action failed");
+        res.status(500).type('text/plain').send("Action failed");
     }
 });
 
@@ -706,7 +708,7 @@ router.post('/user-delete', checkAdminAuth, verifyCsrfToken, express.urlencoded(
         await logAdminAction('user_delete', { target: telegram_id });
         res.redirect('/admin');
     } catch (e) {
-        res.status(500).send("Action failed");
+        res.status(500).type('text/plain').send("Action failed");
     }
 });
 
@@ -732,7 +734,7 @@ router.post('/user-manage-balance', checkAdminAuth, verifyCsrfToken, express.url
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {
-        res.status(500).send("Action failed");
+        res.status(500).type('text/plain').send("Action failed");
     }
 });
 
@@ -769,7 +771,7 @@ router.post('/user-x-verify', checkAdminAuth, verifyCsrfToken, express.urlencode
             res.redirect(`/admin/user-lookup?q=${telegram_id}`);
         }
     } catch (e) {
-        res.status(500).send("Action failed");
+        res.status(500).type('text/plain').send("Action failed");
     }
 });
 
@@ -785,7 +787,7 @@ router.post('/user-reset-cooldown', checkAdminAuth, verifyCsrfToken, express.url
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {
-        res.status(500).send("Action failed");
+        res.status(500).type('text/plain').send("Action failed");
     }
 });
 
@@ -801,7 +803,7 @@ router.post('/broadcast', checkAdminAuth, verifyCsrfToken, express.urlencoded({ 
         });
         res.redirect('/admin');
     } catch (e) {
-        res.status(500).send("Broadcast failed");
+        res.status(500).type('text/plain').send("Broadcast failed");
     }
 });
 
@@ -824,7 +826,7 @@ router.post('/wakeup-push', checkAdminAuth, verifyCsrfToken, async (req, res) =>
         res.redirect('/admin');
     } catch (e) {
         console.error(e);
-        res.status(500).send("Wakeup Push Failed");
+        res.status(500).type('text/plain').send("Wakeup Push Failed");
     }
 });
 
@@ -846,7 +848,7 @@ router.get('/export-users', checkAdminAuth, async (req, res) => {
         res.setHeader('Content-Disposition', 'attachment; filename="warps_users_export.csv"');
         res.status(200).send(csvContent);
     } catch (err) {
-        res.status(500).send("CSV Export Failed");
+        res.status(500).type('text/plain').send("CSV Export Failed");
     }
 });
 
@@ -867,7 +869,7 @@ router.get('/export-withdrawals', checkAdminAuth, async (req, res) => {
         res.setHeader('Content-Disposition', 'attachment; filename="warps_withdrawals_export.csv"');
         res.status(200).send(csvContent);
     } catch (err) {
-        res.status(500).send("CSV Export Failed");
+        res.status(500).type('text/plain').send("CSV Export Failed");
     }
 });
 
@@ -916,7 +918,7 @@ router.get('/queues', checkAdminAuth, async (req, res) => {
             failedJobs: failedList
         });
     } catch (err) {
-        res.status(500).send("Failed to load queue statistics.");
+        res.status(500).type('text/plain').send("Failed to load queue statistics.");
     }
 });
 
@@ -934,7 +936,7 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
         }
 
         if (!txId || !action) {
-            return res.status(400).send("Incomplete routing parameters.");
+            return res.status(400).type('text/plain').send("Incomplete routing parameters.");
         }
 
         console.log(`📡 [Admin Payout] Action: ${action} for TX ID: ${txId}`);
@@ -943,13 +945,13 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
         const targetUser = await User.findOne({ "transactions.txId": txId });
 
         if (!targetUser) {
-            return res.status(404).send("Transaction trace ID not found in database.");
+            return res.status(404).type('text/plain').send("Transaction trace ID not found in database.");
         }
 
         const targetTx = targetUser.transactions.find(t => t.txId === txId);
 
         if (targetTx.status !== 'Pending') {
-            return res.status(400).send(`This transaction has already been resolved as [${targetTx.status}].`);
+            return res.status(400).type('text/plain').send(`This transaction has already been resolved as [${targetTx.status}].`);
         }
 
         if (action === 'approve') {
@@ -1019,7 +1021,7 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
 
     } catch (err) {
         console.error("Administrative transaction decision failure:", err);
-        return res.status(500).send("Administrative decision process crashed.");
+        return res.status(500).type('text/plain').send("Administrative decision process crashed.");
     }
 });
 
@@ -1028,7 +1030,7 @@ router.post('/bounty/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
     const { subId, action } = req.body;
 
     if (!subId || !['approve', 'reject'].includes(action)) {
-        return res.status(400).send("Invalid administrative payload.");
+        return res.status(400).type('text/plain').send("Invalid administrative payload.");
     }
 
     try {
@@ -1036,14 +1038,14 @@ router.post('/bounty/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
         const Bounty = require('../models/Bounty');
         
         const submission = await BountySubmission.findById(subId);
-        if (!submission) return res.status(404).send("Submission trace missing.");
-        if (submission.status !== 'pending') return res.status(400).send("Submission already processed.");
+        if (!submission) return res.status(404).type('text/plain').send("Submission trace missing.");
+        if (submission.status !== 'pending') return res.status(400).type('text/plain').send("Submission already processed.");
 
         const targetUser = await User.findOne({ telegram_id: submission.telegram_id });
         const targetBounty = await Bounty.findById(submission.bounty_id);
 
         if (!targetUser || !targetBounty) {
-            return res.status(404).send("User or Bounty not found.");
+            return res.status(404).type('text/plain').send("User or Bounty not found.");
         }
 
         if (action === 'approve') {
@@ -1097,7 +1099,7 @@ router.post('/bounty/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
         
     } catch (err) {
         console.error("Admin Bounty Action Error:", err);
-        return res.status(500).send("Administrative process crashed.");
+        return res.status(500).type('text/plain').send("Administrative process crashed.");
     }
 });
 

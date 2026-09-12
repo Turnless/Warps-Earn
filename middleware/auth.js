@@ -14,7 +14,7 @@ const INITDATA_MAX_AGE_SECONDS = 24 * 60 * 60;
 function verifyTelegramWebAppData(req, res, next) {
     const authHeader = req.headers['authorization'];
     if (!authHeader || !authHeader.startsWith('WebApp ')) {
-        return res.status(401).send("Unauthorized: Missing secure session handshake header.");
+        return res.status(401).json({ error: "Unauthorized: Missing secure session handshake header." });
     }
 
     // Extract the raw query string from the authorization header
@@ -23,16 +23,16 @@ function verifyTelegramWebAppData(req, res, next) {
     const hash = params.get('hash');
 
     if (!hash) {
-        return res.status(401).send("Unauthorized: Invalid cryptographic parameters.");
+        return res.status(401).json({ error: "Unauthorized: Invalid cryptographic parameters." });
     }
 
     // Reject stale sessions before spending any crypto on them
     const authDate = parseInt(params.get('auth_date'), 10);
     if (!authDate || Number.isNaN(authDate)) {
-        return res.status(401).send("Unauthorized: Missing session timestamp.");
+        return res.status(401).json({ error: "Unauthorized: Missing session timestamp." });
     }
     if ((Math.floor(Date.now() / 1000) - authDate) > INITDATA_MAX_AGE_SECONDS) {
-        return res.status(401).send("Unauthorized: Session expired. Please reopen the app.");
+        return res.status(401).json({ error: "Unauthorized: Session expired. Please reopen the app." });
     }
 
     // 1. Sort all key-value parameters alphabetically (excluding 'hash')
@@ -43,7 +43,7 @@ function verifyTelegramWebAppData(req, res, next) {
     const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
         console.error('FATAL: BOT_TOKEN is not set. Cannot verify Telegram sessions.');
-        return res.status(500).send("Server misconfiguration.");
+        return res.status(500).json({ error: "Server misconfiguration." });
     }
     const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
 
@@ -54,7 +54,7 @@ function verifyTelegramWebAppData(req, res, next) {
     const computedBuf = Buffer.from(computedHash, 'hex');
     const providedBuf = Buffer.from(/^[0-9a-fA-F]+$/.test(hash) ? hash : '', 'hex');
     if (computedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(computedBuf, providedBuf)) {
-        return res.status(403).send("Forbidden: Cryptographic signature mismatch. Session tampered.");
+        return res.status(403).json({ error: "Forbidden: Cryptographic signature mismatch. Session tampered." });
     }
 
     // 5. Parse the user object safely from the data string
@@ -71,7 +71,7 @@ function verifyTelegramWebAppData(req, res, next) {
             req.body.telegram_id = req.validatedTelegramId;
         }
     } catch (err) {
-        return res.status(400).send("Bad Request: Malformed session payload.");
+        return res.status(400).json({ error: "Bad Request: Malformed session payload." });
     }
 
     // Handover control to endpoint route controller

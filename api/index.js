@@ -97,7 +97,7 @@ app.use(async (req, res, next) => {
         next();
     } catch (err) {
         console.error("❌ [Gateway] MongoDB not available:", err.message);
-        res.status(503).send("Database is connecting. Please refresh in a moment.");
+        res.status(503).type('text/plain').send("Database is connecting. Please refresh in a moment.");
     }
 });
 
@@ -151,7 +151,7 @@ app.use('/admin/queues', (req, res, next) => {
     
     if (secret !== ADMIN_SECRET_SIGNATURE) {
         console.warn(`⚠️ [Security Alert] Unauthorized access attempt to Bull Board Dashboard.`);
-        return res.status(403).send("Forbidden: Unauthorized queues dashboard access.");
+        return res.status(403).type('text/plain').send("Forbidden: Unauthorized queues dashboard access.");
     }
     next();
 }, serverAdapter.getRouter());
@@ -167,7 +167,7 @@ app.post("/api/webhook", async (req, res) => {
         console.log("✅ Telegraf processed message perfectly.");
     } catch (err) {
         console.error("❌ Webhook processing error:", err.message);
-        res.status(500).send("Error");
+        res.status(500).type('text/plain').send("Error");
     }
 });
 
@@ -176,7 +176,7 @@ app.get("/", (req, res) => res.redirect("/auth"));
 // 🔒 ONBOARDING SECURITY GATEWAY VIEW
 app.get("/onboarding", async (req, res) => {
     const telegramId = req.query.id;
-    if (!telegramId) return res.status(400).send("Missing Telegram ID.");
+    if (!telegramId) return res.status(400).type('text/plain').send("Missing Telegram ID.");
     
     // Generate a secure, highly legible 5-character alphanumeric token
     const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoids easily confused characters like O, 0, I, 1
@@ -295,6 +295,54 @@ app.post("/portal/verify-sybil", verifyTelegramWebAppData, async (req, res) => {
     }
 });
 
+
+// ==========================================
+// 🧯 ERROR HANDLERS
+// ==========================================
+// Express's built-in 404 and error handlers reply with a full HTML document
+// ("<!DOCTYPE html>...<pre>Cannot POST /x</pre>"), and in development the error
+// page embeds a stack trace. The Mini App reads failed responses as text and
+// shows them in a toast, so users were seeing raw markup. Reply in the format
+// the caller actually expects instead.
+
+/** True for anything that wants data back rather than a page to look at. */
+function wantsJson(req) {
+    if (req.method !== 'GET') return true;                     // every API call here is a POST
+    if (req.xhr) return true;
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('application/json')) return true;
+    return accept.indexOf('text/html') === -1;                 // fetch() default
+}
+
+// 404 — no route matched
+app.use((req, res) => {
+    const message = `Not found: ${req.method} ${req.path}`;
+    if (wantsJson(req)) {
+        return res.status(404).json({ error: "That endpoint does not exist." });
+    }
+    res.status(404).type('text/plain').send(message);
+});
+
+// 500 — anything thrown or passed to next(err), including body-parser
+// SyntaxErrors from a malformed JSON body.
+app.use((err, req, res, next) => {
+    const isBadJson = err instanceof SyntaxError && err.status === 400 && 'body' in err;
+    const status = isBadJson ? 400 : (err.status || err.statusCode || 500);
+
+    console.error(`❌ [${status}] ${req.method} ${req.path}:`, err.message);
+
+    if (res.headersSent) return next(err);
+
+    // Never leak internals to the client — the details go to the logs only.
+    const message = isBadJson
+        ? "Malformed request body."
+        : (status < 500 ? (err.message || "Request failed.") : "Something went wrong. Please try again.");
+
+    if (wantsJson(req)) {
+        return res.status(status).json({ error: message });
+    }
+    res.status(status).type('text/plain').send(message);
+});
 
 // Attach MongoDB connection state to the app for dev.js to await
 app.mongoReady = mongoReady;

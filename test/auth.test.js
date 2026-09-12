@@ -21,13 +21,16 @@ function sign(user, authDate) {
 
 function run(initData, body = {}) {
     const req = { headers: { authorization: `WebApp ${initData}` }, body };
-    let statusCode = null, sent = null, nexted = false;
+    let statusCode = null, sent = null, nexted = false, contentType = null;
     const res = {
         status(c) { statusCode = c; return res; },
-        send(b) { sent = b; return res; }
+        send(b) { sent = b; return res; },
+        // errors are JSON now — record the message and the fact it was JSON
+        json(b) { contentType = 'application/json'; sent = (b && b.error) || b; return res; },
+        type(t) { contentType = t; return res; }
     };
     verifyTelegramWebAppData(req, res, () => { nexted = true; });
-    return { req, statusCode, sent, nexted };
+    return { req, statusCode, sent, nexted, contentType };
 }
 
 const NOW = () => Math.floor(Date.now() / 1000);
@@ -44,6 +47,7 @@ test('rejects initData older than the 24h freshness window', () => {
     assert.strictEqual(r.nexted, false, 'stale session must not pass');
     assert.strictEqual(r.statusCode, 401);
     assert.match(r.sent, /expired/i);
+    assert.strictEqual(r.contentType, 'application/json', 'errors must not be HTML');
 });
 
 test('accepts initData just inside the freshness window', () => {

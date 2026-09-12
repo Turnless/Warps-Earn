@@ -1,5 +1,6 @@
 const User = require('./models/User');
 const redis = require('./services/redis');
+const { getGlobalSettings } = require('./services/settings');
 
 // Shared business logic constants
 const {
@@ -93,8 +94,7 @@ async function trackDailyLogin(userId) {
 
     // Give PTS bonus for every 7 days
     if (user.login_streak > 0 && user.login_streak % STREAK_BONUS_INTERVAL_DAYS === 0) {
-        const settingsStr = await redis.get('global_settings');
-        const settings = settingsStr ? JSON.parse(settingsStr) : {};
+        const settings = await getGlobalSettings();
         const streakReward = settings.streak_reward || STREAK_BONUS_REWARD;
 
         user.points_balance += streakReward;
@@ -165,9 +165,8 @@ async function watchAdRound(userId) {
         user.ad_multiplier = 1;
     }
 
-    // Fetch Base Reward Per Ad from Settings
-    const settingsStr = await redis.get('global_settings');
-    const settings = settingsStr ? JSON.parse(settingsStr) : {};
+    // Fetch Base Reward Per Ad from Settings (in-process cached)
+    const settings = await getGlobalSettings();
     const baseReward = settings.reward_per_ad || DEFAULT_REWARD_PER_AD;
     const adsPerRound = ADS_PER_ROUND;
     const finalReward = (baseReward * adsPerRound) * user.ad_multiplier;
