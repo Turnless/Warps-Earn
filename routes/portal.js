@@ -103,7 +103,7 @@ const globalEcosystemCheck = async (req, res, next) => {
             if (req.method === 'GET') {
                 return res.send(`<body style="background:#1a1a16; color:#e6ddd0; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; text-align:center;"><div style="padding:40px;"><span style="font-size:48px;">🛠️</span><h1 style="margin-top:20px;">System Upgrade</h1><p style="color:#999; margin-top:10px;">The Warps Earn platform is currently undergoing scheduled maintenance.<br>Please check back shortly.</p></div></body>`);
             } else {
-                return res.status(503).send("Platform is in maintenance mode.");
+                return res.status(503).json({ error: "Platform is in maintenance mode." });
             }
         }
         next();
@@ -118,20 +118,20 @@ const globalEcosystemCheck = async (req, res, next) => {
 function verifyInitDataParam(req, res, next) {
     const initData = req.query.initData;
     if (!initData) {
-        return res.status(401).send("Unauthorized: Missing verification token.");
+        return res.status(401).json({ error: "Unauthorized: Missing verification token." });
     }
     try {
         const params = new URLSearchParams(initData);
         const hash = params.get('hash');
-        if (!hash) return res.status(401).send("Unauthorized: Invalid token.");
+        if (!hash) return res.status(401).json({ error: "Unauthorized: Invalid token." });
 
         // initData signatures never expire on their own — enforce a freshness window
         const authDate = parseInt(params.get('auth_date'), 10);
         if (!authDate || Number.isNaN(authDate)) {
-            return res.status(401).send("Unauthorized: Missing session timestamp.");
+            return res.status(401).json({ error: "Unauthorized: Missing session timestamp." });
         }
         if ((Math.floor(Date.now() / 1000) - authDate) > INITDATA_MAX_AGE_SECONDS) {
-            return res.status(401).send("Unauthorized: Session expired. Please reopen the app.");
+            return res.status(401).json({ error: "Unauthorized: Session expired. Please reopen the app." });
         }
 
         const keys = Array.from(params.keys()).filter(k => k !== 'hash').sort();
@@ -140,7 +140,7 @@ function verifyInitDataParam(req, res, next) {
         const botToken = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
         if (!botToken) {
             console.error('FATAL: BOT_TOKEN is not set. Cannot verify Telegram sessions.');
-            return res.status(500).send("Server misconfiguration.");
+            return res.status(500).json({ error: "Server misconfiguration." });
         }
         const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
         const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
@@ -148,14 +148,14 @@ function verifyInitDataParam(req, res, next) {
         const computedBuf = Buffer.from(computedHash, 'hex');
         const providedBuf = Buffer.from(/^[0-9a-fA-F]+$/.test(hash) ? hash : '', 'hex');
         if (computedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(computedBuf, providedBuf)) {
-            return res.status(403).send("Forbidden: Invalid signature.");
+            return res.status(403).json({ error: "Forbidden: Invalid signature." });
         }
 
         const userObj = JSON.parse(params.get('user'));
         req.verifiedTelegramId = String(userObj.id);
         next();
     } catch (e) {
-        return res.status(403).send("Forbidden: Verification failed.");
+        return res.status(403).json({ error: "Forbidden: Verification failed." });
     }
 }
 
@@ -165,7 +165,7 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
 
     try {
         if (!userId) {
-            return res.status(400).send("Missing identity context parameter.");
+            return res.status(400).json({ error: "Missing identity context parameter." });
         }
 
         // Track daily login streak when user opens the app.
@@ -237,21 +237,21 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
-        res.status(500).send("Internal server error loading dashboard.");
+        res.status(500).json({ error: "Internal server error loading dashboard." });
     }
 });
 
 // --- 📺 AD GATEWAY INTERFACE CONTROLLER ---
 router.get('/watch-ads', globalEcosystemCheck, verifyInitDataParam, async (req, res) => {
     const userId = req.verifiedTelegramId;
-    if (!userId) return res.status(400).send("Identity validation parameter missing.");
+    if (!userId) return res.status(400).json({ error: "Identity validation parameter missing." });
 
     try {
         // Fetch user from MongoDB
         const user = await User.findOne({ telegram_id: userId });
-        if (!user) return res.status(404).send("User profile not found.");
+        if (!user) return res.status(404).json({ error: "User profile not found." });
         
-        if (user.is_banned) return res.status(403).send("Account suspended.");
+        if (user.is_banned) return res.status(403).json({ error: "Account suspended." });
 
         const todayStr = new Date().toISOString().split('T')[0];
         const now = Date.now();
@@ -314,7 +314,7 @@ router.get('/watch-ads', globalEcosystemCheck, verifyInitDataParam, async (req, 
 
     } catch (e) {
         console.error("Error launching ad view gateway:", e);
-        res.status(500).send("Connection error. Try again.");
+        res.status(500).json({ error: "Connection error. Try again." });
     }
 });
 
@@ -324,7 +324,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 
     try {
         if (!userId) {
-            return res.status(400).send("Invalid request.");
+            return res.status(400).json({ error: "Invalid request." });
         }
 
         // 🛡️ Redis Mutex Lock to block concurrent reward farming race conditions
@@ -332,24 +332,24 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
         const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", AD_CLAIM_LOCK_TTL_SECONDS));
         if (!isLocked) {
             console.log(`⚠️ [Rate Limit] Rejected concurrent ad claim attempt for user: ${userId}`);
-            return res.status(429).send("Too many concurrent requests. Please wait.");
+            return res.status(429).json({ error: "Too many concurrent requests. Please wait." });
         }
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(404).send("User profile not found.");
+            return res.status(404).json({ error: "User profile not found." });
         }
 
         if (user.is_banned) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(403).send("Account suspended.");
+            return res.status(403).json({ error: "Account suspended." });
         }
 
         const todayStr = new Date().toISOString().split('T')[0];
         if (user.daily_tracker && user.daily_tracker.date === todayStr && user.daily_tracker.count >= DAILY_AD_LIMIT) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(400).send("Daily limit exceeded.");
+            return res.status(400).json({ error: "Daily limit exceeded." });
         }
 
         const result = await db.watchAdRound(userId);
@@ -383,7 +383,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 
     } catch (e) {
         console.error("Ad point processing crash:", e);
-        res.status(500).send("Internal processing fault.");
+        res.status(500).json({ error: "Internal processing fault." });
     }
 });
 
@@ -408,18 +408,18 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
     try {
         if (!userId || !questKey || !rewardMap.hasOwnProperty(questKey)) {
             console.warn(`⚠️ [Quest Warn] Rejected verification call.`);
-            return res.status(400).send("Invalid verification parameters.");
+            return res.status(400).json({ error: "Invalid verification parameters." });
         }
 
         const user = await User.findOne({ telegram_id: userId });
-        if (!user) return res.status(404).send("User profile not found.");
+        if (!user) return res.status(404).json({ error: "User profile not found." });
 
         if (!user.quests) {
             user.quests = { channel: false, group: false, payout_channel: false, x_account: false, sybil_verified: false };
         }
 
         if (user.quests[questKey] === true) {
-            return res.status(400).send("Quest assignment already verified completed.");
+            return res.status(400).json({ error: "Quest assignment already verified completed." });
         }
 
         if (telegramChatMap[questKey]) {
@@ -431,18 +431,18 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
                 const tgData = await tgRes.json();
 
                 if (!tgData.ok) {
-                    return res.status(400).send(`Could not verify channel membership. Reason: ${tgData.description}`);
+                    return res.status(400).json({ error: `Could not verify channel membership. Reason: ${tgData.description}` });
                 }
 
                 const status = tgData.result.status;
                 const isMember = ['creator', 'administrator', 'member'].includes(status);
 
                 if (!isMember) {
-                    return res.status(403).send("Verification failed. You must join the group/channel first.");
+                    return res.status(403).json({ error: "Verification failed. You must join the group/channel first." });
                 }
             } catch (apiErr) {
                 console.error("External validation network error:", apiErr.message);
-                return res.status(500).send("External network validation failure.");
+                return res.status(500).json({ error: "External network validation failure." });
             }
         }
 
@@ -469,7 +469,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
 
     } catch (e) {
         console.error("❌ [Quest Critical Error] Quest verification processor exception:", e);
-        res.status(500).send("Internal processing fault.");
+        res.status(500).json({ error: "Internal processing fault." });
     }
 });
 
@@ -480,24 +480,24 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
     const rewardType = "Adsgram Sponsored Task";
 
     try {
-        if (!userId) return res.status(400).send("Invalid account parameters.");
+        if (!userId) return res.status(400).json({ error: "Invalid account parameters." });
 
         // 🛡️ Redis Mutex Lock to block concurrent reward farming race conditions
         const lockKey = `lock:adsgram:${userId}`;
         const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", AD_CLAIM_LOCK_TTL_SECONDS));
         if (!isLocked) {
-            return res.status(429).send("Too many requests.");
+            return res.status(429).json({ error: "Too many requests." });
         }
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(404).send("User profile not found.");
+            return res.status(404).json({ error: "User profile not found." });
         }
 
         if (user.is_banned) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(403).send("Account suspended.");
+            return res.status(403).json({ error: "Account suspended." });
         }
 
         // This endpoint grants points on the client's word alone, so cap it at one
@@ -508,7 +508,7 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
         const firstClaimToday = await redisWithTimeout(redis.set(claimedKey, "1", "NX", "EX", 86400));
         if (!firstClaimToday) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(429).send("You have already claimed this reward today. Come back tomorrow!");
+            return res.status(429).json({ error: "You have already claimed this reward today. Come back tomorrow!" });
         }
 
         user.points_balance = (user.points_balance || 0) + rewardAmount;
@@ -527,7 +527,7 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
         res.status(200).json({ success: true, newBalance: user.points_balance });
     } catch (e) {
         console.error("Adsgram reward allocation error:", e);
-        res.status(500).send("Connection error. Try again.");
+        res.status(500).json({ error: "Connection error. Try again." });
     }
 });
 
@@ -540,10 +540,10 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
     const promoMap = promoMapStr ? JSON.parse(promoMapStr) : {};
 
     try {
-        if (!userId || !promoKey || !promoMap[promoKey]) return res.status(400).send("Invalid payload.");
+        if (!userId || !promoKey || !promoMap[promoKey]) return res.status(400).json({ error: "Invalid payload." });
 
         const user = await User.findOne({ telegram_id: userId });
-        if (!user) return res.status(404).send("User not found.");
+        if (!user) return res.status(404).json({ error: "User not found." });
 
         if (!user.custom_promos) user.custom_promos = new Map();
         
@@ -551,18 +551,18 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         // Handle both Mongoose Map and plain object (from Redis cache)
         const currentPromo = user.custom_promos instanceof Map ? user.custom_promos.get(promoKey) : user.custom_promos[promoKey];
         if (currentPromo === true || (currentPromo && currentPromo.verified)) {
-            return res.status(400).send("Already verified.");
+            return res.status(400).json({ error: "Already verified." });
         }
 
         const campaign = promoMap[promoKey];
 
         // Tier Check
-        if (campaign.tier_required === 'Premium' && user.account_tier === 'Standard') return res.status(403).send("Requires Premium");
-        if (campaign.tier_required === 'Gold' && user.account_tier !== 'Gold') return res.status(403).send("Requires Gold");
+        if (campaign.tier_required === 'Premium' && user.account_tier === 'Standard') return res.status(403).json({ error: "Requires Premium" });
+        if (campaign.tier_required === 'Gold' && user.account_tier !== 'Gold') return res.status(403).json({ error: "Requires Gold" });
 
         // Geo Check
         if (campaign.target_countries && campaign.target_countries.length > 0 && !campaign.target_countries.includes(user.country)) {
-            return res.status(403).send("Not available in your region.");
+            return res.status(403).json({ error: "Not available in your region." });
         }
 
         // Telegram API Authentication Check
@@ -581,13 +581,13 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
                 const data = await resp.json();
                 
                 if (!data.ok || !['member', 'administrator', 'creator'].includes(data.result.status)) {
-                    return res.status(400).send("Please join the Telegram group/channel first.");
+                    return res.status(400).json({ error: "Please join the Telegram group/channel first." });
                 }
             } catch (err) {
                 console.error("Telegram API verify error:", err);
                 // Fail-safe pass if Telegram API is down or if it's a private join link
                 // But ideally we strict block. Let's block for now to strictly authenticate.
-                return res.status(400).send("Authentication failed. Make sure you joined.");
+                return res.status(400).json({ error: "Authentication failed. Make sure you joined." });
             }
         }
 
@@ -595,7 +595,7 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         const submittedLink = String(req.body.commentLink || "").trim();
         
         if (campaign.requires_comment_link && !submittedLink) {
-            return res.status(400).send("A valid comment link is required.");
+            return res.status(400).json({ error: "A valid comment link is required." });
         }
 
         if (submittedLink) {
@@ -649,7 +649,7 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         res.json({ success: true, title: campaign.title, pts: campaign.pts, requiresCommentLink: !!submittedLink });
     } catch (e) {
         console.error("Custom Promo Error:", e);
-        res.status(500).send("Internal error.");
+        res.status(500).json({ error: "Internal error." });
     }
 });
 
@@ -681,12 +681,12 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
     const lockKey = `lock:store:${userId}:${item}`;
 
     try {
-        if (!userId || !item || !items[item]) return res.status(400).send("Invalid item payload.");
+        if (!userId || !item || !items[item]) return res.status(400).json({ error: "Invalid item payload." });
 
         // Mutex lock to prevent double-spend on concurrent requests
         const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 10));
         if (!isLocked) {
-            return res.status(429).send("Purchase already processing. Please wait.");
+            return res.status(429).json({ error: "Purchase already processing. Please wait." });
         }
 
         const storeConfigStr = await redis.get('admin:store_config');
@@ -696,7 +696,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         };
 
         const user = await User.findOne({ telegram_id: userId });
-        if (!user) return res.status(404).send("User not found.");
+        if (!user) return res.status(404).json({ error: "User not found." });
 
         let cost = storeConfig[item];
         let title = items[item].title;
@@ -719,17 +719,17 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         // is false, so an unpriced item would otherwise pass the affordability check.
         if (typeof cost !== 'number' || !Number.isFinite(cost) || cost <= 0) {
             console.error(`[Store] No valid price configured for item: ${item} (blue_tick=${hasBlueTick})`);
-            return res.status(400).send("This item is not available right now.");
+            return res.status(400).json({ error: "This item is not available right now." });
         }
 
         // Block multiplier re-purchase while still active (check before deducting)
         if (item === 'multiplier' && user.ad_multiplier === AD_MULTIPLIER_PREMIUM && user.multiplier_expires_at && new Date(user.multiplier_expires_at) > new Date()) {
             const daysLeft = Math.ceil((new Date(user.multiplier_expires_at) - new Date()) / MS_PER_DAY);
-            return res.status(400).send(`Multiplier already active. ${daysLeft} day(s) remaining.`);
+            return res.status(400).json({ error: `Multiplier already active. ${daysLeft} day(s) remaining.` });
         }
 
         if ((user.points_balance || 0) < cost) {
-            return res.status(400).send(`Insufficient balance. You need ${cost.toLocaleString()} PTS.`);
+            return res.status(400).json({ error: `Insufficient balance. You need ${cost.toLocaleString()} PTS.` });
         }
 
         user.points_balance -= cost;
@@ -847,7 +847,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         return res.json({ success: true, newBalance: user.points_balance, isPending });
     } catch (e) {
         console.error("Store error:", e);
-        return res.status(500).send("Purchase failed.");
+        return res.status(500).json({ error: "Purchase failed." });
     } finally {
         try {
             await redisWithTimeout(redis.del(lockKey));
@@ -864,7 +864,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
     const hasBlueTick = Boolean(req.body.hasBlueTick || false);
 
     if (!userId || !item) {
-        return res.status(400).send("Invalid invoice payload.");
+        return res.status(400).json({ error: "Invalid invoice payload." });
     }
 
     // CRITICAL: Validate amount server-side — never trust client-sent amount.
@@ -877,7 +877,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
     const expectedAmount = storeConfig[starsKey];
     if (!expectedAmount || typeof expectedAmount !== 'number' || expectedAmount <= 0) {
         console.error(`[Invoice] No Stars price configured for item: ${item} (looked up ${starsKey})`);
-        return res.status(400).send("Invalid store item.");
+        return res.status(400).json({ error: "Invalid store item." });
     }
 
     try {
@@ -921,7 +921,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
         }
     } catch (e) {
         console.error("Invoice generation error:", e);
-        return res.status(500).send("Invoice generation failed.");
+        return res.status(500).json({ error: "Invoice generation failed." });
     }
 });
 
@@ -929,7 +929,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
 router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData, globalEcosystemCheck, async (req, res) => {
     try {
         const { network, status, errorMsg } = req.body;
-        if (!network || !status) return res.status(400).send("Invalid payload");
+        if (!network || !status) return res.status(400).json({ error: "Invalid payload" });
 
         const key = 'admin:ad_telemetry';
         let telemetryStr = await redis.get(key);
@@ -949,10 +949,10 @@ router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData,
         telemetry[network].lastUpdate = new Date().toISOString();
 
         await redis.set(key, JSON.stringify(telemetry));
-        res.status(200).send("OK");
+        res.status(200).json({ success: true });
     } catch (e) {
         console.error("Telemetry Error:", e);
-        res.status(500).send("Error");
+        res.status(500).json({ error: "Error" });
     }
 });
 
@@ -965,11 +965,11 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
     try {
         if (!req.globalSettings.withdrawals) {
-            return res.status(403).send("Withdrawals are temporarily disabled by the administrator.");
+            return res.status(403).json({ error: "Withdrawals are temporarily disabled by the administrator." });
         }
 
         if (!userId || !destination || !chosenAsset || requestedAmount <= 0) {
-            return res.status(400).send("Incomplete payload specifications.");
+            return res.status(400).json({ error: "Incomplete payload specifications." });
         }
 
         // 🛡️ Redis Mutex Lock to block payout double spending / parallel clicks
@@ -977,28 +977,28 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
         const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", PAYOUT_LOCK_TTL_SECONDS));
         if (!isLocked) {
             console.log(`⚠️ [Rate Limit] Rejected concurrent payout request for user: ${userId}`);
-            return res.status(429).send("A transaction is already in progress. Please wait.");
+            return res.status(429).json({ error: "A transaction is already in progress. Please wait." });
         }
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(404).send("User profile signature missing.");
+            return res.status(404).json({ error: "User profile signature missing." });
         }
 
         if (user.is_banned) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(403).send("Account suspended. Withdrawals blocked.");
+            return res.status(403).json({ error: "Account suspended. Withdrawals blocked." });
         }
 
         if (requestedAmount > (user.points_balance || 0)) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(400).send("Insufficient points balance.");
+            return res.status(400).json({ error: "Insufficient points balance." });
         }
 
         if (chosenAsset === 'NAIRA' && !new RegExp(`^\\d{${NAIRA_ACCOUNT_NUMBER_LENGTH}}$`).test(destination)) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(400).send("Naira bank transfers require a precise 10-digit account details profile.");
+            return res.status(400).json({ error: "Naira bank transfers require a precise 10-digit account details profile." });
         }
 
         const todayStr = new Date().toISOString().split('T')[0];
@@ -1012,7 +1012,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
         if (user.daily_withdrawals.count >= dailyLimit) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(403).send(`Daily Limit Reached: You can only withdraw up to ${dailyLimit} time(s) per day.`);
+            return res.status(403).json({ error: `Daily Limit Reached: You can only withdraw up to ${dailyLimit} time(s) per day.` });
         }
 
         const withdrawalsMade = user.withdrawals_count || 0;
@@ -1030,7 +1030,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
         if (!isUplinePromoter && requestedAmount < thresholdLimit) {
             await redisWithTimeout(redis.del(lockKey));
-            return res.status(403).send(`Minimum withdrawal is ${thresholdLimit} PTS.`);
+            return res.status(403).json({ error: `Minimum withdrawal is ${thresholdLimit} PTS.` });
         }
 
         const uniqueTxId = `TX-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
@@ -1156,7 +1156,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
     } catch (err) {
         console.error("Financial router allocation engine failure:", err);
-        return res.status(500).send("Internal accounting ledger fault.");
+        return res.status(500).json({ error: "Internal accounting ledger fault." });
     }
 });
 
@@ -1167,38 +1167,38 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
     let proofUrl = String(req.body.proof_url || "").trim();
 
     try {
-        if (!userId || !bountyId) return res.status(400).send("Invalid payload.");
+        if (!userId || !bountyId) return res.status(400).json({ error: "Invalid payload." });
 
         // Mutex lock to prevent duplicate submissions on concurrent requests
         const lockKey = `lock:bounty:${userId}:${bountyId}`;
         const isLocked = await redisWithTimeout(redis.set(lockKey, "1", "NX", "EX", 10));
         if (!isLocked) {
-            return res.status(429).send("Submission already processing. Please wait.");
+            return res.status(429).json({ error: "Submission already processing. Please wait." });
         }
 
         const user = await User.findOne({ telegram_id: userId });
-        if (!user) return res.status(404).send("User not found.");
+        if (!user) return res.status(404).json({ error: "User not found." });
 
         const Bounty = require('../models/Bounty');
         const bounty = await Bounty.findById(bountyId);
-        if (!bounty || bounty.status !== 'active') return res.status(404).send("Bounty not available.");
+        if (!bounty || bounty.status !== 'active') return res.status(404).json({ error: "Bounty not available." });
 
         // Check tier limits
-        if (bounty.required_tier === 'Premium' && user.account_tier === 'Standard') return res.status(403).send("Requires Premium tier.");
-        if (bounty.required_tier === 'Gold' && user.account_tier !== 'Gold') return res.status(403).send("Requires Gold tier.");
+        if (bounty.required_tier === 'Premium' && user.account_tier === 'Standard') return res.status(403).json({ error: "Requires Premium tier." });
+        if (bounty.required_tier === 'Gold' && user.account_tier !== 'Gold') return res.status(403).json({ error: "Requires Gold tier." });
 
         // Check geo
         if (bounty.target_countries && bounty.target_countries.length > 0 && !bounty.target_countries.includes(user.country)) {
-            return res.status(403).send("Bounty not available in your region.");
+            return res.status(403).json({ error: "Bounty not available in your region." });
         }
 
         if (bounty.requires_link !== false && !proofUrl) {
-            return res.status(400).send("A proof link is required for this task.");
+            return res.status(400).json({ error: "A proof link is required for this task." });
         }
         
         // Prevent duplicate
         const existing = await BountySubmission.findOne({ bounty_id: bountyId, telegram_id: userId });
-        if (existing) return res.status(400).send("You have already submitted proof for this task.");
+        if (existing) return res.status(400).json({ error: "You have already submitted proof for this task." });
 
         const isAutoApprove = (bounty.requires_link === false);
 
@@ -1233,13 +1233,13 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         } catch (e) {}
 
         if (isAutoApprove) {
-            return res.status(200).send("Verified successfully!");
+            return res.status(200).json({ success: true, message: "Verified successfully!" });
         } else {
-            return res.status(200).send("Submission received! Pending admin verification.");
+            return res.status(200).json({ success: true, message: "Submission received! Pending admin verification." });
         }
     } catch (e) {
         console.error("Bounty submission error:", e);
-        res.status(500).send("Internal error processing submission.");
+        res.status(500).json({ error: "Internal error processing submission." });
     } finally {
         try {
             await redisWithTimeout(redis.del(`lock:bounty:${userId}:${bountyId}`));

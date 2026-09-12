@@ -18,7 +18,7 @@ const transactionalLimiter = rateLimit({
     validate: false, // Disables all built-in static validation warnings on boot
     handler: (req, res) => {
         console.warn(`⚠️ [Rate Limit] Transactional spam blocked for: ${req.validatedTelegramId || req['ip']}`);
-        res.status(429).send("Too many attempts. Strict rate limit of 5 requests per minute applies.");
+        res.status(429).json({ error: "Too many attempts. Strict rate limit of 5 requests per minute applies." });
     },
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers

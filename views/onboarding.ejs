@@ -222,7 +222,14 @@
                     })
                 });
 
-                const result = await response.json();
+                // Guard against a non-JSON body (proxy/gateway error pages) so the
+                // catch block below does not swallow the real status.
+                let result = {};
+                try {
+                    result = await response.json();
+                } catch (notJson) {
+                    result = { error: response.ok ? null : "Verification failed. Please try again." };
+                }
 
                 if (response.ok && result.success) {
                     // Trigger Telegram haptic confirmation if available
