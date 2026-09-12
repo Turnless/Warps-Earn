@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
 const redis = require('../services/redis');
-const { sendTelegramMessageAsync, telegramQueue } = require('../services/queue');
+const { sendTelegramMessageAsync, telegramQueue, notifyQuietly } = require('../services/queue');
 const { invalidateGlobalSettings } = require('../services/settings');
 
 // Import environment parameters securely
@@ -760,7 +760,7 @@ router.post('/user-x-verify', checkAdminAuth, verifyCsrfToken, express.urlencode
             const msg = `🎉 *Account Tier Updated* 🎉\n\nYour account has been manually reviewed and placed in the *${user.account_tier} Tier*.\nFollowers: ${user.x_followers}\nBlue Tick: ${user.x_blue_tick ? 'Yes' : 'No'}`;
             try {
                 const { sendTelegramMessageAsync } = require('../services/queue');
-                await sendTelegramMessageAsync(telegram_id, msg, { parse_mode: 'Markdown' });
+                await notifyQuietly(telegram_id, msg, { parse_mode: 'Markdown' });
             } catch (err) {
                 console.error("Failed to notify user of tier change:", err);
             }
@@ -979,11 +979,11 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
                 `📅 <b>Date:</b> ${getFormattedDateTime()}\n\n` +
                 `💚 <i>Keep watching, keep sharing, keep stacking!</i>`;
 
-            await sendTelegramMessageAsync(PUBLIC_PAYOUT_CHANNEL_ID, proofReceiptText);
+            await notifyQuietly(PUBLIC_PAYOUT_CHANNEL_ID, proofReceiptText);
 
             // Message target user directly via Bull Queue
             const userNotificationText = `💰 <b>Withdrawal Successful!</b>\n\nYour withdrawal of <b>${totalDebitedPoints.toLocaleString()} PTS (${valuationStr})</b> has been processed successfully.\n\nProof of payment has been posted to ${PUBLIC_PAYOUT_CHANNEL_ID}!`;
-            await sendTelegramMessageAsync(targetUser.telegram_id, userNotificationText);
+            await notifyQuietly(targetUser.telegram_id, userNotificationText);
 
             return res.send(`
                 <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #e6ddd0; text-align: center; color: #1a1a16;">
@@ -1006,7 +1006,7 @@ router.get('/payout', checkAdminAuth, async (req, res) => {
 
             // Notify user of rejection reason via Bull Queue
             const userRejectionText = `❌ <b>Withdrawal Rejected</b>\n\nYour withdrawal request for <b>${targetTx.amount.toLocaleString()} PTS</b> was declined. Your points have been refunded to your balance.`;
-            await sendTelegramMessageAsync(targetUser.telegram_id, userRejectionText);
+            await notifyQuietly(targetUser.telegram_id, userRejectionText);
 
             return res.send(`
                 <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #e6ddd0; text-align: center; color: #1a1a16;">
@@ -1071,7 +1071,7 @@ router.post('/bounty/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
             await targetUser.save();
             
             // Notify user of success
-            await sendTelegramMessageAsync(targetUser.telegram_id, `🎉 <b>Bounty Approved!</b>\n\nYour submission for <b>${targetBounty.title}</b> was verified. <b>+${targetBounty.reward_pts} PTS</b> has been added to your balance!`);
+            await notifyQuietly(targetUser.telegram_id, `🎉 <b>Bounty Approved!</b>\n\nYour submission for <b>${targetBounty.title}</b> was verified. <b>+${targetBounty.reward_pts} PTS</b> has been added to your balance!`);
             
             return res.redirect('/admin');
             
@@ -1092,7 +1092,7 @@ router.post('/bounty/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
                 "\n\n🚨 <b>ACCOUNT BANNED FROM BOUNTIES</b>\nYou have received 3 strikes for fraudulent submissions. You can no longer participate in social tasks." :
                 `\n\n⚠️ <b>Strike Added (${targetUser.bounty_strikes}/${MAX_BOUNTY_STRIKES})</b>\nSubmit valid links only to avoid being banned from tasks.`;
                 
-            await sendTelegramMessageAsync(targetUser.telegram_id, `❌ <b>Bounty Rejected</b>\n\nYour submission for <b>${targetBounty.title}</b> was marked as invalid.` + warningText);
+            await notifyQuietly(targetUser.telegram_id, `❌ <b>Bounty Rejected</b>\n\nYour submission for <b>${targetBounty.title}</b> was marked as invalid.` + warningText);
             
             return res.redirect('/admin');
         }

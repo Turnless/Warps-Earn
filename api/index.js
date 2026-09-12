@@ -333,15 +333,29 @@ app.use((err, req, res, next) => {
 
     if (res.headersSent) return next(err);
 
-    // Never leak internals to the client — the details go to the logs only.
-    const message = isBadJson
-        ? "Malformed request body."
-        : (status < 500 ? (err.message || "Request failed.") : "Something went wrong. Please try again.");
+    // A backing-store outage is not a bug in the user's request — say so, and
+    // use 503 so clients and uptime checks can tell it apart from a real 500.
+    const isInfraOutage = /max requests limit|ECONNREFUSED|ECONNRESET|ETIMEDOUT|Redis|MongoNetworkError|connection is closed|operation timed out/i
+        .test(err.message || '');
+
+    let responseStatus = status;
+    let message;
+    if (isBadJson) {
+        message = "Malformed request body.";
+    } else if (isInfraOutage) {
+        responseStatus = 503;
+        message = "Service is temporarily unavailable. Please try again in a moment.";
+    } else if (status < 500) {
+        message = err.message || "Request failed.";
+    } else {
+        // Never leak internals on a real 500 — details go to the logs only.
+        message = "Something went wrong. Please try again.";
+    }
 
     if (wantsJson(req)) {
-        return res.status(status).json({ error: message });
+        return res.status(responseStatus).json({ error: message });
     }
-    res.status(status).type('text/plain').send(message);
+    res.status(responseStatus).type('text/plain').send(message);
 });
 
 // Attach MongoDB connection state to the app for dev.js to await

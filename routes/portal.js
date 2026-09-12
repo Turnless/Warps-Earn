@@ -7,7 +7,7 @@ const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
 const BountySubmission = require('../models/BountySubmission');
 const redis = require('../services/redis');
-const { sendTelegramMessageAsync } = require('../services/queue');
+const { sendTelegramMessageAsync, notifyQuietly } = require('../services/queue');
 const { getGlobalSettings } = require('../services/settings');
 
 // Import the cryptographic verification middleware securely
@@ -73,6 +73,24 @@ function getFormattedDateTime() {
     return `${dateStr} • ${timeStr}`;
 }
 
+/**
+ * Reads a JSON config blob from Redis, falling back to a default.
+ *
+ * These keys (store config, dynamic quests, telemetry) are convenience state
+ * with sensible defaults in constants.js. A Redis outage or a corrupt value
+ * should degrade the feature, never fail the whole request.
+ */
+async function readJsonConfig(key, fallback) {
+    try {
+        const raw = await redisWithTimeout(redis.get(key));
+        if (!raw) return fallback;
+        return JSON.parse(raw);
+    } catch (err) {
+        console.error(`⚠️ [Config] Could not read ${key}, using fallback:`, err.message);
+        return fallback;
+    }
+}
+
 // Cache helper to purge stale Redis state when database state updates
 async function invalidateUserCache(userId) {
     try {
@@ -103,7 +121,8 @@ const globalEcosystemCheck = async (req, res, next) => {
             if (req.method === 'GET') {
                 return res.send(`<body style="background:#1a1a16; color:#e6ddd0; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; text-align:center;"><div style="padding:40px;"><span style="font-size:48px;">🛠️</span><h1 style="margin-top:20px;">System Upgrade</h1><p style="color:#999; margin-top:10px;">The Warps Earn platform is currently undergoing scheduled maintenance.<br>Please check back shortly.</p></div></body>`);
             } else {
-                return res.status(503).json({ error: "Platform is in maintenance mode." });
+                if (res.headersSent) return;
+        return res.status(503).json({ error: "Platform is in maintenance mode." });
             }
         }
         next();
@@ -118,6 +137,7 @@ const globalEcosystemCheck = async (req, res, next) => {
 function verifyInitDataParam(req, res, next) {
     const initData = req.query.initData;
     if (!initData) {
+        if (res.headersSent) return;
         return res.status(401).json({ error: "Unauthorized: Missing verification token." });
     }
     try {
@@ -155,6 +175,7 @@ function verifyInitDataParam(req, res, next) {
         req.verifiedTelegramId = String(userObj.id);
         next();
     } catch (e) {
+        if (res.headersSent) return;
         return res.status(403).json({ error: "Forbidden: Verification failed." });
     }
 }
@@ -215,17 +236,15 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
             return res.redirect(`/onboarding?id=${userId}`);
         }
 
-        const questsStr = await redis.get('admin:dynamic_quests');
-        const dynamicQuests = questsStr ? JSON.parse(questsStr) : {};
+        const dynamicQuests = await readJsonConfig('admin:dynamic_quests', {});
 
         const Bounty = require('../models/Bounty');
         const bounties = await Bounty.find({ status: 'active', expires_at: { $gt: new Date() } }).sort({ created_at: -1 }).lean();
 
-        const storeConfigStr = await redis.get('admin:store_config');
-        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
+        const storeConfig = await readJsonConfig('admin:store_config', {
             ...DEFAULT_STORE_CONFIG,
             ...DEFAULT_STARS_CONFIG,
-        };
+        });
 
         const StoreOrder = require('../models/StoreOrder');
         const pendingOrders = await StoreOrder.find({ telegram_id: userId, status: 'pending' }).lean();
@@ -237,6 +256,7 @@ router.get('/dashboard', globalEcosystemCheck, verifyInitDataParam, async (req, 
 
     } catch (e) {
         console.error("Dashboard view routing error:", e);
+        if (res.headersSent) return;
         res.status(500).json({ error: "Internal server error loading dashboard." });
     }
 });
@@ -314,6 +334,7 @@ router.get('/watch-ads', globalEcosystemCheck, verifyInitDataParam, async (req, 
 
     } catch (e) {
         console.error("Error launching ad view gateway:", e);
+        if (res.headersSent) return;
         res.status(500).json({ error: "Connection error. Try again." });
     }
 });
@@ -367,7 +388,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
         if (result.loopIndex === 0) { 
             const cooldownMs = result.cooldownTime; 
             
-            await sendTelegramMessageAsync(
+            await notifyQuietly(
                 userId,
                 "⚡ <b>Ad Loops Restocked!</b>\n\nYour break is over. Open the app now to watch more ads and earn points!",
                 {
@@ -383,6 +404,7 @@ router.post(['/claim-ad-reward', '/portal/claim-ad-reward'], verifyTelegramWebAp
 
     } catch (e) {
         console.error("Ad point processing crash:", e);
+        if (res.headersSent) return;
         res.status(500).json({ error: "Internal processing fault." });
     }
 });
@@ -442,7 +464,8 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
                 }
             } catch (apiErr) {
                 console.error("External validation network error:", apiErr.message);
-                return res.status(500).json({ error: "External network validation failure." });
+                if (res.headersSent) return;
+        return res.status(500).json({ error: "External network validation failure." });
             }
         }
 
@@ -469,6 +492,7 @@ router.post(['/verify-quest', '/portal/verify-quest'], verifyTelegramWebAppData,
 
     } catch (e) {
         console.error("❌ [Quest Critical Error] Quest verification processor exception:", e);
+        if (res.headersSent) return;
         res.status(500).json({ error: "Internal processing fault." });
     }
 });
@@ -527,6 +551,7 @@ router.post(['/claim-adsgram-reward', '/portal/claim-adsgram-reward'], verifyTel
         res.status(200).json({ success: true, newBalance: user.points_balance });
     } catch (e) {
         console.error("Adsgram reward allocation error:", e);
+        if (res.headersSent) return;
         res.status(500).json({ error: "Connection error. Try again." });
     }
 });
@@ -536,10 +561,8 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
     const userId = String(req.body.id || "");
     const promoKey = String(req.body.promoKey || "");
 
-    const promoMapStr = await redis.get('admin:dynamic_quests');
-    const promoMap = promoMapStr ? JSON.parse(promoMapStr) : {};
-
     try {
+        const promoMap = await readJsonConfig('admin:dynamic_quests', {});
         if (!userId || !promoKey || !promoMap[promoKey]) return res.status(400).json({ error: "Invalid payload." });
 
         const user = await User.findOne({ telegram_id: userId });
@@ -587,7 +610,8 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
                 console.error("Telegram API verify error:", err);
                 // Fail-safe pass if Telegram API is down or if it's a private join link
                 // But ideally we strict block. Let's block for now to strictly authenticate.
-                return res.status(400).json({ error: "Authentication failed. Make sure you joined." });
+                if (res.headersSent) return;
+        return res.status(400).json({ error: "Authentication failed. Make sure you joined." });
             }
         }
 
@@ -649,6 +673,7 @@ router.post(['/verify-custom-promo', '/portal/verify-custom-promo'], verifyTeleg
         res.json({ success: true, title: campaign.title, pts: campaign.pts, requiresCommentLink: !!submittedLink });
     } catch (e) {
         console.error("Custom Promo Error:", e);
+        if (res.headersSent) return;
         res.status(500).json({ error: "Internal error." });
     }
 });
@@ -689,11 +714,10 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
             return res.status(429).json({ error: "Purchase already processing. Please wait." });
         }
 
-        const storeConfigStr = await redis.get('admin:store_config');
-        const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
+        const storeConfig = await readJsonConfig('admin:store_config', {
             ...DEFAULT_STORE_CONFIG,
             ...DEFAULT_STARS_CONFIG,
-        };
+        });
 
         const user = await User.findOne({ telegram_id: userId });
         if (!user) return res.status(404).json({ error: "User not found." });
@@ -847,6 +871,7 @@ router.post(['/purchase-store-item', '/portal/purchase-store-item'], verifyTeleg
         return res.json({ success: true, newBalance: user.points_balance, isPending });
     } catch (e) {
         console.error("Store error:", e);
+        if (res.headersSent) return;
         return res.status(500).json({ error: "Purchase failed." });
     } finally {
         try {
@@ -864,6 +889,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
     const hasBlueTick = Boolean(req.body.hasBlueTick || false);
 
     if (!userId || !item) {
+        if (res.headersSent) return;
         return res.status(400).json({ error: "Invalid invoice payload." });
     }
 
@@ -871,8 +897,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
     // Stars prices live under the `stars_` namespace; looking up the bare item key
     // returned the PTS price and invoiced it as Stars (e.g. 15,000 Stars for a
     // 15-Star item), so resolve the Stars key explicitly.
-    const storeConfigStr = await redis.get('admin:store_config');
-    const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG };
+    const storeConfig = await readJsonConfig('admin:store_config', { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG });
     const starsKey = resolveStarsPriceKey(item);
     const expectedAmount = storeConfig[starsKey];
     if (!expectedAmount || typeof expectedAmount !== 'number' || expectedAmount <= 0) {
@@ -921,6 +946,7 @@ router.post(['/generate-invoice', '/portal/generate-invoice'], verifyTelegramWeb
         }
     } catch (e) {
         console.error("Invoice generation error:", e);
+        if (res.headersSent) return;
         return res.status(500).json({ error: "Invoice generation failed." });
     }
 });
@@ -931,28 +957,35 @@ router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData,
         const { network, status, errorMsg } = req.body;
         if (!network || !status) return res.status(400).json({ error: "Invalid payload" });
 
-        const key = 'admin:ad_telemetry';
-        let telemetryStr = await redis.get(key);
-        let telemetry = telemetryStr ? JSON.parse(telemetryStr) : {};
+        // Analytics only — a telemetry failure must never look like a failure of
+        // the ad the user just watched, so this always reports success and the
+        // storage error goes to the logs instead.
+        try {
+            const key = 'admin:ad_telemetry';
+            const telemetry = await readJsonConfig(key, {});
 
-        if (!telemetry[network]) {
-            telemetry[network] = { success: 0, fail: 0, lastError: null, lastUpdate: null };
+            if (!telemetry[network]) {
+                telemetry[network] = { success: 0, fail: 0, lastError: null, lastUpdate: null };
+            }
+
+            if (status === 'success') {
+                telemetry[network].success += 1;
+            } else if (status === 'fail') {
+                telemetry[network].fail += 1;
+                telemetry[network].lastError = errorMsg || "Unknown error";
+            }
+
+            telemetry[network].lastUpdate = new Date().toISOString();
+            await redisWithTimeout(redis.set(key, JSON.stringify(telemetry)));
+        } catch (storageErr) {
+            console.error("⚠️ [Telemetry] Not recorded:", storageErr.message);
         }
 
-        if (status === 'success') {
-            telemetry[network].success += 1;
-        } else if (status === 'fail') {
-            telemetry[network].fail += 1;
-            telemetry[network].lastError = errorMsg || "Unknown error";
-        }
-
-        telemetry[network].lastUpdate = new Date().toISOString();
-
-        await redis.set(key, JSON.stringify(telemetry));
         res.status(200).json({ success: true });
     } catch (e) {
         console.error("Telemetry Error:", e);
-        res.status(500).json({ error: "Error" });
+        if (res.headersSent) return;
+        res.status(200).json({ success: true });
     }
 });
 
@@ -1088,7 +1121,7 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
 
                         // Enqueue milestone reached message to referrer via Bull Queue
                         const milestoneMsg = `🎉 <b>Referral Milestone Reached!</b>\n\nYou have successfully unlocked <b>${m.label}</b> with ${referrerQualifiedCount} qualified referrals.\n\n⚡ <b>+${m.pts.toLocaleString()} PTS ($${(m.pts * PTS_TO_USD_RATE).toFixed(2)} USD)</b> has been added to your balance!`;
-                        await sendTelegramMessageAsync(referrer.telegram_id, milestoneMsg);
+                        await notifyQuietly(referrer.telegram_id, milestoneMsg);
                     }
                 }
                 if (referrerNeedsSave) {
@@ -1150,12 +1183,13 @@ router.post(['/request-payout', '/portal/request-payout'], verifyTelegramWebAppD
             `❌ <a href="${rejectionUrl}">Reject and Refund Points</a>`;
 
         // Enqueue alert to admin via Bull Queue
-        await sendTelegramMessageAsync(adminChatId, adminMessageText, { disable_web_page_preview: true });
+        await notifyQuietly(adminChatId, adminMessageText, { disable_web_page_preview: true });
 
         return res.sendStatus(200);
 
     } catch (err) {
         console.error("Financial router allocation engine failure:", err);
+        if (res.headersSent) return;
         return res.status(500).json({ error: "Internal accounting ledger fault." });
     }
 });
@@ -1233,12 +1267,14 @@ router.post(['/submit-bounty', '/portal/submit-bounty'], verifyTelegramWebAppDat
         } catch (e) {}
 
         if (isAutoApprove) {
-            return res.status(200).json({ success: true, message: "Verified successfully!" });
+            if (res.headersSent) return;
+        return res.status(200).json({ success: true, message: "Verified successfully!" });
         } else {
             return res.status(200).json({ success: true, message: "Submission received! Pending admin verification." });
         }
     } catch (e) {
         console.error("Bounty submission error:", e);
+        if (res.headersSent) return;
         res.status(500).json({ error: "Internal error processing submission." });
     } finally {
         try {
