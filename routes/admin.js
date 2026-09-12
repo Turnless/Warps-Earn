@@ -354,7 +354,8 @@ router.get('/', checkAdminAuth, async (req, res) => {
             settings: settings,
             telemetry: telemetry,
             storeConfig: storeConfig,
-            dynamicQuests: dynamicQuests
+            dynamicQuests: dynamicQuests,
+            ptsToUsd: PTS_TO_USD_RATE
         });
     } catch (e) {
         console.error(e);

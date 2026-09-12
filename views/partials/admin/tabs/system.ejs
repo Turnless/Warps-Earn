@@ -1,0 +1,49 @@
+<section id="tab-system" class="hide-section flex flex-col gap-8">
+                <div class="flex flex-col gap-1 animate-fade-in">
+                    <h2 class="text-4xl font-heading font-black text-neutral-900 tracking-tight">System</h2>
+                    <p class="text-neutral-500 text-sm">Background jobs, data exports, and fraud tooling.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in stagger-2">
+
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-xl">📦</div>
+                            <h3 class="font-heading font-bold text-lg text-neutral-900">Notification Queue</h3>
+                        </div>
+                        <p class="text-xs text-neutral-500 leading-relaxed">
+                            Every Telegram message the platform sends goes through this queue.
+                            Check here when users report missing notifications.
+                        </p>
+                        <a href="/admin/queues" class="glass-btn text-center py-3 rounded-xl text-xs font-bold uppercase tracking-widest mt-auto">Open Queue Monitor</a>
+                    </div>
+
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-xl">🕵️</div>
+                            <h3 class="font-heading font-bold text-lg text-neutral-900">Sybil Hunter</h3>
+                        </div>
+                        <p class="text-xs text-neutral-500 leading-relaxed">
+                            Groups accounts that share a device fingerprint, so you can spot one
+                            person farming rewards across many accounts.
+                        </p>
+                        <a href="/admin/sybil-hunter" class="glass-btn text-center py-3 rounded-xl text-xs font-bold uppercase tracking-widest mt-auto">Find Duplicate Devices</a>
+                    </div>
+
+                    <div class="glass-panel p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-xl">📄</div>
+                            <h3 class="font-heading font-bold text-lg text-neutral-900">Data Export</h3>
+                        </div>
+                        <p class="text-xs text-neutral-500 leading-relaxed">
+                            Download the full user and withdrawal tables as CSV for accounting
+                            or offline analysis.
+                        </p>
+                        <div class="flex flex-col gap-2 mt-auto">
+                            <a href="/admin/export-users" class="glass-btn text-center py-3 rounded-xl text-xs font-bold uppercase tracking-widest">Export Users</a>
+                            <a href="/admin/export-withdrawals" class="glass-btn text-center py-3 rounded-xl text-xs font-bold uppercase tracking-widest">Export Withdrawals</a>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
