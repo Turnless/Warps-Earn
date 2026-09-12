@@ -51,6 +51,69 @@ function getFormattedDateTime() {
 // a Telegram message, so it must not act as a general admin key.
 const SIGNED_TOKEN_ALLOWED_PATHS = ['/payout'];
 
+// --- ADMIN SESSIONS --------------------------------------------------------
+// The session used to live only in Redis, which made Redis a hard dependency
+// for logging in. When Redis was unreachable every command queued forever
+// (maxRetriesPerRequest: null) and the login request hung with no response —
+// locking the operator out of the panel exactly when they needed it.
+//
+// The token is now self-contained and signed, so auth works with Redis down.
+// Redis is still consulted, best-effort, to honour explicit logouts.
+
+function signPayload(payload) {
+    return crypto.createHmac('sha256', ADMIN_SECRET_SIGNATURE).update(payload).digest('hex');
+}
+
+function safeEquals(a, b) {
+    const bufA = Buffer.from(String(a), 'utf8');
+    const bufB = Buffer.from(String(b), 'utf8');
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/** Creates a signed, self-contained session token. */
+function createSessionToken() {
+    const payload = Buffer.from(JSON.stringify({
+        jti: crypto.randomBytes(12).toString('hex'),
+        iat: Date.now(),
+        exp: Date.now() + ADMIN_SESSION_MAX_AGE_MS
+    })).toString('base64url');
+    return `${payload}.${signPayload(payload)}`;
+}
+
+/** Returns the session payload if the token is authentic and unexpired. */
+function verifySessionToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    const [payload, sig] = token.split('.');
+    if (!payload || !sig) return null;
+    if (!safeEquals(sig, signPayload(payload))) return null;
+    try {
+        const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
+        if (!data.exp || Date.now() >= data.exp) return null;
+        return data;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * CSRF token derived from the session token rather than stored.
+ * A signed double-submit cookie: verifiable without any shared state, so CSRF
+ * protection keeps working when Redis does not.
+ */
+function csrfTokenFor(sessionToken) {
+    return crypto.createHmac('sha256', ADMIN_SECRET_SIGNATURE)
+        .update(`csrf:${sessionToken}`).digest('hex');
+}
+
+/** Reads one cookie value from the raw header (no cookie-parser in use). */
+function readCookie(req, name) {
+    if (!req.headers.cookie) return null;
+    const match = req.headers.cookie.split(';').map(c => c.trim())
+        .find(c => c.startsWith(`${name}=`));
+    return match ? match.slice(name.length + 1) : null;
+}
+
 const checkAdminAuth = async (req, res, next) => {
     // 1. Check for HMAC-signed payout token (from Telegram inline buttons)
     const signedToken = req.query.token;
@@ -73,32 +136,34 @@ const checkAdminAuth = async (req, res, next) => {
         } catch (e) { /* fall through to session check */ }
     }
 
-    // 2. Check session cookie (random token stored in Redis)
-    let sessionToken = null;
-    if (req.headers.cookie) {
-        const cookies = req.headers.cookie.split(';').map(c => c.trim());
-        const match = cookies.find(c => c.startsWith('admin_session='));
-        if (match) sessionToken = match.split('=')[1];
-    }
-    
-    if (sessionToken) {
-        const sessionData = await redis.get(`admin:session:${sessionToken}`);
-        if (sessionData) {
-            // Generate CSRF token for this session if not exists
-            let csrfCookie = null;
-            if (req.headers.cookie) {
-                const csrfMatch = req.headers.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('admin_csrf='));
-                if (csrfMatch) csrfCookie = csrfMatch.split('=')[1];
-            }
-            if (!csrfCookie) {
-                const csrfToken = crypto.randomBytes(32).toString('hex');
-                await redis.setex(`admin:csrf:${sessionToken}`, 86400, csrfToken);
-                res.cookie('admin_csrf', csrfToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: false, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
-            }
-            return next();
+    // 2. Check the signed session cookie
+    const sessionToken = readCookie(req, 'admin_session');
+    const session = verifySessionToken(sessionToken);
+
+    if (session) {
+        // Honour an explicit logout when Redis is reachable. If it is not, a
+        // valid unexpired signature still gets in — being locked out of the
+        // panel during an outage is worse than a revoked session living out
+        // its remaining TTL.
+        const revoked = await redis.safely(
+            redis.get(`admin:revoked:${session.jti}`), null, 'revocation check'
+        );
+        if (revoked) {
+            res.clearCookie('admin_session');
+            return res.redirect('/admin/login');
         }
+
+        // Issue the matching CSRF cookie if it is missing or stale
+        const expectedCsrf = csrfTokenFor(sessionToken);
+        if (readCookie(req, 'admin_csrf') !== expectedCsrf) {
+            res.cookie('admin_csrf', expectedCsrf, {
+                maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: false,
+                sameSite: 'strict', secure: process.env.NODE_ENV === 'production'
+            });
+        }
+        return next();
     }
-    
+
     // If not authenticated, redirect to login page
     res.redirect('/admin/login');
 };
@@ -108,24 +173,19 @@ const verifyCsrfToken = async (req, res, next) => {
     // Only enforce CSRF on state-changing methods
     if (req.method !== 'POST') return next();
 
-    // Parse cookies manually (no cookie-parser middleware)
-    let sessionToken = null;
-    if (req.headers.cookie) {
-        const sessionMatch = req.headers.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('admin_session='));
-        if (sessionMatch) sessionToken = sessionMatch.split('=')[1];
-    }
-    const csrfToken = req.body?._csrf || req.headers['x-csrf-token'];
+    const sessionToken = readCookie(req, 'admin_session');
+    const submitted = req.body?._csrf || req.headers['x-csrf-token'];
 
-    if (!sessionToken || !csrfToken) {
+    if (!sessionToken || !submitted) {
         return res.status(403).type('text/plain').send("Forbidden: Missing CSRF token.");
     }
 
-    const storedToken = await redis.get(`admin:csrf:${sessionToken}`);
-    if (!storedToken || storedToken !== csrfToken) {
+    // Derived from the session token, so this needs no storage and keeps
+    // working during a Redis outage.
+    if (!safeEquals(submitted, csrfTokenFor(sessionToken))) {
         return res.status(403).type('text/plain').send("Forbidden: Invalid CSRF token.");
     }
 
-    // Remove CSRF from body before processing
     delete req.body._csrf;
     next();
 };
@@ -138,8 +198,8 @@ async function logAdminAction(action, details = {}) {
             ...details,
             timestamp: new Date().toISOString()
         });
-        await redis.lpush('admin:audit_log', entry);
-        await redis.ltrim('admin:audit_log', 0, 499); // Keep last 500 entries
+        redis.fireAndForget(redis.lpush('admin:audit_log', entry), 'audit log');
+        redis.fireAndForget(redis.ltrim('admin:audit_log', 0, 499), 'audit log trim');
     } catch (e) {
         console.warn('[Audit Log] Failed to write:', e.message);
     }
@@ -151,50 +211,72 @@ router.get('/login', (req, res) => {
 });
 
 router.post('/login', express.urlencoded({ extended: true }), async (req, res) => {
-    const { password } = req.body;
-    const loginKey = `admin:login_attempts:${req.ip}`;
+    try {
+        const { password } = req.body;
+        const loginKey = `admin:login_attempts:${req.ip}`;
 
-    // Check for brute force lockout (5 failed attempts → 15 min lockout)
-    const attempts = await redis.get(loginKey);
-    if (attempts && parseInt(attempts) >= 5) {
-        return res.render('admin_login', { error: "Too many failed attempts. Try again in 15 minutes." });
+        if (!ADMIN_SECRET_SIGNATURE) {
+            console.error('FATAL: ADMIN_SECRET_SIGNATURE is not set — refusing all logins.');
+            return res.render('admin_login', { error: "Server is not configured. Check ADMIN_SECRET_SIGNATURE." });
+        }
+
+        // Brute-force lockout is best-effort: if the counter is unreachable the
+        // password is still required, and refusing every login because a cache
+        // is down would lock the operator out of their own panel.
+        const attempts = await redis.safely(redis.get(loginKey), null, 'login attempt counter', 1500);
+        if (attempts && parseInt(attempts, 10) >= 5) {
+            return res.render('admin_login', { error: "Too many failed attempts. Try again in 15 minutes." });
+        }
+
+        if (safeEquals(password || '', ADMIN_SECRET_SIGNATURE)) {
+            const sessionToken = createSessionToken();
+
+            res.cookie('admin_session', sessionToken, {
+                maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: true,
+                sameSite: 'strict', secure: process.env.NODE_ENV === 'production'
+            });
+            res.cookie('admin_csrf', csrfTokenFor(sessionToken), {
+                maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: false,
+                sameSite: 'strict', secure: process.env.NODE_ENV === 'production'
+            });
+
+            // Bookkeeping only — never make the operator wait for it
+            redis.fireAndForget(redis.del(loginKey), 'clear login attempts');
+            logAdminAction('login', { ip: req.ip });
+
+            return res.redirect('/admin');
+        }
+
+        // Track the failed attempt, best-effort
+        const newAttempts = await redis.safely(redis.incr(loginKey), null, 'record failed login', 1500);
+        if (newAttempts === 1) {
+            redis.fireAndForget(redis.expire(loginKey, 900), 'set lockout window');
+        }
+
+        return res.render('admin_login', { error: "Invalid Passphrase." });
+    } catch (err) {
+        console.error('Admin login failed:', err);
+        if (res.headersSent) return;
+        return res.render('admin_login', { error: "Could not sign you in. Please try again." });
     }
-
-    if (password === ADMIN_SECRET_SIGNATURE) {
-        // Clear failed attempts on successful login
-        await redis.del(loginKey);
-        // Generate random session token, store in Redis with 24h TTL
-        const sessionToken = crypto.randomBytes(32).toString('hex');
-        await redis.setex(`admin:session:${sessionToken}`, 86400, JSON.stringify({
-            loginAt: new Date().toISOString(),
-            ip: req.ip
-        }));
-        // Set session cookie (not the password!)
-        res.cookie('admin_session', sessionToken, { maxAge: ADMIN_SESSION_MAX_AGE_MS, httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
-        await logAdminAction('login', { ip: req.ip });
-        return res.redirect('/admin');
-    }
-
-    // Track failed attempt (15 min window)
-    const newAttempts = await redis.incr(loginKey);
-    if (newAttempts === 1) {
-        await redis.expire(loginKey, 900); // 15 min TTL
-    }
-
-    res.render('admin_login', { error: "Invalid Passphrase." });
 });
 
 router.get('/logout', async (req, res) => {
-    // Invalidate session in Redis
-    if (req.headers.cookie) {
-        const cookies = req.headers.cookie.split(';').map(c => c.trim());
-        const match = cookies.find(c => c.startsWith('admin_session='));
-        if (match) {
-            const token = match.split('=')[1];
-            await redis.del(`admin:session:${token}`);
-        }
+    const sessionToken = readCookie(req, 'admin_session');
+    const session = verifySessionToken(sessionToken);
+
+    // Record the revocation so the token cannot be reused before it expires.
+    // Best-effort: with Redis down the cookie is still cleared in this browser.
+    if (session && session.jti) {
+        const ttlSeconds = Math.max(1, Math.ceil((session.exp - Date.now()) / 1000));
+        await redis.safely(
+            redis.setex(`admin:revoked:${session.jti}`, ttlSeconds, '1'),
+            null, 'session revocation', 1500
+        );
     }
+
     res.clearCookie('admin_session');
+    res.clearCookie('admin_csrf');
     res.redirect('/admin/login');
 });
 
@@ -279,7 +361,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
             .map(country => ({ country, count: mergedCountryStats[country] }))
             .sort((a, b) => b.count - a.count);
 
-        const settingsStr = await redis.get('global_settings');
+        const settingsStr = await redis.safely(redis.get('global_settings'), null, 'global settings');
         const settings = settingsStr ? JSON.parse(settingsStr) : {
             maintenance: false,
             withdrawals: true,
@@ -287,11 +369,11 @@ router.get('/', checkAdminAuth, async (req, res) => {
             streak_reward: STREAK_BONUS_REWARD
         };
 
-        const questsStr = await redis.get('admin:dynamic_quests');
+        const questsStr = await redis.safely(redis.get('admin:dynamic_quests'), null, 'dynamic quests');
         const dynamicQuests = questsStr ? JSON.parse(questsStr) : {};
 
         // Fetch Ad Telemetry Data
-        const telemetryStr = await redis.get('admin:ad_telemetry');
+        const telemetryStr = await redis.safely(redis.get('admin:ad_telemetry'), null, 'ad telemetry');
         const telemetry = telemetryStr ? JSON.parse(telemetryStr) : {};
 
         // Fetch pending bounty submissions
@@ -314,7 +396,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
             order.user = await User.findOne({ telegram_id: order.telegram_id }).lean() || {};
         }
 
-        const storeConfigStr = await redis.get('admin:store_config');
+        const storeConfigStr = await redis.safely(redis.get('admin:store_config'), null, 'store config');
         const storeConfig = storeConfigStr ? JSON.parse(storeConfigStr) : {
             ...DEFAULT_STORE_CONFIG,
             ...DEFAULT_STARS_CONFIG,
@@ -328,7 +410,7 @@ router.get('/', checkAdminAuth, async (req, res) => {
 
 
         // Fetch recent quest submissions
-        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1);
+        const questSubmissionsRaw = await redis.safely(redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1), [], 'quest submissions') || [];
         const questSubmissions = questSubmissionsRaw.map(s => JSON.parse(s));
 
         res.render('admin_dashboard', { 
@@ -375,7 +457,7 @@ router.post('/settings', checkAdminAuth, verifyCsrfToken, express.urlencoded({ e
             reward_per_ad: parseInt(reward_per_ad) || DEFAULT_REWARD_PER_AD,
             streak_reward: parseInt(streak_reward) || STREAK_BONUS_REWARD
         };
-        await redis.set('global_settings', JSON.stringify(newSettings));
+        await redis.withTimeout(redis.set('global_settings', JSON.stringify(newSettings)));
         invalidateGlobalSettings();   // this process picks the change up immediately
         res.redirect('/admin');
     } catch (e) {
@@ -389,7 +471,7 @@ router.post('/store-config', checkAdminAuth, verifyCsrfToken, express.urlencoded
         // Start from what is currently stored so a blank field keeps its existing
         // value instead of snapping back to a literal, and fall back to the
         // shared defaults rather than numbers duplicated in this handler.
-        const existingStr = await redis.get('admin:store_config');
+        const existingStr = await redis.safely(redis.get('admin:store_config'), null, 'store config');
         const existing = existingStr ? JSON.parse(existingStr) : {};
         const base = { ...DEFAULT_STORE_CONFIG, ...DEFAULT_STARS_CONFIG, ...existing };
 
@@ -412,7 +494,7 @@ router.post('/store-config', checkAdminAuth, verifyCsrfToken, express.urlencoded
             newConfig[field] = req.body[field] === 'on';
         }
 
-        await redis.set('admin:store_config', JSON.stringify(newConfig));
+        await redis.withTimeout(redis.set('admin:store_config', JSON.stringify(newConfig)));
         await logAdminAction('store_config_update', { fields: Object.keys(req.body).length });
         res.redirect('/admin');
     } catch (e) {
@@ -534,7 +616,7 @@ router.post('/store-orders/action', checkAdminAuth, verifyCsrfToken, express.url
 router.post('/quests', checkAdminAuth, verifyCsrfToken, express.urlencoded({ extended: true }), async (req, res) => {
     try {
         const { action, key, title, url, pts, icon, tier_required, target_countries, is_telegram, timer, requires_comment_link, max_participants } = req.body;
-        const questsStr = await redis.get('admin:dynamic_quests');
+        const questsStr = await redis.safely(redis.get('admin:dynamic_quests'), null, 'dynamic quests');
         let quests = questsStr ? JSON.parse(questsStr) : {};
 
         if (action === 'create' && key && title && url && pts) {
@@ -555,7 +637,7 @@ router.post('/quests', checkAdminAuth, verifyCsrfToken, express.urlencoded({ ext
             delete quests[key];
         }
 
-        await redis.set('admin:dynamic_quests', JSON.stringify(quests));
+        await redis.withTimeout(redis.set('admin:dynamic_quests', JSON.stringify(quests)));
         res.redirect('/admin');
     } catch (e) {
         res.status(500).type('text/plain').send("Failed to manage quests");
@@ -568,7 +650,7 @@ router.post('/quests/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
         const { id, action } = req.body;
         if (!id || !action) return res.status(400).type('text/plain').send("Missing parameters");
 
-        const questSubmissionsRaw = await redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1);
+        const questSubmissionsRaw = await redis.safely(redis.lrange('admin:quest_submissions', 0, MAX_QUEST_SUBMISSIONS_LOG - 1), [], 'quest submissions') || [];
         let targetSub = null;
         let subIndex = -1;
         
@@ -605,13 +687,13 @@ router.post('/quests/action', checkAdminAuth, verifyCsrfToken, async (req, res) 
         
         // Invalidate cache so their dashboard updates instantly
         try {
-            await redis.del(`user:${targetSub.telegram_id}:profile`);
+            redis.fireAndForget(redis.del(`user:${targetSub.telegram_id}:profile`), 'cache purge');
         } catch (e) {
             console.warn("Failed to clear user cache", e);
         }
 
         // Remove from Redis list
-        await redis.lrem('admin:quest_submissions', 1, questSubmissionsRaw[subIndex]);
+        await redis.safely(redis.lrem('admin:quest_submissions', 1, questSubmissionsRaw[subIndex]), null, 'remove submission');
 
         res.redirect('/admin');
     } catch (e) {
@@ -691,9 +773,9 @@ router.post('/user-delete', checkAdminAuth, verifyCsrfToken, express.urlencoded(
     const { telegram_id } = req.body;
     try {
         await User.deleteOne({ telegram_id });
-        await redis.del(`user:${telegram_id}:profile`);
-        await redis.del(`lock:claim:${telegram_id}`);
-        await redis.del(`lock:payout:${telegram_id}`);
+        redis.fireAndForget(redis.del(`user:${telegram_id}:profile`), 'cache purge');
+        redis.fireAndForget(redis.del(`lock:claim:${telegram_id}`), 'cache purge');
+        redis.fireAndForget(redis.del(`lock:payout:${telegram_id}`), 'cache purge');
         await logAdminAction('user_delete', { target: telegram_id });
         res.redirect('/admin');
     } catch (e) {
@@ -718,7 +800,7 @@ router.post('/user-manage-balance', checkAdminAuth, verifyCsrfToken, express.url
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
             await user.save();
-            await redis.del(`user:${telegram_id}:profile`);
+            redis.fireAndForget(redis.del(`user:${telegram_id}:profile`), 'cache purge');
             await logAdminAction('balance_adjustment', { target: telegram_id, amount: amt, reason: reason || 'Manual' });
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
@@ -743,7 +825,7 @@ router.post('/user-x-verify', checkAdminAuth, verifyCsrfToken, express.urlencode
             }
             
             await user.save();
-            await redis.del(`user:${telegram_id}:profile`);
+            redis.fireAndForget(redis.del(`user:${telegram_id}:profile`), 'cache purge');
             
             // Notify user of tier upgrade
             const msg = `🎉 *Account Tier Updated* 🎉\n\nYour account has been manually reviewed and placed in the *${user.account_tier} Tier*.\nFollowers: ${user.x_followers}\nBlue Tick: ${user.x_blue_tick ? 'Yes' : 'No'}`;
@@ -772,7 +854,7 @@ router.post('/user-reset-cooldown', checkAdminAuth, verifyCsrfToken, express.url
             user.cooldown_until = 0;
             user.current_session_loop = 0;
             await user.save();
-            await redis.del(`user:${telegram_id}:profile`);
+            redis.fireAndForget(redis.del(`user:${telegram_id}:profile`), 'cache purge');
         }
         res.redirect(`/admin/user-lookup?q=${telegram_id}`);
     } catch (e) {

@@ -114,13 +114,25 @@ test('a payout cannot be resolved twice', async () => {
 // Store config: blank fields must preserve existing values, not reset to literals
 // ---------------------------------------------------------------------------
 
+/**
+ * Mints a session the same way routes/admin.js does: a signed, self-contained
+ * token with a CSRF value derived from it. No storage involved.
+ */
 async function adminSession() {
-    const redis = require('../services/redis');
     const crypto = require('crypto');
-    const token = crypto.randomBytes(16).toString('hex');
-    const csrf = crypto.randomBytes(16).toString('hex');
-    await redis.setex(`admin:session:${token}`, 300, JSON.stringify({ loginAt: 'now' }));
-    await redis.setex(`admin:csrf:${token}`, 300, csrf);
+    const { ADMIN_SESSION_MAX_AGE_MS } = require('../constants');
+
+    const payload = Buffer.from(JSON.stringify({
+        jti: crypto.randomBytes(12).toString('hex'),
+        iat: Date.now(),
+        exp: Date.now() + ADMIN_SESSION_MAX_AGE_MS
+    })).toString('base64url');
+    const sig = crypto.createHmac('sha256', harness.ADMIN_SECRET).update(payload).digest('hex');
+    const token = `${payload}.${sig}`;
+
+    const csrf = crypto.createHmac('sha256', harness.ADMIN_SECRET)
+        .update(`csrf:${token}`).digest('hex');
+
     return { cookie: `admin_session=${token}; admin_csrf=${csrf}`, csrf };
 }
 
