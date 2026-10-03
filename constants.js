@@ -60,6 +60,12 @@ const AD_MULTIPLIER_VIP = 2;
 const REDIS_OPERATION_TIMEOUT_MS = 3000;
 const USER_CACHE_TTL_SECONDS = 300;
 
+// --- Ad telemetry ---
+// The network name comes from the client, so only these are recorded. Anything
+// else would add a new entry to admin:ad_telemetry forever.
+const AD_TELEMETRY_NETWORKS = ['adsgram', 'monetag', 'onclicka'];
+const AD_TELEMETRY_MAX_ERROR_LENGTH = 200;
+
 // --- Quests ---
 const MAX_QUEST_SUBMISSIONS_LOG = 200;
 const DEFAULT_QUEST_TIMER_HOURS = 8;
@@ -144,6 +150,8 @@ module.exports = {
     AD_MULTIPLIER_VIP,
     REDIS_OPERATION_TIMEOUT_MS,
     USER_CACHE_TTL_SECONDS,
+    AD_TELEMETRY_NETWORKS,
+    AD_TELEMETRY_MAX_ERROR_LENGTH,
     MAX_QUEST_SUBMISSIONS_LOG,
     DEFAULT_QUEST_TIMER_HOURS,
     ADMIN_TELEGRAM_CHAT_ID,

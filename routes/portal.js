@@ -41,6 +41,7 @@ const {
     TIER_DAILY_WITHDRAWAL_LIMITS, DEFAULT_DAILY_WITHDRAWAL_LIMIT, GOLD_MIN_WITHDRAWAL_PTS,
     ADMIN_TELEGRAM_CHAT_ID, MS_PER_DAY, AD_MULTIPLIER_PREMIUM,
     REDIS_OPERATION_TIMEOUT_MS, USER_CACHE_TTL_SECONDS, MAX_QUEST_SUBMISSIONS_LOG,
+    AD_TELEMETRY_NETWORKS, AD_TELEMETRY_MAX_ERROR_LENGTH,
     DEFAULT_STORE_CONFIG, DEFAULT_STARS_CONFIG
 } = require('../constants');
 
@@ -957,13 +958,22 @@ router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData,
     try {
         const { network, status, errorMsg } = req.body;
         if (!network || !status) return res.status(400).json({ error: "Invalid payload" });
+        // Unknown networks/statuses are acknowledged but not stored.
+        if (!AD_TELEMETRY_NETWORKS.includes(network) || !['success', 'fail'].includes(status)) {
+            return res.status(200).json({ success: true });
+        }
 
         // Analytics only — a telemetry failure must never look like a failure of
         // the ad the user just watched, so this always reports success and the
         // storage error goes to the logs instead.
         try {
             const key = 'admin:ad_telemetry';
-            const telemetry = await readJsonConfig(key, {});
+            const stored = await readJsonConfig(key, {});
+            // Rebuild from known networks only, dropping entries written before the cap.
+            const telemetry = {};
+            for (const name of AD_TELEMETRY_NETWORKS) {
+                if (stored[name]) telemetry[name] = stored[name];
+            }
 
             if (!telemetry[network]) {
                 telemetry[network] = { success: 0, fail: 0, lastError: null, lastUpdate: null };
@@ -973,7 +983,7 @@ router.post(['/ad-telemetry', '/portal/ad-telemetry'], verifyTelegramWebAppData,
                 telemetry[network].success += 1;
             } else if (status === 'fail') {
                 telemetry[network].fail += 1;
-                telemetry[network].lastError = errorMsg || "Unknown error";
+                telemetry[network].lastError = String(errorMsg || "Unknown error").slice(0, AD_TELEMETRY_MAX_ERROR_LENGTH);
             }
 
             telemetry[network].lastUpdate = new Date().toISOString();

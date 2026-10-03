@@ -38,6 +38,22 @@ telegramQueue.on('error', (err) => {
     }
 });
 
+// removeOnFail only bounds jobs created after it was added; failed jobs from
+// before that are still in Redis. On boot, if the failed set is over the cap,
+// purge everything older than a day. Costs one ZCARD when there is nothing to do.
+const FAILED_JOB_CLEANUP_GRACE_MS = 24 * 60 * 60 * 1000;
+
+async function purgeLegacyFailedJobs() {
+    try {
+        const failedCount = await telegramQueue.getFailedCount();
+        if (failedCount <= MAX_RETAINED_FAILED_JOBS) return;
+        const removed = await telegramQueue.clean(FAILED_JOB_CLEANUP_GRACE_MS, 'failed');
+        console.log(`🧹 [Queue] Purged ${removed.length} old failed jobs (had ${failedCount}).`);
+    } catch (err) {
+        console.error('⚠️ [Queue] Failed-job cleanup skipped:', err.message);
+    }
+}
+purgeLegacyFailedJobs();
 
 // Worker processor to handle outbound notifications
 telegramQueue.process(async (job) => {

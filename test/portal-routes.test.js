@@ -284,3 +284,25 @@ test('ad claim is refused for a banned user', async () => {
     const res = await post('/portal/claim-ad-reward', { id: USER_ID });
     assert.strictEqual(res.status, 403);
 });
+
+test('ad telemetry ignores unknown networks so the stored blob stays bounded', async () => {
+    seedUser();
+    const redis = require('../services/redis');
+    await redis.set('admin:ad_telemetry', JSON.stringify({
+        monetag: { success: 4, fail: 0, lastError: null, lastUpdate: null },
+        junk_left_over: { success: 1, fail: 0, lastError: null, lastUpdate: null }
+    }));
+
+    for (let i = 0; i < 20; i++) {
+        const res = await post('/portal/ad-telemetry', { network: `random_${i}`, status: 'fail', errorMsg: 'x' });
+        assert.strictEqual(res.status, 200);
+    }
+    const res = await post('/portal/ad-telemetry', { network: 'monetag', status: 'fail', errorMsg: 'e'.repeat(5000) });
+    assert.strictEqual(res.status, 200);
+
+    const stored = JSON.parse(await redis.get('admin:ad_telemetry'));
+    assert.deepStrictEqual(Object.keys(stored), ['monetag']);
+    assert.strictEqual(stored.monetag.success, 4);
+    assert.strictEqual(stored.monetag.fail, 1);
+    assert.ok(stored.monetag.lastError.length <= 200);
+});
